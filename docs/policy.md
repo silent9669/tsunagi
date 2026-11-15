@@ -24,7 +24,9 @@ Design rules that keep it on the safe side:
 2. The Claude branch forwards requests unchanged. No credential extraction, no header rewriting, no identity spoofing.
 3. Never store, log or transmit Claude credentials or session tokens.
 4. Never pool a subscription or serve another person's requests.
-5. OpenCode keys live in local settings or the keychain, not in shell profiles, repositories or chat.
+5. Keys and Sign-in tokens for other Providers live in the macOS keychain, not in shell profiles, repositories or chat.
+
+Sign-in for other Providers follows each Provider's own rules, not Anthropic's. OpenAI runs an official "Sign in with ChatGPT" program that covers open-source and local personal apps. Google forbids third-party use of Gemini and Antigravity OAuth, so tsunagi never implements it. Where a Provider's stance is unconfirmed, Sign-in is opt-in and can be removed.
 
 Patterns that were flagged or banned elsewhere and are out of scope: relays that present subscription credentials on behalf of other clients, and proxies that disguise non-Claude-Code traffic as Claude Code.
 
