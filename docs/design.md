@@ -16,7 +16,8 @@ tsunagi router (localhost only)
    └── any other model                    ──►  default provider  (Key swapped in)
 ```
 
-- Listens on `127.0.0.1` only. Never binds a public interface.
+- Listens on `127.0.0.1` only, on a random port. Never binds a public interface.
+- A browser page can reach loopback ports, so every request must carry a per-session random token as the first path segment (`http://127.0.0.1:<port>/<token>`), have exactly the bound `Host`, and have no `Origin` header. Anything else gets 404 or 403 before any key is touched. Claude Code keeps path prefixes in its base URL (checked).
 - Reads the JSON body once to get `model`, then streams the body onward unchanged.
 - Responses are streamed back as they arrive (server-sent events must not be buffered).
 - A request with no JSON `model` (model list, health, `count_tokens`) goes to the Claude provider.
@@ -36,9 +37,13 @@ tsunagi router (localhost only)
 - Credentials live in the macOS keychain, written by `tsunagi login <provider>`. That command stores a Key, or runs a Sign-in when the Provider supports one. Never in a shell profile, a plain file or chat.
 - Sign-in is allowed only for Providers whose own docs permit third-party apps (see providers.md). The Router runs the OAuth flow, stores the tokens and refreshes them itself. Sign-in providers that are not explicitly sanctioned sit behind an opt-in flag.
 - Gemini and Antigravity sign-in is never implemented: Google prohibits it.
-- Dialect `anthropic` is forwarded as is. Dialects `openai-chat` and `openai-responses` need the Translator. ChatGPT and Grok Sign-in both end in `openai-responses`, so that Dialect comes first. Until then the user reaches those models through OpenCode Console or OpenRouter, which translate server-side.
+- Dialect `anthropic` is forwarded as is. Dialects `openai-chat` and `openai-responses` need the Translator. ChatGPT and Grok Sign-in both end in `openai-responses`, so that Dialect came first and is built (`internal/translate`). It never emits thinking blocks, because their signatures only mean something to Anthropic and a fake one would break the session when you switch back to Claude; thinking blocks in the history are dropped on the way out. `count_tokens` is answered locally with a rough size. Server-side tools such as web search are dropped. `openai-chat` is still missing: reach those models through OpenCode Console or OpenRouter, which translate server-side.
 - Strip prior `thinking` and `redacted_thinking` blocks and Anthropic-only beta headers on this branch only, and only after a test shows the Provider rejects them.
 - The Claude-originated background requests to a Haiku-class model stay on the Claude provider.
+
+## Terminal ownership
+
+The launcher draws the splash, then starts `claude` as a child with the terminal inherited. While the child runs the parent writes nothing to the terminal and forwards only termination signals, because Ctrl+C reaches the child through the terminal itself. Router events (time, provider, model, path, status, latency, never headers or bodies) go to `events-<pid>.jsonl` in the user cache directory, mode 0600, which `tsunagi watch` tails from another tab.
 
 ## Implementation
 
@@ -73,7 +78,8 @@ Plain text is enough. No Markdown plan file is required.
 
 ## Open questions
 
-- Does Claude Code accept `/model provider/model` names with a slash? If not, pick another separator.
+- Claude Code passes `provider/model` through unchanged (checked with Claude Code 2.1.308). It prints an unrecognized-model notice and assumes a 200k context window.
+- Does the claude.ai OAuth `Authorization` header reach the router? Not checked: the OAuth session in the test environment had expired.
 - Does typing multi-line text into the TUI submit early on the first newline? Long plans may need collapsing into one paragraph or a file reference.
 - Do non-Claude models reliably follow the "write the done file" instruction?
 - Do Claude "thinking" blocks cause errors after switching to a non-Claude model mid-conversation?

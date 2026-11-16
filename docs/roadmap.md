@@ -2,19 +2,21 @@
 
 ## Phase 1: router
 
-- [ ] Local HTTP server on `127.0.0.1`, random free port
-- [ ] Route by request `model`: `claude-*` to the Claude provider, `<provider>/<model>` to that Provider, others to the default Provider
-- [ ] Built-in Providers with the `anthropic` Dialect (see providers.md), plus user-defined ones in a config file
-- [ ] Requests without a JSON `model` go to the Claude provider
-- [ ] Streaming pass-through for server-sent events in both directions
-- [ ] Keys in the macOS keychain, written by `tsunagi login <provider>`; macOS only
-- [ ] No credential logging, verified by a test that greps logs for headers
-- [ ] Launcher that starts the router and runs Claude Code with the base URL scoped to that process
-- [ ] `/model` check: switch Claude to a non-Claude Provider and back in one session
+- [x] Local HTTP server on `127.0.0.1`, random free port
+- [x] Route by request `model`: `claude-*` to the Claude provider, `<provider>/<model>` to that Provider, others to the default Provider
+- [x] Built-in Providers with the `anthropic` Dialect (see providers.md), plus user-defined ones in a config file
+- [x] Requests without a JSON `model` go to the Claude provider
+- [x] Streaming pass-through for server-sent events in both directions
+- [x] Keys in the macOS keychain, written by `tsunagi login <provider>`; macOS only
+- [x] No credential logging, verified by a test that greps logs for headers
+- [x] Launcher that starts the router and runs Claude Code with the base URL scoped to that process
+- [ ] Verify with a real claude.ai login that the OAuth `Authorization` header reaches Anthropic through the router
+- [ ] `/model` switch in a live session (Claude to non-Claude and back)
 
 ## Phase 2: Sign-in and Responses Translator
 
-- [ ] Translator for `openai-responses`: request, streamed reply, tool calls, reasoning
+- [x] Translator for `openai-responses`: request, streamed and plain reply, tool calls, usage, errors (reasoning is dropped on purpose)
+- [ ] Verify the translator against the real OpenAI API with a Claude Code session (tool loop, `/model` back to Claude)
 - [ ] Sign-in flow with loopback callback, tokens in the keychain, automatic refresh
 - [ ] ChatGPT Sign-in via OpenAI's "Sign in with ChatGPT" (official, open-source/local eligible)
 - [ ] xAI Grok Sign-in (device code), opt-in flag

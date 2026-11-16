@@ -2,7 +2,7 @@
 
 Run Claude Code against Claude and many other providers' models from one terminal session, using your own keys and without touching your Claude subscription credentials.
 
-> **Status: design stage.** Nothing is built yet. This repository holds the design docs only.
+> **Status: Phase 2 in progress.** Router, launcher, keychain login, provider list and live watch work. `openai` and `xai` work with an API key through the Responses translator (tested against fake upstreams only, not yet against the real APIs). Sign-in (OAuth) and the chat-format translator are not built, so groq, together and mistral show as `soon`.
 
 ## Why
 
@@ -21,7 +21,7 @@ tsunagi is a small local router. Claude Code talks to it, and it forwards each r
 ## Goals
 
 - One Claude Code session, one `/model` picker, two providers.
-- The Claude branch is a byte-for-byte pass-through. No header rewriting, no token handling, no logging of credentials.
+- The Claude branch forwards the request body and headers unchanged. No header rewriting, no token handling, no logging of credentials.
 - Scoped to a terminal process. Your normal Claude desktop app and plain `claude` runs stay untouched.
 - macOS only for now.
 - Hand off a plan from a normal Claude session to a tsunagi session, and report back when done.
@@ -36,19 +36,27 @@ tsunagi is a small local router. Claude Code talks to it, and it forwards each r
 
 See [docs/design.md](docs/design.md) for the router, the model mapping and the plan hand-off loop. Read [docs/policy.md](docs/policy.md) before using it: routing Claude Code through a gateway is unsupported by Anthropic and carries account risk.
 
-## Planned usage
+## Usage
 
 ```bash
-tsunagi            # starts the local router and launches Claude Code through it
+go build -o tsunagi . && mv tsunagi /usr/local/bin/   # macOS, Go 1.27+
+tsunagi login opencode        # key is typed hidden, saved in the keychain
+tsunagi                       # splash, starts the router, launches claude through it
+tsunagi providers             # providers and key status
+tsunagi watch                 # live traffic, run it in a second terminal tab
 ```
 
 Inside the session:
 
 ```text
-/model claude-sonnet-5-5     # Claude, billed to your subscription
-/model opencode/minimax-m3   # OpenCode model, billed to your OpenCode plan
+/model claude-sonnet-5-5       # Claude, billed to your subscription
+/model opencode/minimax-m3     # OpenCode model, billed to your OpenCode plan
 /model deepseek/deepseek-v4-pro
 ```
+
+Claude Code prints a "does not recognize the model" notice for non-Claude names and assumes a 200k context window. The notice is cosmetic.
+
+Set `TSUNAGI_NO_ANIM=1` to skip animation, or `NO_COLOR=1` for plain text. Extra providers go in `~/.config/tsunagi/config.json`.
 
 ## Documents
 
