@@ -3,7 +3,6 @@ package router
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -32,8 +31,7 @@ func (rt *Router) forwardTranslated(w http.ResponseWriter, r *http.Request, body
 	}
 	key, err := rt.Key(p.Name)
 	if err != nil || key == "" {
-		writeErr(w, http.StatusUnauthorized, "authentication_error",
-			fmt.Sprintf("tsunagi: no key for %s. Run: tsunagi login %s", p.Name, p.Name))
+		writeErr(w, http.StatusUnauthorized, "authentication_error", keyMessage(p.Name, err))
 		return
 	}
 	endpoint, toReq, toStream, toReply := "/responses", translate.ToResponses, translate.StreamToAnthropic, translate.ReplyToAnthropic

@@ -7,10 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/silent9669/tsunagi/internal/provider"
@@ -64,7 +67,7 @@ func Parse(body []byte) ([]Entry, error) {
 		if api == "" {
 			api = defaultAPI[id]
 		}
-		if api == "" {
+		if !safeEndpoint(api) {
 			continue
 		}
 		e := Entry{ID: id, Name: p.Name, API: api, Dialect: string(d), Env: p.Env}
@@ -101,11 +104,11 @@ func Sync(c *http.Client, url string) (int, error) {
 		return 0, err
 	}
 	b, _ := json.Marshal(map[string]any{"fetched": time.Now().UTC(), "providers": entries})
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return 0, err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return 0, err
 	}
 	return len(entries), os.Rename(tmp, path)
@@ -130,4 +133,22 @@ func LoadFrom(path string) []Entry {
 
 func (e Entry) Provider() provider.Provider {
 	return provider.Provider{Name: e.ID, BaseURL: e.API, Dialect: provider.Dialect(e.Dialect)}
+}
+
+// safeEndpoint accepts only https URLs with a real host. The catalogue is
+// downloaded, so it must not be able to point a key at a plain-text, loopback
+// or private address, or hide a different host behind user info.
+func safeEndpoint(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Hostname() == "" {
+		return false
+	}
+	h := strings.ToLower(u.Hostname())
+	if h == "localhost" || strings.HasSuffix(h, ".localhost") || strings.HasSuffix(h, ".local") {
+		return false
+	}
+	if ip := net.ParseIP(h); ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast()) {
+		return false
+	}
+	return true
 }

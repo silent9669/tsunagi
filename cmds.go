@@ -8,6 +8,7 @@ import (
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/keychain"
 	"github.com/silent9669/tsunagi/internal/provider"
+	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
@@ -16,20 +17,55 @@ func fail(t *ui.Term, format string, a ...any) int {
 	return 1
 }
 
-func findProvider(t *ui.Term, args []string) (provider.Provider, int) {
+func findProvider(t *ui.Term, args []string) (provider.Provider, config.Config, int) {
 	cfg, err := config.Load()
 	if err != nil {
-		return provider.Provider{}, fail(t, "%v", err)
+		return provider.Provider{}, cfg, fail(t, "%v", err)
 	}
 	if len(args) != 1 {
-		return provider.Provider{}, fail(t, "name one provider: %s", providerNames(cfg))
+		return provider.Provider{}, cfg, fail(t, "name one provider: %s", providerNames(cfg))
 	}
 	for _, p := range cfg.All() {
 		if p.Name == args[0] {
-			return p, 0
+			return p, cfg, 0
 		}
 	}
-	return provider.Provider{}, fail(t, "unknown provider %q. Known: %s", args[0], providerNames(cfg))
+	return provider.Provider{}, cfg, fail(t, "unknown provider %q. Known: %s", args[0], providerNames(cfg))
+}
+
+// pinHost is the endpoint host a key is pinned to. Only catalogue providers
+// are pinned: their endpoint comes from a downloaded list, the others from the
+// user.
+func pinHost(cfg config.Config, p provider.Provider) string {
+	for _, c := range cfg.Catalog {
+		if c.Name == p.Name {
+			return config.Host(c.BaseURL)
+		}
+	}
+	return ""
+}
+
+// keyFor returns the key lookup the router uses. It refuses to hand a
+// catalogue provider's key to an endpoint other than the one it was saved for.
+func keyFor(cfg config.Config) func(string) (string, error) {
+	catalog := map[string]provider.Provider{}
+	for _, p := range cfg.Catalog {
+		catalog[p.Name] = p
+	}
+	return func(name string) (string, error) {
+		if p, ok := catalog[name]; ok {
+			host := config.Host(p.BaseURL)
+			switch pin := config.Pin(name); {
+			case pin == "":
+				config.SetKeyed(name, true, host) // key saved before pinning existed
+			case pin != host:
+				return "", router.KeyError{Msg: fmt.Sprintf(
+					"tsunagi: the catalogue now sends %s to %s, but its key was saved for %s. Run: tsunagi sync, then tsunagi login %s if that is expected",
+					name, host, pin, name)}
+			}
+		}
+		return keychain.Get(name)
+	}
 }
 
 func providerNames(cfg config.Config) string {
@@ -41,7 +77,7 @@ func providerNames(cfg config.Config) string {
 }
 
 func cmdLogin(t *ui.Term, args []string) int {
-	p, code := findProvider(t, args)
+	p, cfg, code := findProvider(t, args)
 	if code != 0 {
 		return code
 	}
@@ -56,20 +92,21 @@ func cmdLogin(t *ui.Term, args []string) int {
 		sp.Stop(false, err.Error())
 		return 1
 	}
+	config.SetKeyed(p.Name, true, pinHost(cfg, p))
 	pause(t)
 	sp.Stop(true, p.Name+" saved")
 	return 0
 }
 
 func cmdLogout(t *ui.Term, args []string) int {
-	p, code := findProvider(t, args)
+	p, _, code := findProvider(t, args)
 	if code != 0 {
 		return code
 	}
 	if err := keychain.Delete(p.Name); err != nil {
 		return fail(t, "no key stored for %s", p.Name)
 	}
-	config.SetKeyed(p.Name, false)
+	config.SetKeyed(p.Name, false, "")
 	t.Printf("  %s %s\n", t.Paint(ui.Mint, "[ok]"), p.Name+" key removed")
 	return 0
 }

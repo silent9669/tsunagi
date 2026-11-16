@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,6 +25,20 @@ import (
 )
 
 const maxBody = 64 << 20
+
+// KeyError carries a message about a key that must reach the user as is.
+type KeyError struct{ Msg string }
+
+func (e KeyError) Error() string { return e.Msg }
+
+// keyMessage explains why no key could be used.
+func keyMessage(name string, err error) string {
+	var ke KeyError
+	if errors.As(err, &ke) {
+		return ke.Msg
+	}
+	return fmt.Sprintf("tsunagi: no key for %s. Run: tsunagi login %s", name, name)
+}
 
 type Router struct {
 	// Host is the exact Host header the router accepts, e.g. "127.0.0.1:5000".

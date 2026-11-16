@@ -3,6 +3,7 @@
 package keychain
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -35,8 +36,32 @@ func Get(name string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func Set(name, key string) error {
-	if !validKey.MatchString(key) {
+// Blobs (sign-in token sets) are stored base64url-encoded, so they use the same
+// safe alphabet but may be much longer than an API key.
+var validBlob = regexp.MustCompile(`^[A-Za-z0-9_-]{8,}$`)
+
+func Set(name, key string) error { return set(name, key, validKey) }
+
+// SetBlob stores up to 1500 bytes, such as a small JSON record.
+func SetBlob(name string, data []byte) error {
+	// `security -i` cuts long input lines, so keep blobs small. Store a refresh
+	// token and ids here, not whole token sets.
+	if len(data) > 1500 {
+		return errors.New("blob too large for the keychain")
+	}
+	return set(name, base64.RawURLEncoding.EncodeToString(data), validBlob)
+}
+
+func GetBlob(name string) ([]byte, error) {
+	v, err := Get(name)
+	if err != nil {
+		return nil, err
+	}
+	return base64.RawURLEncoding.DecodeString(v)
+}
+
+func set(name, key string, valid *regexp.Regexp) error {
+	if !valid.MatchString(key) {
 		return errors.New("key has unexpected characters or length")
 	}
 	if !regexp.MustCompile(`^[a-z0-9-]+$`).MatchString(name) {

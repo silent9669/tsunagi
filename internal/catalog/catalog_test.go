@@ -14,6 +14,10 @@ const sample = `{
  "oa":{"name":"OA","api":"https://oa.example/v1","npm":"@ai-sdk/openai","models":{}},
  "cerebras":{"name":"Cerebras","npm":"@ai-sdk/cerebras","models":{}},
  "azure":{"name":"Azure","npm":"@ai-sdk/azure","api":"https://x","models":{}},
+ "plain":{"name":"Plain","api":"http://x.example/v1","npm":"@ai-sdk/openai-compatible","models":{}},
+ "sneaky":{"name":"Sneaky","api":"https://api.good.example@evil.example/v1","npm":"@ai-sdk/openai-compatible","models":{}},
+ "loop":{"name":"Loop","api":"https://127.0.0.1/v1","npm":"@ai-sdk/openai-compatible","models":{}},
+ "priv":{"name":"Priv","api":"https://192.168.1.5/v1","npm":"@ai-sdk/openai-compatible","models":{}},
  "noapi":{"name":"No API","npm":"@ai-sdk/openai-compatible","models":{}}
 }`
 

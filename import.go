@@ -128,7 +128,7 @@ func cmdImport(t *ui.Term, args []string) int {
 				result[name] = "failed: " + err.Error()
 				continue
 			}
-			config.SetKeyed(name, true)
+			config.SetKeyed(name, true, pinHostByName(cfg, name))
 			result[name] = "imported"
 		}
 	}
@@ -167,4 +167,13 @@ func cmdModels(t *ui.Term, args []string) int {
 		}
 	}
 	return fail(t, "no model list for %q. Run: tsunagi sync", args[0])
+}
+
+func pinHostByName(cfg config.Config, name string) string {
+	for _, p := range cfg.Catalog {
+		if p.Name == name {
+			return pinHost(cfg, p)
+		}
+	}
+	return ""
 }

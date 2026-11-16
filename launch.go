@@ -52,7 +52,7 @@ func launch(t *ui.Term, args []string) int {
 		sp.Stop(false, err.Error())
 		return 1
 	}
-	rt := router.New(host, token, cfg.All(), cfg.Default, keychain.Get)
+	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg))
 	if dir, err := events.Dir(); err == nil {
 		if w, err := events.NewWriter(dir); err == nil {
 			defer w.Close()
