@@ -47,9 +47,11 @@ type Router struct {
 	Token     string
 	Providers map[string]provider.Provider
 	Default   string
-	Key       func(provider string) (string, error)
-	Claude    *url.URL
-	OnEvent   func(events.Event)
+	// Aliases rewrite a requested model name before routing.
+	Aliases map[string]string
+	Key     func(provider string) (string, error)
+	Claude  *url.URL
+	OnEvent func(events.Event)
 
 	transport http.RoundTripper
 	guarded   http.RoundTripper // for catalogue providers
@@ -125,15 +127,33 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body = b
 	}
 	model := peekModel(body)
-	d := rt.route(model)
+	resolved := model
+	if a, ok := rt.Aliases[model]; ok {
+		resolved = a
+	}
+	d := rt.route(resolved)
 
 	rec := &recorder{ResponseWriter: w, status: http.StatusOK}
 	name := d.provider
-	if name == "" {
-		name = "claude"
-		rt.forwardClaude(rec, r, body)
-	} else {
+	switch {
+	case name != "":
 		rt.forwardProvider(rec, r, body, model, d)
+	default:
+		name = "claude"
+		if resolved != model {
+			// An alias pointed a custom name at a Claude model.
+			nb, err := setModel(body, resolved)
+			if err != nil {
+				writeErr(rec, http.StatusBadRequest, "invalid_request_error", "tsunagi: cannot rewrite model")
+				break
+			}
+			body = nb
+			r.ContentLength = int64(len(nb))
+			r.Header.Set("Content-Length", strconv.Itoa(len(nb)))
+		}
+		if rec.status == http.StatusOK && !rec.wrote {
+			rt.forwardClaude(rec, r, body)
+		}
 	}
 	if rt.OnEvent != nil {
 		rt.OnEvent(events.Event{

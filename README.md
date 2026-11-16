@@ -47,6 +47,7 @@ tsunagi import opencode       # reuse the providers and API keys you set up in o
 tsunagi sync                  # fetch the models.dev catalogue (about 300 providers)
 tsunagi providers [--all]     # providers and key status
 tsunagi models deepseek       # model names to type after /model
+tsunagi ping --tool <model>   # one real test request through the router (add --tool to test tool calls)
 tsunagi watch                 # live traffic, run it in a second terminal tab
 ```
 
@@ -61,7 +62,7 @@ Inside the session:
 
 Claude Code prints a "does not recognize the model" notice for non-Claude names and assumes a 200k context window. The notice is cosmetic.
 
-Set `TSUNAGI_NO_ANIM=1` to skip animation, or `NO_COLOR=1` for plain text. Extra providers go in `~/.config/tsunagi/config.json` (`name`, `base_url`, `dialect`). Any provider in the catalogue works as `/model <provider>/<model>` once it has a key; OAuth logins in opencode cannot be imported.
+Set `TSUNAGI_NO_ANIM=1` to skip animation, or `NO_COLOR=1` for plain text. Extra providers go in `~/.config/tsunagi/config.json` (`name`, `base_url`, `dialect`). The same file takes `"models": {"claude-haiku-5-5": "opencode/glm-5.3", "fast": "deepseek/deepseek-v4-flash"}` to rewrite a model name before routing, for example to send Claude Code's background haiku calls to a cheaper provider. Any provider in the catalogue works as `/model <provider>/<model>` once it has a key; OAuth logins in opencode cannot be imported.
 
 ## Documents
 

@@ -54,6 +54,7 @@ func launch(t *ui.Term, args []string) int {
 	}
 	gpt := newChatGPT()
 	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg, gpt))
+	rt.Aliases = cfg.Aliases
 	if dir, err := events.Dir(); err == nil {
 		if w, err := events.NewWriter(dir); err == nil {
 			defer w.Close()

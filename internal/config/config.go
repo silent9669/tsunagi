@@ -14,6 +14,9 @@ import (
 
 type Config struct {
 	Default string
+	// Aliases rewrite a model name before routing, e.g. "fast" or the
+	// "claude-haiku-5-5" Claude Code uses for background work.
+	Aliases map[string]string
 	// Providers are the built-in ones plus the user's own.
 	Providers []provider.Provider
 	// Catalog holds providers from the synced models.dev list that are not in
@@ -29,6 +32,7 @@ func (c Config) All() []provider.Provider {
 type file struct {
 	Default   string              `json:"default"`
 	Providers []provider.Provider `json:"providers"`
+	Models    map[string]string   `json:"models"`
 }
 
 // Path is ~/.config/tsunagi/config.json.
@@ -58,9 +62,25 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-// Save writes the user's own providers and default back to the config file.
+// Save writes the user's own providers and default back to the config file,
+// keeping every other setting in it (such as model aliases).
 func Save(path string, def string, user []provider.Provider) error {
-	b, err := json.MarshalIndent(file{Default: def, Providers: user}, "", "  ")
+	doc := map[string]json.RawMessage{}
+	if b, err := os.ReadFile(path); err == nil {
+		if err := json.Unmarshal(b, &doc); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+	}
+	pb, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+	doc["providers"] = pb
+	if def != "" {
+		db, _ := json.Marshal(def)
+		doc["default"] = db
+	}
+	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -105,6 +125,7 @@ func LoadFrom(path string) (Config, error) {
 	if f.Default != "" {
 		cfg.Default = f.Default
 	}
+	cfg.Aliases = f.Models
 	for _, up := range f.Providers {
 		if up.Name == "" || up.BaseURL == "" {
 			return cfg, fmt.Errorf("%s: provider needs name and base_url", path)

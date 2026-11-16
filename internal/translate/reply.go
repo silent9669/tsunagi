@@ -104,6 +104,15 @@ func ErrorToAnthropic(status int, body []byte) []byte {
 	}
 	if json.Unmarshal(body, &e) == nil && e.Error.Message != "" {
 		msg = e.Error.Message
+	} else {
+		var list []struct { // some providers wrap the error in an array
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(body, &list) == nil && len(list) > 0 && list[0].Error.Message != "" {
+			msg = list[0].Error.Message
+		}
 	}
 	if len(msg) > 2000 {
 		msg = msg[:2000]

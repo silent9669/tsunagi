@@ -477,3 +477,19 @@ func TestSignInProviderForcesStreamAndAssemblesPlainReply(t *testing.T) {
 		t.Fatalf("reply = %s", b)
 	}
 }
+
+func TestAliasesRewriteModelBeforeRouting(t *testing.T) {
+	e := setup(t)
+	e.rt.Aliases = map[string]string{
+		"claude-haiku-5-5": "opencode/glm-5.3", // background work to a cheap provider
+		"fast":             "claude-sonnet-5-5",
+	}
+	e.post(t, "/v1/messages", `{"model":"claude-haiku-5-5","messages":[]}`, nil).Body.Close()
+	if e.oc.hits != 1 || !bytes.Contains(e.oc.body, []byte(`"model":"glm-5.3"`)) || e.claude.hits != 0 {
+		t.Fatalf("haiku alias: oc=%d claude=%d body=%s", e.oc.hits, e.claude.hits, e.oc.body)
+	}
+	e.post(t, "/v1/messages", `{"model":"fast","messages":[]}`, nil).Body.Close()
+	if e.claude.hits != 1 || !bytes.Contains(e.claude.body, []byte(`"model":"claude-sonnet-5-5"`)) {
+		t.Fatalf("claude alias: hits=%d body=%s", e.claude.hits, e.claude.body)
+	}
+}

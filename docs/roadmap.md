@@ -23,7 +23,7 @@
 ## Phase 2: Sign-in and Responses Translator
 
 - [x] Translator for `openai-responses`: request, streamed and plain reply, tool calls, usage, errors (reasoning is dropped on purpose)
-- [ ] Verify the translator against the real OpenAI API with a Claude Code session (tool loop, `/model` back to Claude)
+- [ ] Verify the translators with a successful reply from a real Responses and a real chat provider (`ping`): Ollama Cloud and Google answered with provider errors only (no credits, key rejected), so the success path is still checked by fake upstreams only
 - [x] Sign-in flow with loopback callback, ID token verification, rotating refresh token with a cross-process lock (refresh token in an owner-only file, as OpenAI's guide describes; the keychain cannot hold long values through `security -i`)
 - [x] ChatGPT Sign-in via OpenAI's "Sign in with ChatGPT" (official, open-source/local eligible); tested against a fake issuer, the authorize endpoint accepts our request (302 to log-in), a full browser sign-in is not yet verified
 - [ ] xAI Grok Sign-in (device code), opt-in flag
@@ -40,7 +40,8 @@
 ## Phase 4: Chat Translator and polish
 
 - [x] Translator for `openai-chat` (Groq, Together, Mistral, any OpenAI-compatible endpoint); built early because the models.dev catalogue is mostly this Dialect
-- [ ] Model mapping config for Opus, Sonnet and Haiku slots, including background requests
+- [x] Model aliases (`models` in config.json) rewrite any model name before routing, including Claude Code's background haiku requests
+- [x] `tsunagi ping [--tool] <model>` sends one real request through the router; verified against OpenRouter (passthrough, tool call) with a real key
 - [ ] Clear error when a Provider rejects a request
 - [ ] Packaging (Homebrew tap)
 

@@ -27,6 +27,8 @@ func run(args []string) int {
 			return cmdSync(t)
 		case "models":
 			return cmdModels(t, args[1:])
+		case "ping":
+			return cmdPing(t, args[1:])
 		case "import":
 			return cmdImport(t, args[1:])
 		case "watch":
@@ -52,6 +54,7 @@ func cmdHelp(t *ui.Term) int {
 		{"tsunagi import opencode", "take providers and keys from opencode"},
 		{"tsunagi sync", "refresh the provider catalogue"},
 		{"tsunagi models <provider>", "list a provider's model names"},
+		{"tsunagi ping [--tool] <model>", "send one test request through the router"},
 		{"tsunagi watch", "live traffic from a running session"},
 	}
 	for _, r := range rows {

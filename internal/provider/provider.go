@@ -47,6 +47,7 @@ func Builtin() []Provider {
 		{Name: "xai", BaseURL: "https://api.x.ai/v1", Dialect: OpenAIResponses},
 		{Name: "groq", BaseURL: "https://api.groq.com/openai/v1", Dialect: OpenAIChat},
 		{Name: "together", BaseURL: "https://api.together.xyz/v1", Dialect: OpenAIChat},
+		{Name: "google", BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai", Dialect: OpenAIChat},
 		{Name: "mistral", BaseURL: "https://api.mistral.ai/v1", Dialect: OpenAIChat},
 	}
 }

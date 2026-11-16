@@ -343,3 +343,10 @@ func TestChatReplyToAnthropic(t *testing.T) {
 		t.Fatalf("got %s", b)
 	}
 }
+
+func TestErrorToAnthropicArrayWrapped(t *testing.T) {
+	b := ErrorToAnthropic(401, []byte(`[{"error":{"code":401,"message":"API key not valid."}}]`))
+	if !strings.Contains(string(b), `"message":"API key not valid."`) || !strings.Contains(string(b), "authentication_error") {
+		t.Fatalf("got %s", b)
+	}
+}
