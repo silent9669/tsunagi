@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/events"
-	"github.com/silent9669/tsunagi/internal/provider"
 	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
@@ -52,8 +52,8 @@ func launch(t *ui.Term, args []string) int {
 		sp.Stop(false, err.Error())
 		return 1
 	}
-	gpt := newChatGPT()
-	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg, gpt))
+	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg))
+	rt.Accounts = accountsOf
 	rt.Aliases = cfg.Aliases
 	if dir, err := events.Dir(); err == nil {
 		if w, err := events.NewWriter(dir); err == nil {
@@ -77,21 +77,23 @@ func launch(t *ui.Term, args []string) int {
 	sp.Stop(true, claude)
 
 	sp = t.Spin("providers")
-	var ready []string
-	byName := map[string]provider.Provider{}
+	var names []string
 	for _, p := range cfg.All() {
-		byName[p.Name] = p
-	}
-	for _, n := range config.Keyed() {
-		if p, ok := byName[n]; ok && p.Ready() && !p.Local && hasLogin(gpt, p) && !(p.Untrusted && config.Pin(n) == "") {
-			ready = append(ready, n)
+		if !p.Ready() || p.Local {
+			continue
+		}
+		switch n := ready(p); {
+		case n == 1:
+			names = append(names, p.Name)
+		case n > 1:
+			names = append(names, fmt.Sprintf("%s x%d", p.Name, n))
 		}
 	}
 	pause(t)
-	if len(ready) == 0 {
+	if len(names) == 0 {
 		sp.Stop(true, "no keys yet. Run: tsunagi login "+cfg.Default)
 	} else {
-		sp.Stop(true, strings.Join(ready, ", "))
+		sp.Stop(true, strings.Join(names, ", "))
 	}
 	t.Printf("\n")
 

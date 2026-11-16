@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
@@ -20,6 +21,13 @@ type Event struct {
 	Path     string    `json:"path"`
 	Status   int       `json:"status"`
 	Millis   int64     `json:"ms"`
+	// Account is the key or sign-in used, such as "openai" or "openai.work".
+	Account string `json:"account,omitempty"`
+	// In and Out are token counts the reply reported, when it reported them.
+	In  int `json:"in,omitempty"`
+	Out int `json:"out,omitempty"`
+	// Skipped counts accounts passed over (rate limited, out of quota) first.
+	Skipped int `json:"skipped,omitempty"`
 }
 
 // Dir is the private state directory, created on demand.
@@ -37,11 +45,11 @@ type Writer struct {
 	f  *os.File
 }
 
-// NewWriter opens events-<pid>.jsonl in dir and removes files older than a day.
+// NewWriter opens events-<pid>.jsonl in dir and removes files older than a week.
 func NewWriter(dir string) (*Writer, error) {
 	old, _ := filepath.Glob(filepath.Join(dir, "events-*.jsonl"))
 	for _, p := range old {
-		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) > 24*time.Hour {
+		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) > 7*24*time.Hour {
 			os.Remove(p)
 		}
 	}
@@ -114,5 +122,25 @@ func (t *Tail) Poll() []Event {
 		}
 		data = data[i+1:]
 	}
+	return out
+}
+
+// ReadAll returns every event in dir since the given time, oldest first.
+func ReadAll(dir string, since time.Time) []Event {
+	files, _ := filepath.Glob(filepath.Join(dir, "events-*.jsonl"))
+	var out []Event
+	for _, p := range files {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		for _, line := range bytes.Split(b, []byte("\n")) {
+			var e Event
+			if len(line) > 0 && json.Unmarshal(line, &e) == nil && !e.Time.Before(since) {
+				out = append(out, e)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Time.Before(out[j].Time) })
 	return out
 }

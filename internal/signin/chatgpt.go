@@ -42,7 +42,10 @@ var ErrNotSignedIn = errors.New("not signed in to ChatGPT. Run: tsunagi login ch
 
 type ChatGPT struct {
 	// Dir holds the credential files (owner-only).
-	Dir      string
+	Dir string
+	// Label names the account ("" for the default one). Each account has its
+	// own registration, tokens and refresh lock.
+	Label    string
 	HTTP     *http.Client
 	Issuer   string
 	Resource string
@@ -80,11 +83,28 @@ type record struct {
 }
 
 type host struct {
-	ID       string `json:"ext_agent_host_id"`
-	ClientID string `json:"client_id,omitempty"`
+	ID string `json:"ext_agent_host_id"`
 }
 
 func (c *ChatGPT) path(name string) string { return filepath.Join(c.Dir, name) }
+
+// file names a per-account file: chatgpt-auth.json, or chatgpt.work-auth.json.
+func (c *ChatGPT) file(kind string) string {
+	if c.Label == "" {
+		return "chatgpt-" + kind
+	}
+	return "chatgpt." + c.Label + "-" + kind
+}
+
+type clientFile struct {
+	ClientID string `json:"client_id"`
+}
+
+func (c *ChatGPT) savedClient() string {
+	var cf clientFile
+	c.readJSON(c.file("client.json"), &cf)
+	return cf.ClientID
+}
 
 func (c *ChatGPT) writeJSON(name string, v any) error {
 	b, err := json.Marshal(v)
@@ -125,23 +145,19 @@ func (c *ChatGPT) loadHost() (host, error) {
 // Signed reports whether a sign-in is stored.
 func (c *ChatGPT) Signed() bool {
 	var r record
-	return c.readJSON("chatgpt-auth.json", &r) == nil && r.RefreshToken != ""
+	return c.readJSON(c.file("auth.json"), &r) == nil && r.RefreshToken != ""
 }
 
 func (c *ChatGPT) Email() string {
 	var r record
-	c.readJSON("chatgpt-auth.json", &r)
+	c.readJSON(c.file("auth.json"), &r)
 	return r.Email
 }
 
 // NewRegistration forgets the saved client, so the next sign-in registers
 // again and can pick another workspace.
 func (c *ChatGPT) NewRegistration() {
-	var h host
-	if c.readJSON("chatgpt-host.json", &h) == nil {
-		h.ClientID = ""
-		c.writeJSON("chatgpt-host.json", h)
-	}
+	os.Remove(c.path(c.file("client.json")))
 }
 
 func randB64(n int) (string, error) {
@@ -217,7 +233,7 @@ func (c *ChatGPT) SignIn(ctx context.Context, announce func(authURL string)) (st
 	go srv.Serve(ln)
 	defer srv.Close()
 
-	clientID := h.ClientID
+	clientID := c.savedClient()
 	q := url.Values{
 		"response_type":         {"code"},
 		"redirect_uri":          {redirect},
@@ -262,8 +278,7 @@ func (c *ChatGPT) SignIn(ctx context.Context, announce func(authURL string)) (st
 		clientID = cb.clientID
 		// Keep the issued id before exchanging the code, so a failed exchange
 		// does not force a second registration.
-		h.ClientID = clientID
-		if err := c.writeJSON("chatgpt-host.json", h); err != nil {
+		if err := c.writeJSON(c.file("client.json"), clientFile{clientID}); err != nil {
 			return "", err
 		}
 	case cb.clientID != "" && cb.clientID != clientID:
@@ -287,7 +302,7 @@ func (c *ChatGPT) SignIn(ctx context.Context, announce func(authURL string)) (st
 	if err != nil {
 		return "", err
 	}
-	if err := c.writeJSON("chatgpt-auth.json", record{
+	if err := c.writeJSON(c.file("auth.json"), record{
 		ClientID: clientID, RefreshToken: tok.RefreshToken, Email: id.Email, Subject: id.Subject,
 	}); err != nil {
 		return "", err
@@ -357,7 +372,7 @@ func (c *ChatGPT) AccessToken(ctx context.Context) (string, error) {
 	if err := os.MkdirAll(c.Dir, 0o700); err != nil {
 		return "", err
 	}
-	lock, err := os.OpenFile(c.path("chatgpt.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	lock, err := os.OpenFile(c.path(c.file("lock")), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return "", err
 	}
@@ -368,7 +383,7 @@ func (c *ChatGPT) AccessToken(ctx context.Context) (string, error) {
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
 
 	var r record
-	if err := c.readJSON("chatgpt-auth.json", &r); err != nil || r.RefreshToken == "" {
+	if err := c.readJSON(c.file("auth.json"), &r); err != nil || r.RefreshToken == "" {
 		return "", ErrNotSignedIn
 	}
 	tok, err := c.token(ctx, url.Values{
@@ -384,7 +399,7 @@ func (c *ChatGPT) AccessToken(ctx context.Context) (string, error) {
 	}
 	if tok.RefreshToken != "" {
 		r.RefreshToken = tok.RefreshToken
-		if err := c.writeJSON("chatgpt-auth.json", r); err != nil {
+		if err := c.writeJSON(c.file("auth.json"), r); err != nil {
 			return "", err
 		}
 	}
@@ -397,7 +412,7 @@ func (c *ChatGPT) AccessToken(ctx context.Context) (string, error) {
 // for the next sign-in.
 func (c *ChatGPT) SignOut(ctx context.Context) (bool, error) {
 	var r record
-	if err := c.readJSON("chatgpt-auth.json", &r); err != nil {
+	if err := c.readJSON(c.file("auth.json"), &r); err != nil {
 		return false, ErrNotSignedIn
 	}
 	revoked := false
@@ -413,7 +428,7 @@ func (c *ChatGPT) SignOut(ctx context.Context) (bool, error) {
 	c.mu.Lock()
 	c.access = ""
 	c.mu.Unlock()
-	return revoked, os.Remove(c.path("chatgpt-auth.json"))
+	return revoked, os.Remove(c.path(c.file("auth.json")))
 }
 
 type Model struct {

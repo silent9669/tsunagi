@@ -39,7 +39,7 @@ func Set(name, key string) error {
 	if !validKey.MatchString(key) {
 		return errors.New("key has unexpected characters or length")
 	}
-	if !regexp.MustCompile(`^[a-z0-9-]+$`).MatchString(name) {
+	if !regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*$`).MatchString(name) {
 		return errors.New("bad provider name")
 	}
 	cmd := exec.Command("security", "-i")

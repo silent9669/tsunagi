@@ -164,7 +164,7 @@ func TestSignInRegistersThenReusesClientAndRefreshRotates(t *testing.T) {
 	if !c.Signed() || c.Email() != "me@example.com" {
 		t.Fatal("not recorded as signed in")
 	}
-	for _, name := range []string{"chatgpt-auth.json", "chatgpt-host.json"} {
+	for _, name := range []string{"chatgpt-auth.json", "chatgpt-host.json", "chatgpt-client.json"} {
 		if fi, err := os.Stat(filepath.Join(c.Dir, name)); err != nil || fi.Mode().Perm() != 0o600 {
 			t.Fatalf("%s: %v %v", name, fi, err)
 		}
@@ -248,15 +248,45 @@ func TestSignOutRevokesAndKeepsRegistration(t *testing.T) {
 	if _, err := c.AccessToken(ctx(t)); err != ErrNotSignedIn {
 		t.Fatalf("err = %v", err)
 	}
-	var h host
-	c.readJSON("chatgpt-host.json", &h)
-	if h.ClientID != "oaiapp_1" {
-		t.Fatalf("registration lost: %+v", h)
+	if c.savedClient() != "oaiapp_1" {
+		t.Fatal("registration lost on sign-out")
 	}
 	c.NewRegistration()
-	h = host{}
+	var h host
 	c.readJSON("chatgpt-host.json", &h)
-	if h.ClientID != "" || h.ID == "" {
-		t.Fatalf("NewRegistration should clear only the client id: %+v", h)
+	if c.savedClient() != "" || h.ID == "" {
+		t.Fatalf("NewRegistration should clear only the client id: %q %+v", c.savedClient(), h)
+	}
+}
+
+func TestAccountsKeepSeparateFilesAndRegistrations(t *testing.T) {
+	f := newFake(t)
+	dir := t.TempDir()
+	a, b := f.client(t), f.client(t)
+	a.Dir, b.Dir = dir, dir
+	b.Label = "work"
+	if _, err := a.SignIn(ctx(t), nil); err != nil {
+		t.Fatal(err)
+	}
+	if b.Signed() {
+		t.Fatal("the work account must not see the default account's sign-in")
+	}
+	if _, err := b.SignIn(ctx(t), nil); err != nil {
+		t.Fatal(err)
+	}
+	if f.authQuery.Get("client_id") != dynamicClient {
+		t.Fatalf("each account registers on its own, got %v", f.authQuery.Get("client_id"))
+	}
+	for _, n := range []string{"chatgpt-auth.json", "chatgpt.work-auth.json", "chatgpt.work-client.json"} {
+		if _, err := os.Stat(filepath.Join(dir, n)); err != nil {
+			t.Fatalf("%s: %v", n, err)
+		}
+	}
+	// the device identity is shared by both accounts
+	var h1, h2 host
+	a.readJSON("chatgpt-host.json", &h1)
+	b.readJSON("chatgpt-host.json", &h2)
+	if h1.ID == "" || h1 != h2 {
+		t.Fatalf("host ids differ: %v %v", h1, h2)
 	}
 }

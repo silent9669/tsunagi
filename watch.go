@@ -55,7 +55,7 @@ func cmdWatch(t *ui.Term) int {
 		}
 		for _, e := range tail.Poll() {
 			log = append(log, e)
-			counts[e.Provider]++
+			counts[acctOf(e)]++
 		}
 		if len(log) > 500 {
 			log = log[len(log)-500:]
@@ -85,13 +85,13 @@ func renderWatch(t *ui.Term, tsec float64, live bool, log []events.Event, counts
 	sort.Strings(names)
 	var chips []string
 	for _, n := range names {
-		chips = append(chips, t.Paint(ui.Teal, n)+" "+fmt.Sprint(counts[n]))
+		chips = append(chips, t.Paint(ui.Teal, clean(n))+" "+fmt.Sprint(counts[n]))
 	}
 	lines = append(lines, "  "+strings.Join(chips, "   "), "")
 
 	lines = append(lines,
-		"  "+t.Dim(fmt.Sprintf("%-9s %-12s %-28s %-4s %s", "time", "provider", "model", "http", "ms")),
-		"  "+t.Dim(strings.Repeat("-", min(w-4, 62))))
+		"  "+t.Dim(fmt.Sprintf("%-9s %-16s %-26s %-4s %-6s %s", "time", "account", "model", "http", "ms", "tokens in/out")),
+		"  "+t.Dim(strings.Repeat("-", min(w-4, 78))))
 	rows := h - len(lines) - 1
 	if rows < 0 {
 		rows = 0
@@ -104,9 +104,21 @@ func renderWatch(t *ui.Term, tsec float64, live bool, log []events.Event, counts
 		if model == "" {
 			model = "-"
 		}
-		lines = append(lines, fmt.Sprintf("  %-9s %-12s %-28s %s %d",
-			e.Time.Format("15:04:05"), clip(clean(e.Provider), 12), clip(model, 28),
-			pad4(t, e.Status), e.Millis))
+		acct := e.Account
+		if acct == "" {
+			acct = e.Provider
+		}
+		failover := ""
+		if e.Skipped > 0 {
+			failover = t.Paint(ui.Amber, fmt.Sprintf("  +%d failover", e.Skipped))
+		}
+		tokens := "-"
+		if e.In+e.Out > 0 {
+			tokens = ui.Count(e.In) + "/" + ui.Count(e.Out)
+		}
+		lines = append(lines, fmt.Sprintf("  %-9s %-16s %-26s %s %-6d %s%s",
+			e.Time.Format("15:04:05"), clip(clean(acct), 16), clip(model, 26),
+			pad4(t, e.Status), e.Millis, tokens, failover))
 	}
 
 	var b strings.Builder
@@ -166,4 +178,11 @@ func clipVisible(s string, n int) string {
 		}
 	}
 	return s
+}
+
+func acctOf(e events.Event) string {
+	if e.Account != "" {
+		return e.Account
+	}
+	return e.Provider
 }

@@ -162,7 +162,7 @@ func cmdModels(t *ui.Term, args []string) int {
 	if args[0] == "chatgpt" { // the list depends on the account, so ask live
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		models, err := newChatGPT().ListModels(ctx)
+		models, err := chatgptFor("").ListModels(ctx)
 		if err != nil {
 			return fail(t, "%v", err)
 		}

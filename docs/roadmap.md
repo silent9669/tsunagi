@@ -30,6 +30,15 @@
 - [ ] Verify 403 handling for standard SuperGrok accounts
 - [ ] Read GitHub Copilot and MiniMax third-party terms before adding their Sign-in
 
+## Phase 2b: accounts and usage
+
+- [x] Several accounts per provider (`--as label`), keys and ChatGPT sign-ins
+- [x] Failover on rate limit, empty balance and rejected key; `sequential` and `round_robin`; `provider@label/model` pins
+- [x] Token counts per account from the reply stream; `tsunagi usage`
+- [x] Live balances: OpenRouter, DeepSeek, Moonshot (checked live against OpenRouter only)
+- [ ] Balances for Z.AI, OpenCode Go and ChatGPT once their endpoints are documented
+- [ ] Usage-aware ranking (pick the account with most headroom)
+
 ## Phase 3: hand-off
 
 - [ ] Send a plan from a Claude session into the tsunagi terminal tab

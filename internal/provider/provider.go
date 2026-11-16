@@ -40,6 +40,14 @@ type Provider struct {
 	Local bool `json:"local,omitempty"`
 	// Auth names a sign-in flow ("chatgpt") used instead of a key.
 	Auth string `json:"auth,omitempty"`
+	// Headers are added to every request to this provider.
+	Headers map[string]string `json:"headers,omitempty"`
+	// AuthHeader names the header that carries the key. Empty means
+	// "Authorization: Bearer <key>".
+	AuthHeader string `json:"auth_header,omitempty"`
+	// Strategy picks between several accounts: "sequential" (default, stay on
+	// the first until it is rate limited) or "round_robin".
+	Strategy string `json:"strategy,omitempty"`
 	// Compat overrides quirk detection for the chat dialect.
 	Compat Compat `json:"compat,omitempty"`
 	// Untrusted marks providers whose endpoint came from the downloaded

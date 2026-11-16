@@ -47,6 +47,9 @@ tsunagi import opencode       # reuse the providers and API keys you set up in o
 tsunagi sync                  # fetch the models.dev catalogue (about 300 providers)
 tsunagi providers [--all]     # providers and key status
 tsunagi models deepseek       # model names to type after /model
+tsunagi login openai --as work   # a second account; requests fail over when one is rate limited
+tsunagi accounts              # every key and sign-in
+tsunagi usage                 # tokens per account, plus balances where the provider shows them
 tsunagi ping --tool <model>   # one real test request through the router (add --tool to test tool calls)
 tsunagi watch                 # live traffic, run it in a second terminal tab
 ```
@@ -57,6 +60,7 @@ Inside the session:
 /model claude-sonnet-5-5       # Claude, billed to your subscription
 /model opencode/minimax-m3     # OpenCode model, billed to your OpenCode plan
 /model deepseek/deepseek-v4-pro
+/model openai@work/gpt-5.5          # pin one account; without @label the pool picks and fails over
 /model chatgpt/gpt-6.1-sol        # your ChatGPT plan; names from `tsunagi models chatgpt`
 ```
 

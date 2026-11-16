@@ -105,3 +105,13 @@ Only the refresh token, client id, email and subject stay on disk, in `~/.config
 ## Chat endpoint quirks
 
 Learned from opencode's `compatibility` settings. The chat translator detects them from the provider and model name, and a provider's `compat` block overrides each one: output limit field (`max_completion_tokens` for api.openai.com, `max_tokens` elsewhere), an empty reasoning field on prior assistant messages (DeepSeek-style thinking models), `stream_options` on or off, an assistant turn between a tool result and a user message and 9-character tool ids (Mistral family, also when served through a gateway), and Anthropic-style `cache_control` markers for Claude behind an OpenAI-compatible proxy.
+
+## Several accounts per provider
+
+A provider can have many accounts: the first is named after the provider (`openai`), later ones carry a label (`openai.work`, made with `tsunagi login openai --as work`). Keys and sign-ins are separate per account; a ChatGPT account has its own registration and refresh token, while the device id is shared.
+
+`provider/model` lets the pool choose. The default strategy is `sequential`: stay on the first account until it is rate limited, which uses each plan window in turn (the lesson from oh-my-pi's issues about balanced rotation wasting windowed quota). `"strategy": "round_robin"` spreads requests instead. `provider@label/model` pins one account and never falls back.
+
+Failover happens before anything reaches Claude Code, so it is invisible: on 429, 402 or a rejected key (401, 403) the account is set aside (Retry-After, else 5 minutes for a rate limit, 30 minutes for a bad key, an hour for an empty balance) and the same request goes to the next one. Other errors, such as a bad request, are returned as they are, since another account would fail the same way. Blocks live only as long as the session, and when every account is out the last upstream error is shown.
+
+`tsunagi usage` sums tokens per account from the event files of all sessions (kept a week; tokens are read from the replies as they stream past, with no change to the bytes) and asks providers with a published balance endpoint what is left: OpenRouter, DeepSeek and Moonshot so far. ChatGPT and most other plans have no documented usage API, so only local counts show for them.

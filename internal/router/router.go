@@ -17,7 +17,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/silent9669/tsunagi/internal/events"
@@ -47,6 +46,9 @@ type Router struct {
 	Token     string
 	Providers map[string]provider.Provider
 	Default   string
+	// Accounts lists the accounts (keys or sign-ins) of a provider, the one to
+	// prefer first. Nil means one account named after the provider.
+	Accounts func(provider string) []string
 	// Aliases rewrite a requested model name before routing.
 	Aliases map[string]string
 	Key     func(provider string) (string, error)
@@ -55,6 +57,8 @@ type Router struct {
 
 	transport http.RoundTripper
 	guarded   http.RoundTripper // for catalogue providers
+
+	pool pool
 }
 
 // transportFor picks the transport for a provider.
@@ -82,23 +86,6 @@ func New(host, token string, providers []provider.Provider, def string, key func
 	rt.transport = t
 	rt.guarded = guardedTransport(t)
 	return rt
-}
-
-type decision struct {
-	provider string // "" means Claude
-	model    string // model sent upstream
-}
-
-func (rt *Router) route(model string) decision {
-	if i := strings.Index(model, "/"); i > 0 {
-		if _, ok := rt.Providers[model[:i]]; ok {
-			return decision{provider: model[:i], model: model[i+1:]}
-		}
-	}
-	if model == "" || strings.HasPrefix(model, "claude-") {
-		return decision{model: model}
-	}
-	return decision{provider: rt.Default, model: model}
 }
 
 func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -155,10 +142,12 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.forwardClaude(rec, r, body)
 		}
 	}
+	rec.tap.Done()
 	if rt.OnEvent != nil {
 		rt.OnEvent(events.Event{
 			Time: start, Provider: name, Model: model, Path: r.URL.Path,
 			Status: rec.status, Millis: time.Since(start).Milliseconds(),
+			Account: rec.account, In: rec.tap.In, Out: rec.tap.Out, Skipped: rec.skipped,
 		})
 	}
 }
@@ -181,58 +170,6 @@ func (rt *Router) stripToken(p string) (string, bool) {
 func (rt *Router) forwardClaude(w http.ResponseWriter, r *http.Request, body []byte) {
 	r.Body = io.NopCloser(bytes.NewReader(body))
 	rt.proxy(rt.Claude, rt.transport, nil).ServeHTTP(w, r)
-}
-
-func (rt *Router) forwardProvider(w http.ResponseWriter, r *http.Request, body []byte, model string, d decision) {
-	p, ok := rt.Providers[d.provider]
-	if !ok {
-		writeErr(w, http.StatusBadRequest, "invalid_request_error",
-			fmt.Sprintf("tsunagi: unknown provider %q. Run: tsunagi providers", d.provider))
-		return
-	}
-	if !p.Ready() {
-		writeErr(w, http.StatusBadRequest, "invalid_request_error",
-			fmt.Sprintf("tsunagi: provider %s has unknown dialect %q (use anthropic, openai-chat or openai-responses)", p.Name, p.Dialect))
-		return
-	}
-	if p.Dialect != provider.Anthropic {
-		rt.forwardTranslated(w, r, body, p, d.model)
-		return
-	}
-	key := ""
-	if !p.Local {
-		k, err := rt.Key(p.Name)
-		if err != nil || k == "" {
-			writeErr(w, http.StatusUnauthorized, "authentication_error",
-				fmt.Sprintf("tsunagi: no key for %s. Run: tsunagi login %s", p.Name, p.Name))
-			return
-		}
-		key = k
-	}
-	target, err := url.Parse(p.BaseURL)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "api_error", "tsunagi: bad base_url for "+p.Name)
-		return
-	}
-	if d.model != model {
-		nb, err := setModel(body, d.model)
-		if err != nil {
-			writeErr(w, http.StatusBadRequest, "invalid_request_error", "tsunagi: cannot rewrite model")
-			return
-		}
-		body = nb
-	}
-	r.Body = io.NopCloser(bytes.NewReader(body))
-	r.ContentLength = int64(len(body))
-	r.Header.Set("Content-Length", strconv.Itoa(len(body)))
-
-	rt.proxy(target, rt.transportFor(p), func(h http.Header) {
-		h.Del("Authorization")
-		h.Del("X-Api-Key")
-		if key != "" {
-			h.Set("Authorization", "Bearer "+key)
-		}
-	}).ServeHTTP(w, r)
 }
 
 func (rt *Router) proxy(target *url.URL, tr http.RoundTripper, auth func(http.Header)) *httputil.ReverseProxy {
@@ -291,8 +228,11 @@ func writeErr(w http.ResponseWriter, status int, typ, msg string) {
 // recorder remembers the status code and keeps streaming working.
 type recorder struct {
 	http.ResponseWriter
-	status int
-	wrote  bool
+	status  int
+	wrote   bool
+	tap     tap
+	account string
+	skipped int
 }
 
 func (r *recorder) WriteHeader(code int) {
@@ -304,6 +244,7 @@ func (r *recorder) WriteHeader(code int) {
 
 func (r *recorder) Write(b []byte) (int, error) {
 	r.wrote = true
+	r.tap.Write(b)
 	return r.ResponseWriter.Write(b)
 }
 
