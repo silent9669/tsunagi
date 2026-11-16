@@ -24,10 +24,16 @@ func TestWriteMakesAPluginWithSafeCommands(t *testing.T) {
 	}
 	s := string(b)
 	for _, want := range []string{
-		"allowed-tools: Bash(/opt/bin/tsunagi:*)", "argument-hint: <provider>", "!`/opt/bin/tsunagi models $ARGUMENTS`",
+		"allowed-tools: Bash(/opt/bin/tsunagi models --summary)", "disable-model-invocation: true", "!`/opt/bin/tsunagi models --summary`",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("models.md lacks %q:\n%s", want, s)
+		}
+	}
+	for _, c := range commands {
+		body, _ := os.ReadFile(filepath.Join(dir, "commands", c.name+".md"))
+		if strings.Contains(string(body), "$ARGUMENTS") || strings.Contains(string(body), ":*)") {
+			t.Errorf("%s: user text or a wildcard grant in a shell line:\n%s", c.name, body)
 		}
 	}
 	if len(Names()) != len(commands) || Names()[0] != "/tsunagi:usage" {

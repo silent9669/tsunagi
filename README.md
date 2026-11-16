@@ -56,12 +56,11 @@ tsunagi ping --tool <model>   # one real test request through the router (add --
 tsunagi watch                 # live traffic from every session: accounts, tokens, failovers, a sparkline; run it in a second tab
 ```
 
-Inside the session, tsunagi adds slash commands (loaded with `--plugin-dir`, nothing is installed in your Claude Code setup):
+Inside the session, tsunagi adds slash commands (loaded with `--plugin-dir`, nothing is installed in your Claude Code setup). They take no arguments, only you can run them, and each is allowed exactly one command line; use the CLI for `models <provider>` and `ping`:
 
 ```text
 /tsunagi:usage        /tsunagi:accounts     /tsunagi:providers
-/tsunagi:models <provider>                  /tsunagi:ping [--tool] <provider/model>
-/tsunagi:sessions     /tsunagi:handoff
+/tsunagi:models       /tsunagi:sessions     /tsunagi:handoff
 ```
 
 And the model switch:

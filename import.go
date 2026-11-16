@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/silent9669/tsunagi/internal/catalog"
@@ -157,6 +158,9 @@ func cmdSync(t *ui.Term) int {
 // from the provider (always for gateways, or with --live).
 func cmdModels(t *ui.Term, args []string) int {
 	args, asJSON := popFlag(args, "--json")
+	if len(args) == 1 && args[0] == "--summary" {
+		return modelsSummary(t, asJSON)
+	}
 	live := false
 	var rest []string
 	for _, a := range args {
@@ -244,4 +248,46 @@ func pinHostByName(cfg config.Config, name string) string {
 		}
 	}
 	return ""
+}
+
+// modelsSummary shows a few catalogue model names for each ready provider, so
+// a slash command can list them without taking an argument.
+func modelsSummary(t *ui.Term, asJSON bool) int {
+	cfg, err := config.Load()
+	if err != nil {
+		return fail(t, "%v", err)
+	}
+	byID := map[string][]string{}
+	for _, e := range catalog.Load() {
+		byID[e.ID] = e.Models
+	}
+	data := map[string][]string{}
+	var names []string
+	for _, p := range cfg.All() {
+		if p.Local || ready(p) == 0 {
+			continue
+		}
+		models := byID[p.Name]
+		if len(models) > 6 {
+			models = models[:6]
+		}
+		data[p.Name] = models
+		names = append(names, p.Name)
+	}
+	if asJSON {
+		return printJSON(t, data)
+	}
+	if len(names) == 0 {
+		t.Printf("  %s\n", t.Dim("no ready providers. Run: tsunagi login <provider>"))
+		return 0
+	}
+	for _, n := range names {
+		list := "(run: tsunagi models " + n + ")"
+		if len(data[n]) > 0 {
+			list = n + "/" + strings.Join(data[n], ", "+n+"/")
+		}
+		t.Printf("  %-14s %s\n", n, list)
+	}
+	t.Printf("  %s\n", t.Dim("all names: tsunagi models <provider>. Switch with /model <provider>/<model>"))
+	return 0
 }

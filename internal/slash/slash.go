@@ -16,18 +16,18 @@ import (
 type command struct {
 	name string
 	desc string
-	hint string // argument hint, "" for none
-	run  string // what to run, after the executable; may use $ARGUMENTS
+	run  string // fixed arguments after the executable; never user input
 }
 
+// The commands take no arguments. User text spliced into a shell line would be
+// an injection point, and the exact command line is what the tool grant allows.
 var commands = []command{
-	{"usage", "Tokens per account and live balances", "[--days N]", "usage $ARGUMENTS"},
-	{"accounts", "List every key and sign-in", "", "accounts"},
-	{"providers", "List providers and key status", "[--all]", "providers $ARGUMENTS"},
-	{"models", "List the model names to type after /model", "<provider>", "models $ARGUMENTS"},
-	{"ping", "Send one test request through the router", "[--tool] <provider/model>", "ping $ARGUMENTS"},
-	{"sessions", "Running tsunagi sessions", "", "sessions"},
-	{"handoff", "How to pass a plan to another tsunagi session", "[--session id]", "handoff $ARGUMENTS"},
+	{"usage", "Tokens per account and live balances", "usage"},
+	{"accounts", "List every key and sign-in", "accounts"},
+	{"providers", "List providers and key status", "providers"},
+	{"models", "A few model names per ready provider", "models --summary"},
+	{"sessions", "Running tsunagi sessions", "sessions"},
+	{"handoff", "How to pass a plan to another tsunagi session", "handoff"},
 }
 
 // safeExe accepts paths that need no quoting in a command line.
@@ -47,12 +47,11 @@ func Write(dir, exe string) error {
 		var b strings.Builder
 		b.WriteString("---\n")
 		fmt.Fprintf(&b, "description: %s\n", c.desc)
-		if c.hint != "" {
-			fmt.Fprintf(&b, "argument-hint: %s\n", c.hint)
-		}
-		fmt.Fprintf(&b, "allowed-tools: Bash(%s:*)\n", exe)
+		// only the user may run these, and only this exact command line
+		b.WriteString("disable-model-invocation: true\n")
+		fmt.Fprintf(&b, "allowed-tools: Bash(%s %s)\n", exe, c.run)
 		b.WriteString("---\n")
-		fmt.Fprintf(&b, "Output of `tsunagi %s`:\n\n```\n!`%s %s`\n```\n\n", strings.Fields(c.run)[0], exe, c.run)
+		fmt.Fprintf(&b, "Output of `tsunagi %s`:\n\n```\n!`%s %s`\n```\n\n", c.run, exe, c.run)
 		b.WriteString("Reply with that output exactly, in a code block, and nothing else.\n")
 		files[filepath.Join("commands", c.name+".md")] = b.String()
 	}
