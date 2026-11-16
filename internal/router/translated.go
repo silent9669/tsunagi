@@ -43,6 +43,15 @@ func (rt *Router) forwardTranslated(w http.ResponseWriter, r *http.Request, body
 		writeErr(w, http.StatusBadRequest, "invalid_request_error", "tsunagi: "+err.Error())
 		return
 	}
+	// Sign-in (plan usage) accepts streaming requests only. A client that asked
+	// for a plain reply gets one assembled from the stream.
+	forced := p.Auth != "" && !stream
+	if forced {
+		if out, err = translate.ForceStream(out); err != nil {
+			writeErr(w, http.StatusInternalServerError, "api_error", "tsunagi: "+err.Error())
+			return
+		}
+	}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost,
 		strings.TrimRight(p.BaseURL, "/")+endpoint, bytes.NewReader(out))
 	if err != nil {
@@ -51,10 +60,10 @@ func (rt *Router) forwardTranslated(w http.ResponseWriter, r *http.Request, body
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+key)
-	if stream {
+	if stream || forced {
 		req.Header.Set("Accept", "text/event-stream")
 	}
-	resp, err := rt.transport.RoundTrip(req)
+	resp, err := rt.transportFor(p).RoundTrip(req)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "api_error", "tsunagi: upstream "+req.URL.Host+" unreachable: "+err.Error())
 		return
@@ -76,7 +85,12 @@ func (rt *Router) forwardTranslated(w http.ResponseWriter, r *http.Request, body
 		toStream(resp.Body, w, func() { rc.Flush() }, model)
 		return
 	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
+	var b []byte
+	if forced {
+		b, err = translate.CompletedResponse(resp.Body)
+	} else {
+		b, err = io.ReadAll(io.LimitReader(resp.Body, maxBody))
+	}
 	if err == nil {
 		b, err = toReply(b, model)
 	}

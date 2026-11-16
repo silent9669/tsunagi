@@ -229,3 +229,51 @@ func (s *streamer) handle(data []byte) error {
 	}
 	return nil
 }
+
+// ForceStream sets stream:true in a Responses request body.
+func ForceStream(body []byte) ([]byte, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, err
+	}
+	m["stream"] = json.RawMessage("true")
+	return json.Marshal(m)
+}
+
+// CompletedResponse reads a Responses event stream and returns the final
+// response object, for clients that asked for a plain (non-streamed) reply.
+func CompletedResponse(r io.Reader) ([]byte, error) {
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 64<<10), 16<<20)
+	for sc.Scan() {
+		line := sc.Text()
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		var ev struct {
+			Type     string          `json:"type"`
+			Message  string          `json:"message"`
+			Response json.RawMessage `json:"response"`
+		}
+		if json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(line, "data:"))), &ev) != nil {
+			continue
+		}
+		switch ev.Type {
+		case "response.completed", "response.incomplete":
+			return ev.Response, nil
+		case "response.failed":
+			var f rResp
+			json.Unmarshal(ev.Response, &f)
+			if f.Error != nil && f.Error.Message != "" {
+				return nil, fmt.Errorf("upstream: %s", f.Error.Message)
+			}
+			return nil, fmt.Errorf("upstream reported a failed response")
+		case "error":
+			return nil, fmt.Errorf("upstream: %s", ev.Message)
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("upstream stream ended before the reply was complete")
+}

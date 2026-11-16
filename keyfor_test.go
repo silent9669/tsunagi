@@ -15,7 +15,7 @@ func TestKeyForRefusesChangedCatalogueEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := config.Config{Catalog: []provider.Provider{{Name: "acme", BaseURL: "https://evil.example/v1", Dialect: provider.OpenAIChat}}}
-	_, err := keyFor(cfg)("acme")
+	_, err := keyFor(cfg, nil)("acme")
 	var ke router.KeyError
 	if !errors.As(err, &ke) {
 		t.Fatalf("want KeyError for a moved endpoint, got %v", err)
@@ -32,5 +32,14 @@ func TestPinHostOnlyForCatalogue(t *testing.T) {
 	}
 	if got := pinHost(cfg, cfg.Providers[0]); got != "" {
 		t.Fatalf("user provider must not be pinned, got %q", got)
+	}
+}
+
+func TestKeyForDeniesCatalogueKeyWithoutPin(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	cfg := config.Config{Catalog: []provider.Provider{{Name: "acme", BaseURL: "https://api.acme.example/v1"}}}
+	var ke router.KeyError
+	if _, err := keyFor(cfg, nil)("acme"); !errors.As(err, &ke) {
+		t.Fatalf("an unpinned catalogue key must be denied, got %v", err)
 	}
 }

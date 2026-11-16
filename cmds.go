@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/keychain"
 	"github.com/silent9669/tsunagi/internal/provider"
 	"github.com/silent9669/tsunagi/internal/router"
+	"github.com/silent9669/tsunagi/internal/signin"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
@@ -47,17 +52,28 @@ func pinHost(cfg config.Config, p provider.Provider) string {
 
 // keyFor returns the key lookup the router uses. It refuses to hand a
 // catalogue provider's key to an endpoint other than the one it was saved for.
-func keyFor(cfg config.Config) func(string) (string, error) {
+func keyFor(cfg config.Config, gpt *signin.ChatGPT) func(string) (string, error) {
 	catalog := map[string]provider.Provider{}
 	for _, p := range cfg.Catalog {
 		catalog[p.Name] = p
 	}
 	return func(name string) (string, error) {
+		if name == "chatgpt" && gpt != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			tok, err := gpt.AccessToken(ctx)
+			if err != nil {
+				return "", router.KeyError{Msg: "tsunagi: " + err.Error()}
+			}
+			return tok, nil
+		}
 		if p, ok := catalog[name]; ok {
 			host := config.Host(p.BaseURL)
+			// Deny by default: a missing or unreadable pin is not trusted.
 			switch pin := config.Pin(name); {
 			case pin == "":
-				config.SetKeyed(name, true, host) // key saved before pinning existed
+				return "", router.KeyError{Msg: fmt.Sprintf(
+					"tsunagi: no endpoint is recorded for the %s key. Run: tsunagi login %s", name, name)}
 			case pin != host:
 				return "", router.KeyError{Msg: fmt.Sprintf(
 					"tsunagi: the catalogue now sends %s to %s, but its key was saved for %s. Run: tsunagi sync, then tsunagi login %s if that is expected",
@@ -76,10 +92,31 @@ func providerNames(cfg config.Config) string {
 	return strings.Join(n, ", ") + " (see also: tsunagi providers --all)"
 }
 
+func newChatGPT() *signin.ChatGPT {
+	g := signin.New(filepath.Dir(config.Path()))
+	g.Open = func(u string) error { return exec.Command("open", u).Start() }
+	return g
+}
+
+// hasLogin reports whether a provider has a key or sign-in stored.
+func hasLogin(gpt *signin.ChatGPT, p provider.Provider) bool {
+	if p.Auth == "chatgpt" {
+		return gpt.Signed()
+	}
+	return keychain.Has(p.Name)
+}
+
 func cmdLogin(t *ui.Term, args []string) int {
+	fresh := len(args) == 2 && args[1] == "--new"
+	if fresh {
+		args = args[:1]
+	}
 	p, cfg, code := findProvider(t, args)
 	if code != 0 {
 		return code
+	}
+	if p.Auth == "chatgpt" {
+		return loginChatGPT(t, fresh)
 	}
 	// The key is read from the terminal, never from a flag, so it stays out of
 	// shell history and `ps`.
@@ -98,10 +135,49 @@ func cmdLogin(t *ui.Term, args []string) int {
 	return 0
 }
 
+func loginChatGPT(t *ui.Term, fresh bool) int {
+	g := newChatGPT()
+	if fresh {
+		g.NewRegistration()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	var sp *ui.Spinner
+	email, err := g.SignIn(ctx, func(u string) {
+		t.Printf("  %s\n  %s\n", t.Dim("opening your browser. If it does not open, visit:"), u)
+		sp = t.Spin("chatgpt") // after the URL, so the spinner owns its line alone
+	})
+	if sp == nil {
+		return fail(t, "%v", err)
+	}
+	if err != nil {
+		sp.Stop(false, err.Error())
+		return 1
+	}
+	config.SetKeyed("chatgpt", true, "")
+	sp.Stop(true, "signed in as "+email)
+	return 0
+}
+
 func cmdLogout(t *ui.Term, args []string) int {
 	p, _, code := findProvider(t, args)
 	if code != 0 {
 		return code
+	}
+	if p.Auth == "chatgpt" {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		revoked, err := newChatGPT().SignOut(ctx)
+		if err != nil {
+			return fail(t, "%v", err)
+		}
+		config.SetKeyed("chatgpt", false, "")
+		note := "signed out"
+		if !revoked {
+			note += " locally; OpenAI did not confirm revocation, disconnect tsunagi in ChatGPT settings"
+		}
+		t.Printf("  %s %s\n", t.Paint(ui.Mint, "[ok]"), note)
+		return 0
 	}
 	if err := keychain.Delete(p.Name); err != nil {
 		return fail(t, "no key stored for %s", p.Name)
@@ -153,8 +229,12 @@ func status(t *ui.Term, p provider.Provider) string {
 		return t.Dim("soon")
 	case p.Local:
 		return t.Paint(ui.Mint, "local")
-	case keychain.Has(p.Name):
+	case p.Untrusted && config.Pin(p.Name) == "" && keychain.Has(p.Name):
+		return t.Paint(ui.Amber, "re-login") // key saved before endpoints were pinned
+	case hasLogin(newChatGPT(), p):
 		return t.Paint(ui.Mint, "ready")
+	case p.Auth != "":
+		return t.Paint(ui.Amber, "no login")
 	}
 	return t.Paint(ui.Amber, "no key")
 }

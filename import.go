@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 	"sort"
@@ -157,6 +158,18 @@ func cmdSync(t *ui.Term) int {
 func cmdModels(t *ui.Term, args []string) int {
 	if len(args) != 1 {
 		return fail(t, "name one provider: tsunagi models <provider>")
+	}
+	if args[0] == "chatgpt" { // the list depends on the account, so ask live
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		models, err := newChatGPT().ListModels(ctx)
+		if err != nil {
+			return fail(t, "%v", err)
+		}
+		for _, m := range models {
+			t.Printf("chatgpt/%s\n", m.Slug)
+		}
+		return 0
 	}
 	for _, e := range catalog.Load() {
 		if e.ID == args[0] {

@@ -15,7 +15,7 @@ import (
 
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/events"
-	"github.com/silent9669/tsunagi/internal/keychain"
+	"github.com/silent9669/tsunagi/internal/provider"
 	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
@@ -52,7 +52,8 @@ func launch(t *ui.Term, args []string) int {
 		sp.Stop(false, err.Error())
 		return 1
 	}
-	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg))
+	gpt := newChatGPT()
+	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg, gpt))
 	if dir, err := events.Dir(); err == nil {
 		if w, err := events.NewWriter(dir); err == nil {
 			defer w.Close()
@@ -76,12 +77,12 @@ func launch(t *ui.Term, args []string) int {
 
 	sp = t.Spin("providers")
 	var ready []string
-	byName := map[string]bool{}
+	byName := map[string]provider.Provider{}
 	for _, p := range cfg.All() {
-		byName[p.Name] = p.Ready() && !p.Local
+		byName[p.Name] = p
 	}
 	for _, n := range config.Keyed() {
-		if byName[n] && keychain.Has(n) {
+		if p, ok := byName[n]; ok && p.Ready() && !p.Local && hasLogin(gpt, p) && !(p.Untrusted && config.Pin(n) == "") {
 			ready = append(ready, n)
 		}
 	}

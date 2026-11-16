@@ -17,6 +17,12 @@ type Provider struct {
 	Dialect Dialect `json:"dialect"`
 	// Local providers need no key.
 	Local bool `json:"local,omitempty"`
+	// Auth names a sign-in flow ("chatgpt") used instead of a key.
+	Auth string `json:"auth,omitempty"`
+	// Untrusted marks providers whose endpoint came from the downloaded
+	// catalogue. The router refuses to connect them to loopback or private
+	// addresses.
+	Untrusted bool `json:"-"`
 }
 
 // Ready reports whether the router can talk to the provider today.
@@ -36,6 +42,7 @@ func Builtin() []Provider {
 		{Name: "qwen", BaseURL: "https://dashscope-intl.aliyuncs.com/apps/anthropic", Dialect: Anthropic},
 		{Name: "fireworks", BaseURL: "https://api.fireworks.ai/inference", Dialect: Anthropic},
 		{Name: "llamacpp", BaseURL: "http://127.0.0.1:8080", Dialect: Anthropic, Local: true},
+		{Name: "chatgpt", BaseURL: "https://api.openai.com/v1", Dialect: OpenAIResponses, Auth: "chatgpt"},
 		{Name: "openai", BaseURL: "https://api.openai.com/v1", Dialect: OpenAIResponses},
 		{Name: "xai", BaseURL: "https://api.x.ai/v1", Dialect: OpenAIResponses},
 		{Name: "groq", BaseURL: "https://api.groq.com/openai/v1", Dialect: OpenAIChat},

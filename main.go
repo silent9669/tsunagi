@@ -46,6 +46,7 @@ func cmdHelp(t *ui.Term) int {
 	rows := [][2]string{
 		{"tsunagi [claude args]", "launch claude through the router"},
 		{"tsunagi login <provider>", "store a key in the macOS keychain"},
+		{"tsunagi login chatgpt", "sign in with your ChatGPT plan"},
 		{"tsunagi logout <provider>", "remove a key"},
 		{"tsunagi providers [--all]", "list providers and key status"},
 		{"tsunagi import opencode", "take providers and keys from opencode"},

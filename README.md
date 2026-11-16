@@ -2,7 +2,7 @@
 
 Run Claude Code against Claude and many other providers' models from one terminal session, using your own keys and without touching your Claude subscription credentials.
 
-> **Status: Phase 2 in progress.** Router, launcher, keychain login, provider list and live watch work. `openai` and `xai` work with an API key through the Responses translator (tested against fake upstreams only, not yet against the real APIs). The chat-format translator makes groq, together, mistral and any OpenAI-compatible provider work with a key (also fake-upstream tests only). Sign-in (OAuth) is not built yet.
+> **Status: Phase 2 built, not yet checked against the live services.** Router, launcher, keychain login, provider list, live watch, the models.dev catalogue, opencode import, Responses and chat translators, and Sign in with ChatGPT are implemented and covered by tests with fake upstreams. Nothing has yet been run end to end against a real provider, and Grok sign-in is not built.
 
 ## Why
 
@@ -41,6 +41,7 @@ See [docs/design.md](docs/design.md) for the router, the model mapping and the p
 ```bash
 go build -o tsunagi . && mv tsunagi /usr/local/bin/   # macOS, Go 1.27+
 tsunagi login opencode        # key is typed hidden, saved in the keychain
+tsunagi login chatgpt         # or sign in with your ChatGPT plan (browser, no key)
 tsunagi                       # splash, starts the router, launches claude through it
 tsunagi import opencode       # reuse the providers and API keys you set up in opencode
 tsunagi sync                  # fetch the models.dev catalogue (about 300 providers)
@@ -55,6 +56,7 @@ Inside the session:
 /model claude-sonnet-5-5       # Claude, billed to your subscription
 /model opencode/minimax-m3     # OpenCode model, billed to your OpenCode plan
 /model deepseek/deepseek-v4-pro
+/model chatgpt/gpt-6.1-sol        # your ChatGPT plan; names from `tsunagi models chatgpt`
 ```
 
 Claude Code prints a "does not recognize the model" notice for non-Claude names and assumes a 200k context window. The notice is cosmetic.

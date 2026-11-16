@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -408,5 +409,71 @@ func TestChatProviderIsTranslatedBothWays(t *testing.T) {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("reply lacks %q:\n%s", want, b)
 		}
+	}
+}
+
+func TestCatalogueProviderCannotReachLoopback(t *testing.T) {
+	for _, h := range []string{"HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"} {
+		t.Setenv(h, "") // the guard is off when a proxy is configured
+	}
+	up, hits := upstream(t)
+	for _, d := range []provider.Dialect{provider.Anthropic, provider.OpenAIChat, provider.OpenAIResponses} {
+		e := setup(t)
+		e.rt.guarded = guardedTransport(http.DefaultTransport.(*http.Transport))
+		e.rt.Providers["acme"] = provider.Provider{Name: "acme", BaseURL: up.URL + "/v1", Dialect: d, Untrusted: true}
+		e.rt.Key = func(string) (string, error) { return "acme-key-123456", nil }
+		resp := e.post(t, "/v1/messages", `{"model":"acme/x","messages":[]}`, nil)
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 502 || !strings.Contains(string(b), "not allowed") {
+			t.Errorf("%s: status %d body %s", d, resp.StatusCode, b)
+		}
+	}
+	if hits.hits != 0 {
+		t.Fatal("a catalogue provider reached a loopback server")
+	}
+}
+
+func TestBlockedIP(t *testing.T) {
+	for ip, want := range map[string]bool{
+		"127.0.0.1": true, "10.1.2.3": true, "192.168.0.1": true, "172.16.0.1": true, "169.254.169.254": true,
+		"100.64.0.1": true, "0.0.0.0": true, "::1": true, "fe80::1": true, "fd00::1": true,
+		"8.8.8.8": false, "104.18.0.1": false, "2606:4700::1": false,
+	} {
+		if got := blockedIP(net.ParseIP(ip)); got != want {
+			t.Errorf("blockedIP(%s) = %v, want %v", ip, got, want)
+		}
+	}
+}
+
+func TestSignInProviderForcesStreamAndAssemblesPlainReply(t *testing.T) {
+	var gotBody, gotAuth string
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		gotBody, gotAuth = string(b), r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, "data: {\"type\":\"response.created\",\"response\":{\"id\":\"r\"}}\n\n")
+		io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"r\",\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"plain hi\"}]}],\"usage\":{\"input_tokens\":3,\"output_tokens\":2}}}\n\n")
+	}))
+	defer up.Close()
+	e := setup(t)
+	e.rt.Providers["chatgpt"] = provider.Provider{Name: "chatgpt", BaseURL: up.URL + "/v1", Dialect: provider.OpenAIResponses, Auth: "chatgpt"}
+	e.rt.Key = func(n string) (string, error) { return "access-token-xyz", nil }
+
+	resp := e.post(t, "/v1/messages", `{"model":"chatgpt/gpt-x","max_tokens":9,"messages":[{"role":"user","content":"yo"}]}`, nil)
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(gotBody, `"stream":true`) || !strings.Contains(gotBody, `"store":false`) {
+		t.Fatalf("upstream body = %s", gotBody)
+	}
+	if gotAuth != "Bearer access-token-xyz" {
+		t.Fatalf("auth = %s", gotAuth)
+	}
+	var m struct {
+		Type    string
+		Content []struct{ Text string }
+	}
+	if json.Unmarshal(b, &m) != nil || m.Type != "message" || len(m.Content) != 1 || m.Content[0].Text != "plain hi" {
+		t.Fatalf("reply = %s", b)
 	}
 }

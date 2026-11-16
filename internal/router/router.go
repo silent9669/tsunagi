@@ -52,6 +52,15 @@ type Router struct {
 	OnEvent   func(events.Event)
 
 	transport http.RoundTripper
+	guarded   http.RoundTripper // for catalogue providers
+}
+
+// transportFor picks the transport for a provider.
+func (rt *Router) transportFor(p provider.Provider) http.RoundTripper {
+	if p.Untrusted {
+		return rt.guarded
+	}
+	return rt.transport
 }
 
 func New(host, token string, providers []provider.Provider, def string, key func(string) (string, error)) *Router {
@@ -69,6 +78,7 @@ func New(host, token string, providers []provider.Provider, def string, key func
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.DisableCompression = true // never alter Accept-Encoding or the body
 	rt.transport = t
+	rt.guarded = guardedTransport(t)
 	return rt
 }
 
@@ -150,7 +160,7 @@ func (rt *Router) stripToken(p string) (string, bool) {
 
 func (rt *Router) forwardClaude(w http.ResponseWriter, r *http.Request, body []byte) {
 	r.Body = io.NopCloser(bytes.NewReader(body))
-	rt.proxy(rt.Claude, nil).ServeHTTP(w, r)
+	rt.proxy(rt.Claude, rt.transport, nil).ServeHTTP(w, r)
 }
 
 func (rt *Router) forwardProvider(w http.ResponseWriter, r *http.Request, body []byte, model string, d decision) {
@@ -196,7 +206,7 @@ func (rt *Router) forwardProvider(w http.ResponseWriter, r *http.Request, body [
 	r.ContentLength = int64(len(body))
 	r.Header.Set("Content-Length", strconv.Itoa(len(body)))
 
-	rt.proxy(target, func(h http.Header) {
+	rt.proxy(target, rt.transportFor(p), func(h http.Header) {
 		h.Del("Authorization")
 		h.Del("X-Api-Key")
 		if key != "" {
@@ -205,7 +215,7 @@ func (rt *Router) forwardProvider(w http.ResponseWriter, r *http.Request, body [
 	}).ServeHTTP(w, r)
 }
 
-func (rt *Router) proxy(target *url.URL, auth func(http.Header)) *httputil.ReverseProxy {
+func (rt *Router) proxy(target *url.URL, tr http.RoundTripper, auth func(http.Header)) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
@@ -213,7 +223,7 @@ func (rt *Router) proxy(target *url.URL, auth func(http.Header)) *httputil.Rever
 				auth(pr.Out.Header)
 			}
 		},
-		Transport:     rt.transport,
+		Transport:     tr,
 		FlushInterval: -1, // stream server-sent events as they arrive
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
 			writeErr(w, http.StatusBadGateway, "api_error", "tsunagi: upstream "+target.Host+" unreachable: "+err.Error())

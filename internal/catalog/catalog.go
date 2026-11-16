@@ -132,7 +132,7 @@ func LoadFrom(path string) []Entry {
 }
 
 func (e Entry) Provider() provider.Provider {
-	return provider.Provider{Name: e.ID, BaseURL: e.API, Dialect: provider.Dialect(e.Dialect)}
+	return provider.Provider{Name: e.ID, BaseURL: e.API, Dialect: provider.Dialect(e.Dialect), Untrusted: true}
 }
 
 // safeEndpoint accepts only https URLs with a real host. The catalogue is
