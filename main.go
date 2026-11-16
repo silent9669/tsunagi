@@ -23,6 +23,10 @@ func run(args []string) int {
 			return cmdLogout(t, args[1:])
 		case "providers":
 			return cmdProviders(t, args[1:])
+		case "add":
+			return cmdAdd(t, args[1:])
+		case "remove":
+			return cmdRemove(t, args[1:])
 		case "usage":
 			return cmdUsage(t, args[1:])
 		case "accounts":
@@ -55,6 +59,7 @@ func cmdHelp(t *ui.Term) int {
 		{"tsunagi login chatgpt", "sign in with your ChatGPT plan"},
 		{"  ... --as <label>", "add a second account for a provider"},
 		{"tsunagi accounts", "list every key and sign-in"},
+		{"tsunagi add <name> <url>", "add your own gateway or provider"},
 		{"tsunagi usage [--days N]", "traffic per account, plus balances"},
 		{"tsunagi logout <provider>", "remove a key"},
 		{"tsunagi providers [--all]", "list providers and key status"},

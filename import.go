@@ -13,6 +13,7 @@ import (
 	"github.com/silent9669/tsunagi/internal/keychain"
 	"github.com/silent9669/tsunagi/internal/opencode"
 	"github.com/silent9669/tsunagi/internal/provider"
+	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
@@ -155,11 +156,23 @@ func cmdSync(t *ui.Term) int {
 	return 0
 }
 
+// cmdModels lists the names to type after /model: from the catalogue, or live
+// from the provider (always for gateways, or with --live).
 func cmdModels(t *ui.Term, args []string) int {
-	if len(args) != 1 {
-		return fail(t, "name one provider: tsunagi models <provider>")
+	live := false
+	var rest []string
+	for _, a := range args {
+		if a == "--live" {
+			live = true
+		} else {
+			rest = append(rest, a)
+		}
 	}
-	if args[0] == "chatgpt" { // the list depends on the account, so ask live
+	if len(rest) != 1 {
+		return fail(t, "usage: tsunagi models [--live] <provider>")
+	}
+	name := rest[0]
+	if name == "chatgpt" { // the list depends on the account, so ask live
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		models, err := chatgptFor("").ListModels(ctx)
@@ -171,20 +184,49 @@ func cmdModels(t *ui.Term, args []string) int {
 		}
 		return 0
 	}
-	for _, e := range catalog.Load() {
-		if e.ID == args[0] {
-			for _, m := range e.Models {
-				t.Printf("%s/%s\n", e.ID, m)
+	cfg, err := config.Load()
+	if err != nil {
+		return fail(t, "%v", err)
+	}
+	if !live {
+		for _, e := range catalog.Load() {
+			if e.ID == name && len(e.Models) > 0 {
+				for _, m := range e.Models {
+					t.Printf("%s/%s\n", e.ID, m)
+				}
+				return 0
 			}
-			return 0
 		}
 	}
-	return fail(t, "no model list for %q. Run: tsunagi sync", args[0])
+	for _, p := range cfg.All() {
+		if p.Name != name {
+			continue
+		}
+		key := ""
+		if !p.Local {
+			k, err := keyFor(cfg)(router.Account(p.Name, ""))
+			if err != nil {
+				return fail(t, "no key for %s to ask it. Run: tsunagi login %s", name, name)
+			}
+			key = k
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		models, err := liveModels(ctx, p, key)
+		if err != nil {
+			return fail(t, "%v", err)
+		}
+		for _, m := range models {
+			t.Printf("%s/%s\n", name, m)
+		}
+		return 0
+	}
+	return fail(t, "unknown provider %q. Run: tsunagi providers --all", name)
 }
 
 func pinHostByName(cfg config.Config, name string) string {
 	for _, p := range cfg.Catalog {
-		if p.Name == name {
+		if p.Name == baseOf(name) {
 			return pinHost(cfg, p)
 		}
 	}

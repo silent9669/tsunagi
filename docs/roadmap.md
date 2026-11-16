@@ -39,6 +39,12 @@
 - [ ] Balances for Z.AI, OpenCode Go and ChatGPT once their endpoints are documented
 - [ ] Usage-aware ranking (pick the account with most headroom)
 
+## Phase 2c: gateways
+
+- [x] `tsunagi add` / `remove` for personal gateways, headers, auth header, strategy
+- [x] Built-in local `ollama`, `lmstudio`, `vllm`; live model lists (`models`)
+- [x] Checked with a real binary against a local fake OpenAI-compatible server (plain reply and tool call)
+
 ## Phase 3: hand-off
 
 - [ ] Send a plan from a Claude session into the tsunagi terminal tab

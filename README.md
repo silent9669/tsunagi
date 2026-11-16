@@ -49,6 +49,7 @@ tsunagi providers [--all]     # providers and key status
 tsunagi models deepseek       # model names to type after /model
 tsunagi login openai --as work   # a second account; requests fail over when one is rate limited
 tsunagi accounts              # every key and sign-in
+tsunagi add mygw http://127.0.0.1:4000/v1   # your own gateway (LiteLLM, vLLM, LM Studio, Ollama, a company proxy)
 tsunagi usage                 # tokens per account, plus balances where the provider shows them
 tsunagi ping --tool <model>   # one real test request through the router (add --tool to test tool calls)
 tsunagi watch                 # live traffic, run it in a second terminal tab

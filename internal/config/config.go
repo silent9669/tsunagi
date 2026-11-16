@@ -71,6 +71,9 @@ func Save(path string, def string, user []provider.Provider) error {
 			return fmt.Errorf("%s: %w", path, err)
 		}
 	}
+	if user == nil {
+		user = []provider.Provider{}
+	}
 	pb, err := json.Marshal(user)
 	if err != nil {
 		return err
