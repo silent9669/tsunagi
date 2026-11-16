@@ -52,7 +52,7 @@ func launch(t *ui.Term, args []string) int {
 		sp.Stop(false, err.Error())
 		return 1
 	}
-	rt := router.New(host, token, cfg.Providers, cfg.Default, keychain.Get)
+	rt := router.New(host, token, cfg.All(), cfg.Default, keychain.Get)
 	if dir, err := events.Dir(); err == nil {
 		if w, err := events.NewWriter(dir); err == nil {
 			defer w.Close()
@@ -76,9 +76,13 @@ func launch(t *ui.Term, args []string) int {
 
 	sp = t.Spin("providers")
 	var ready []string
-	for _, p := range cfg.Providers {
-		if p.Ready() && !p.Local && keychain.Has(p.Name) {
-			ready = append(ready, p.Name)
+	byName := map[string]bool{}
+	for _, p := range cfg.All() {
+		byName[p.Name] = p.Ready() && !p.Local
+	}
+	for _, n := range config.Keyed() {
+		if byName[n] && keychain.Has(n) {
+			ready = append(ready, n)
 		}
 	}
 	pause(t)

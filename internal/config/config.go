@@ -8,12 +8,22 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/silent9669/tsunagi/internal/catalog"
 	"github.com/silent9669/tsunagi/internal/provider"
 )
 
 type Config struct {
-	Default   string
+	Default string
+	// Providers are the built-in ones plus the user's own.
 	Providers []provider.Provider
+	// Catalog holds providers from the synced models.dev list that are not in
+	// Providers.
+	Catalog []provider.Provider
+}
+
+// All returns every provider the router may route to.
+func (c Config) All() []provider.Provider {
+	return append(append([]provider.Provider{}, c.Providers...), c.Catalog...)
 }
 
 type file struct {
@@ -30,7 +40,51 @@ func Path() string {
 	return filepath.Join(home, ".config", "tsunagi", "config.json")
 }
 
-func Load() (Config, error) { return LoadFrom(Path()) }
+// Load reads the user's config and adds the synced catalogue behind it.
+func Load() (Config, error) {
+	cfg, err := LoadFrom(Path())
+	if err != nil {
+		return cfg, err
+	}
+	known := map[string]bool{}
+	for _, p := range cfg.Providers {
+		known[p.Name] = true
+	}
+	for _, e := range catalog.Load() {
+		if !known[e.ID] {
+			cfg.Catalog = append(cfg.Catalog, e.Provider())
+		}
+	}
+	return cfg, nil
+}
+
+// Save writes the user's own providers and default back to the config file.
+func Save(path string, def string, user []provider.Provider) error {
+	b, err := json.MarshalIndent(file{Default: def, Providers: user}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(b, '\n'), 0o644)
+}
+
+// User returns only what the config file at path defines.
+func User(path string) (string, []provider.Provider, error) {
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil, nil
+	}
+	if err != nil {
+		return "", nil, err
+	}
+	var f file
+	if err := json.Unmarshal(b, &f); err != nil {
+		return "", nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return f.Default, f.Providers, nil
+}
 
 func LoadFrom(path string) (Config, error) {
 	cfg := Config{Default: "opencode", Providers: provider.Builtin()}

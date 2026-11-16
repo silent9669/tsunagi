@@ -87,3 +87,9 @@ Plain text is enough. No Markdown plan file is required.
 - Which OpenCode plan (Console or Go) supports which models? Check the current Go model table.
 - Which of Ollama, LM Studio and SiliconFlow serve the Anthropic Dialect natively?
 - Does the desktop app honor a project-level `.claude/settings.local.json` env block, as an alternative to a terminal launch?
+
+## Catalogue and import
+
+The router resolves a provider name in this order: user config, built-in list, models.dev catalogue. The catalogue is fetched on demand by `tsunagi sync` into the user cache directory, never at launch, and reduced to name, endpoint, Dialect and model names. Dialect comes from the npm package models.dev lists (`openai-compatible` and similar to `openai-chat`, `anthropic` to `anthropic`, `@ai-sdk/openai` to `openai-responses`). Providers whose package has no known mapping (Google, Azure, Bedrock) are left out.
+
+`tsunagi import opencode` reads opencode's `provider`/`providers` blocks and `auth.json`. It adds providers tsunagi does not know, never overrides known ones, and copies only API keys, directly into the keychain and never to the screen. OAuth logins are reported and skipped: a refresh token is single-use, so sharing one would sign opencode out. A small `keys.json` index of provider names (no secrets) lets `tsunagi providers` show keyed catalogue entries without probing the keychain per entry.

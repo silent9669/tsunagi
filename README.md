@@ -42,7 +42,10 @@ See [docs/design.md](docs/design.md) for the router, the model mapping and the p
 go build -o tsunagi . && mv tsunagi /usr/local/bin/   # macOS, Go 1.27+
 tsunagi login opencode        # key is typed hidden, saved in the keychain
 tsunagi                       # splash, starts the router, launches claude through it
-tsunagi providers             # providers and key status
+tsunagi import opencode       # reuse the providers and API keys you set up in opencode
+tsunagi sync                  # fetch the models.dev catalogue (about 300 providers)
+tsunagi providers [--all]     # providers and key status
+tsunagi models deepseek       # model names to type after /model
 tsunagi watch                 # live traffic, run it in a second terminal tab
 ```
 
@@ -56,7 +59,7 @@ Inside the session:
 
 Claude Code prints a "does not recognize the model" notice for non-Claude names and assumes a 200k context window. The notice is cosmetic.
 
-Set `TSUNAGI_NO_ANIM=1` to skip animation, or `NO_COLOR=1` for plain text. Extra providers go in `~/.config/tsunagi/config.json`.
+Set `TSUNAGI_NO_ANIM=1` to skip animation, or `NO_COLOR=1` for plain text. Extra providers go in `~/.config/tsunagi/config.json` (`name`, `base_url`, `dialect`). Any provider in the catalogue works as `/model <provider>/<model>` once it has a key; OAuth logins in opencode cannot be imported.
 
 ## Documents
 

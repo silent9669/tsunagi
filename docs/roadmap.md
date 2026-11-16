@@ -13,6 +13,13 @@
 - [ ] Verify with a real claude.ai login that the OAuth `Authorization` header reaches Anthropic through the router
 - [ ] `/model` switch in a live session (Claude to non-Claude and back)
 
+## Phase 2a: catalogue and opencode import
+
+- [x] models.dev catalogue (`tsunagi sync`), merged behind built-in and user providers
+- [x] `tsunagi import opencode`: custom providers and API keys from opencode config and auth.json
+- [x] `tsunagi models <provider>`
+- [ ] Import from other tools (Codex `config.toml`, Crush)
+
 ## Phase 2: Sign-in and Responses Translator
 
 - [x] Translator for `openai-responses`: request, streamed and plain reply, tool calls, usage, errors (reasoning is dropped on purpose)

@@ -1,6 +1,8 @@
 // Package provider lists the model providers tsunagi can route to.
 package provider
 
+import "strings"
+
 type Dialect string
 
 const (
@@ -40,4 +42,22 @@ func Builtin() []Provider {
 		{Name: "together", BaseURL: "https://api.together.xyz/v1", Dialect: OpenAIChat},
 		{Name: "mistral", BaseURL: "https://api.mistral.ai/v1", Dialect: OpenAIChat},
 	}
+}
+
+// DialectForPackage maps an npm or runtime package name, as models.dev and
+// opencode name them, to the Dialect tsunagi speaks to that provider.
+func DialectForPackage(pkg string) (Dialect, bool) {
+	p := strings.ToLower(pkg)
+	switch {
+	case strings.Contains(p, "anthropic"):
+		return Anthropic, true
+	case strings.Contains(p, "responses"), p == "@ai-sdk/openai", strings.HasSuffix(p, "providers/openai"):
+		return OpenAIResponses, true
+	case strings.Contains(p, "openai-compatible"), strings.HasSuffix(p, "providers/openai/chat"),
+		strings.HasSuffix(p, "ai-sdk/groq"), strings.HasSuffix(p, "ai-sdk/mistral"),
+		strings.HasSuffix(p, "ai-sdk/togetherai"), strings.HasSuffix(p, "ai-sdk/cerebras"),
+		strings.HasSuffix(p, "ai-sdk/deepinfra"):
+		return OpenAIChat, true
+	}
+	return "", false
 }

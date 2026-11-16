@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/silent9669/tsunagi/internal/config"
@@ -23,7 +24,7 @@ func findProvider(t *ui.Term, args []string) (provider.Provider, int) {
 	if len(args) != 1 {
 		return provider.Provider{}, fail(t, "name one provider: %s", providerNames(cfg))
 	}
-	for _, p := range cfg.Providers {
+	for _, p := range cfg.All() {
 		if p.Name == args[0] {
 			return p, 0
 		}
@@ -36,7 +37,7 @@ func providerNames(cfg config.Config) string {
 	for _, p := range cfg.Providers {
 		n = append(n, p.Name)
 	}
-	return strings.Join(n, ", ")
+	return strings.Join(n, ", ") + " (see also: tsunagi providers --all)"
 }
 
 func cmdLogin(t *ui.Term, args []string) int {
@@ -68,17 +69,34 @@ func cmdLogout(t *ui.Term, args []string) int {
 	if err := keychain.Delete(p.Name); err != nil {
 		return fail(t, "no key stored for %s", p.Name)
 	}
+	config.SetKeyed(p.Name, false)
 	t.Printf("  %s %s\n", t.Paint(ui.Mint, "[ok]"), p.Name+" key removed")
 	return 0
 }
 
-func cmdProviders(t *ui.Term) int {
+// cmdProviders lists the built-in and configured providers plus any catalogue
+// provider that has a key. --all adds the rest of the catalogue.
+func cmdProviders(t *ui.Term, args []string) int {
 	cfg, err := config.Load()
 	if err != nil {
 		return fail(t, "%v", err)
 	}
-	rows := make([][]string, 0, len(cfg.Providers))
-	for _, p := range cfg.Providers {
+	list := cfg.Providers
+	if len(args) == 1 && args[0] == "--all" {
+		list = cfg.All()
+	} else {
+		keyed := map[string]bool{}
+		for _, n := range config.Keyed() {
+			keyed[n] = true
+		}
+		for _, p := range cfg.Catalog {
+			if keyed[p.Name] {
+				list = append(list, p)
+			}
+		}
+	}
+	rows := make([][]string, 0, len(list))
+	for _, p := range list {
 		name := p.Name
 		if name == cfg.Default {
 			name += " *"
@@ -86,6 +104,9 @@ func cmdProviders(t *ui.Term) int {
 		rows = append(rows, []string{name, string(p.Dialect), status(t, p), p.BaseURL})
 	}
 	t.Table([]string{"provider", "dialect", "status", "endpoint"}, rows)
+	if len(args) == 0 && len(cfg.Catalog) > 0 {
+		t.Printf("  %s\n", t.Dim(strconv.Itoa(len(cfg.Catalog))+" more from the catalogue: tsunagi providers --all"))
+	}
 	return 0
 }
 

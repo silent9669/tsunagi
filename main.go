@@ -22,7 +22,13 @@ func run(args []string) int {
 		case "logout":
 			return cmdLogout(t, args[1:])
 		case "providers":
-			return cmdProviders(t)
+			return cmdProviders(t, args[1:])
+		case "sync":
+			return cmdSync(t)
+		case "models":
+			return cmdModels(t, args[1:])
+		case "import":
+			return cmdImport(t, args[1:])
 		case "watch":
 			return cmdWatch(t)
 		case "version":
@@ -41,7 +47,10 @@ func cmdHelp(t *ui.Term) int {
 		{"tsunagi [claude args]", "launch claude through the router"},
 		{"tsunagi login <provider>", "store a key in the macOS keychain"},
 		{"tsunagi logout <provider>", "remove a key"},
-		{"tsunagi providers", "list providers and key status"},
+		{"tsunagi providers [--all]", "list providers and key status"},
+		{"tsunagi import opencode", "take providers and keys from opencode"},
+		{"tsunagi sync", "refresh the provider catalogue"},
+		{"tsunagi models <provider>", "list a provider's model names"},
 		{"tsunagi watch", "live traffic from a running session"},
 	}
 	for _, r := range rows {
