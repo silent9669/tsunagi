@@ -47,36 +47,37 @@ func pinHost(cfg config.Config, p provider.Provider) string {
 	return ""
 }
 
-// keyFor returns the key lookup the router uses, by account name. It refuses
-// to hand a catalogue provider's key to an endpoint other than the one it was
-// saved for.
-func keyFor(cfg config.Config) func(string) (string, error) {
-	catalog := map[string]provider.Provider{}
-	for _, p := range cfg.Catalog {
-		catalog[p.Name] = p
-	}
-	return func(account string) (string, error) {
-		base := baseOf(account)
-		if base == "chatgpt" {
+// keyFor returns the key lookup the router uses. It is given the provider the
+// request is really going to and the account chosen for it, and it checks that
+// they belong together before handing anything out: an account name must be the
+// provider's own name or "<provider>.<label>", sign-in tokens only go to
+// providers that are configured for sign-in, and a catalogue provider's key only
+// goes to the endpoint host it was saved for.
+func keyFor(cfg config.Config) func(provider.Provider, string) (string, error) {
+	return func(p provider.Provider, account string) (string, error) {
+		if account != p.Name && !strings.HasPrefix(account, p.Name+".") {
+			return "", router.KeyError{Msg: "tsunagi: account " + account + " does not belong to " + p.Name}
+		}
+		if p.Auth == "chatgpt" && !p.Untrusted {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			tok, err := chatgptFor(labelOf(account)).AccessToken(ctx)
+			tok, err := chatgptFor(strings.TrimPrefix(strings.TrimPrefix(account, p.Name), ".")).AccessToken(ctx)
 			if err != nil {
 				return "", router.KeyError{Msg: "tsunagi: " + err.Error()}
 			}
 			return tok, nil
 		}
-		if p, ok := catalog[base]; ok {
+		if p.Untrusted {
 			host := config.Host(p.BaseURL)
 			// Deny by default: a missing or unreadable pin is not trusted.
 			switch pin := config.Pin(account); {
 			case pin == "":
 				return "", router.KeyError{Msg: fmt.Sprintf(
-					"tsunagi: no endpoint is recorded for the %s key. Run: tsunagi login %s", account, base)}
+					"tsunagi: no endpoint is recorded for the %s key. Run: tsunagi login %s", account, p.Name)}
 			case pin != host:
 				return "", router.KeyError{Msg: fmt.Sprintf(
 					"tsunagi: the catalogue now sends %s to %s, but its key was saved for %s. Run: tsunagi sync, then tsunagi login %s if that is expected",
-					base, host, pin, base)}
+					p.Name, host, pin, p.Name)}
 			}
 		}
 		return keychain.Get(account)

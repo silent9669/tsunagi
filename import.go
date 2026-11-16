@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
 	"time"
@@ -16,8 +15,6 @@ import (
 	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
-
-var validName = regexp.MustCompile(`^[a-z0-9-]{1,40}$`)
 
 type importRow struct{ ID, Config, Key string }
 
@@ -47,7 +44,7 @@ func planImport(known map[string]bool, ocs []opencode.Provider, auth map[string]
 				r.Config = "skip: package " + oc.Package
 			case oc.BaseURL == "":
 				r.Config = "skip: no baseURL"
-			case !validName.MatchString(oc.ID):
+			case !provider.ValidName(oc.ID):
 				r.Config = "skip: bad name"
 			default:
 				adds = append(adds, provider.Provider{Name: oc.ID, BaseURL: oc.BaseURL, Dialect: d})
@@ -204,7 +201,7 @@ func cmdModels(t *ui.Term, args []string) int {
 		}
 		key := ""
 		if !p.Local {
-			k, err := keyFor(cfg)(router.Account(p.Name, ""))
+			k, err := keyFor(cfg)(p, router.Account(p.Name, ""))
 			if err != nil {
 				return fail(t, "no key for %s to ask it. Run: tsunagi login %s", name, name)
 			}

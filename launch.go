@@ -95,6 +95,16 @@ func launch(t *ui.Term, args []string) int {
 	} else {
 		sp.Stop(true, strings.Join(names, ", "))
 	}
+	targets := []string{"anthropic"}
+	for _, n := range names {
+		if len(targets) == 6 {
+			targets = append(targets, fmt.Sprintf("+%d more", len(names)-5))
+			break
+		}
+		targets = append(targets, n)
+	}
+	t.Printf("\n")
+	t.Routes(targets)
 	t.Printf("\n")
 
 	cmd := exec.Command(claude, args...)

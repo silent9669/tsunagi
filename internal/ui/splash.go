@@ -31,6 +31,7 @@ func (t *Term) SplashFrame(tsec float64, final bool) []string {
 	}
 	if !final {
 		DrawWater(c, tsec)
+		drawBubbles(c, tsec)
 	}
 	for r, row := range logo {
 		for i := 0; i < lw; i++ {
@@ -57,6 +58,26 @@ func (t *Term) SplashFrame(tsec float64, final bool) []string {
 	return c.Lines(t)
 }
 
+// drawBubbles lets the eel leave a trail of bubbles that rise and thin out.
+func drawBubbles(c *Canvas, tsec float64) {
+	for k := 0; k < 60; k++ {
+		born := float64(k) * 0.08
+		age := tsec - born
+		if age < 0 || age > 1.1 {
+			continue
+		}
+		x := int(born*splashSpeed) - 4 - EelLen/2 - (k*5)%7
+		y := 6 - int(age*6.5)
+		ch := byte('o')
+		if age > 0.5 {
+			ch = '.'
+		}
+		if x >= 0 && y >= 0 {
+			c.Set(x, y, ch, Lerp(Water, Teal, 1-age/1.1))
+		}
+	}
+}
+
 func abs(n int) int {
 	if n < 0 {
 		return -n
@@ -77,14 +98,15 @@ func (t *Term) Splash() {
 		}
 		return
 	}
-	restore := t.guardCursor()
+	pressed, unraw := t.skipKey()
+	restore := t.guard(unraw)
 	defer restore()
 	total := float64(splashWidth(logo)+EelLen+8)/splashSpeed + float64(splashWidth(logo)+8)/200
 	start := time.Now()
 	first := true
 	for {
 		el := time.Since(start).Seconds()
-		if el >= total {
+		if el >= total || pressed() {
 			break
 		}
 		if !first {

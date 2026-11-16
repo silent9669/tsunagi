@@ -49,7 +49,7 @@ func twoAccounts(t *testing.T, up *httptest.Server, evs chan events.Event) *env 
 	e := setup(t)
 	e.rt.Providers["opencode"] = provider.Provider{Name: "opencode", BaseURL: up.URL + "/anthropic", Dialect: provider.Anthropic}
 	e.rt.Accounts = func(p string) []string { return []string{p, p + ".work"} }
-	e.rt.Key = func(acct string) (string, error) {
+	e.rt.Key = func(_ provider.Provider, acct string) (string, error) {
 		switch acct {
 		case "opencode":
 			return "k-main", nil
@@ -146,7 +146,7 @@ func TestTranslatedProviderFailsOverToo(t *testing.T) {
 	e := twoAccounts(t, up, evs)
 	e.rt.Providers["groq"] = provider.Provider{Name: "groq", BaseURL: up.URL + "/v1", Dialect: provider.OpenAIChat}
 	e.rt.Accounts = func(p string) []string { return []string{p, p + ".work"} }
-	e.rt.Key = func(acct string) (string, error) {
+	e.rt.Key = func(_ provider.Provider, acct string) (string, error) {
 		if acct == "groq" {
 			return "k-main", nil
 		}

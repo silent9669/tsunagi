@@ -156,7 +156,7 @@ func (rt *Router) withAccounts(rec *recorder, p provider.Provider, label string,
 		last := i == len(cands)-1
 		key := ""
 		if !p.Local {
-			k, err := rt.Key(acct)
+			k, err := rt.Key(p, acct)
 			if err != nil || k == "" {
 				if last {
 					writeErr(rec, http.StatusUnauthorized, "authentication_error", keyMessage(acct, err))
@@ -354,4 +354,11 @@ func (rt *Router) forwardTranslated(rec *recorder, r *http.Request, body []byte,
 		rec.Header().Set("Content-Type", "application/json")
 		rec.Write(b)
 	})
+}
+
+// GuardedTransport is the transport used for catalogue providers: it refuses
+// loopback, private and link-local addresses. Other code that sends a key to
+// such a provider (listing its models) must use it too.
+func GuardedTransport() http.RoundTripper {
+	return guardedTransport(http.DefaultTransport.(*http.Transport))
 }

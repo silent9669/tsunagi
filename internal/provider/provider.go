@@ -1,7 +1,16 @@
 // Package provider lists the model providers tsunagi can route to.
 package provider
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
+
+var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
+
+// ValidName reports whether s can be a provider name. Dots and "@" are not
+// allowed: they separate an account label and pin an account in model names.
+func ValidName(s string) bool { return nameRe.MatchString(s) }
 
 type Dialect string
 

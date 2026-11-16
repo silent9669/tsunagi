@@ -63,7 +63,7 @@ func setup(t *testing.T) *env {
 		{Name: "openai", BaseURL: "http://127.0.0.1:1", Dialect: provider.OpenAIResponses},
 		{Name: "groq", BaseURL: "http://127.0.0.1:1", Dialect: provider.OpenAIChat},
 	}
-	key := func(name string) (string, error) {
+	key := func(_ provider.Provider, name string) (string, error) {
 		if name == "opencode" {
 			return "oc_key_123456", nil
 		}
@@ -192,7 +192,7 @@ func TestNoModelGoesToClaude(t *testing.T) {
 
 func TestMissingKeyAndTranslatorGiveAnthropicShapedErrors(t *testing.T) {
 	e := setup(t)
-	e.rt.Key = func(string) (string, error) { return "", errors.New("none") }
+	e.rt.Key = func(provider.Provider, string) (string, error) { return "", errors.New("none") }
 	for body, want := range map[string]struct {
 		status int
 		text   string
@@ -327,7 +327,7 @@ func TestResponsesProviderIsTranslatedBothWays(t *testing.T) {
 	defer up.Close()
 	e := setup(t)
 	e.rt.Providers["openai"] = provider.Provider{Name: "openai", BaseURL: up.URL + "/v1", Dialect: provider.OpenAIResponses}
-	e.rt.Key = func(string) (string, error) { return "sk-openai-123456", nil }
+	e.rt.Key = func(provider.Provider, string) (string, error) { return "sk-openai-123456", nil }
 
 	resp := e.post(t, "/v1/messages", `{"model":"openai/gpt-x","stream":true,"max_tokens":9,"messages":[{"role":"user","content":"yo"}]}`,
 		map[string]string{"Authorization": "Bearer oauth-claude-login"})
@@ -360,7 +360,7 @@ func TestResponsesProviderUpstreamErrorKeepsStatusAndShape(t *testing.T) {
 	defer up.Close()
 	e := setup(t)
 	e.rt.Providers["openai"] = provider.Provider{Name: "openai", BaseURL: up.URL, Dialect: provider.OpenAIResponses}
-	e.rt.Key = func(string) (string, error) { return "sk-openai-123456", nil }
+	e.rt.Key = func(provider.Provider, string) (string, error) { return "sk-openai-123456", nil }
 	resp := e.post(t, "/v1/messages", `{"model":"openai/gpt-x","messages":[]}`, nil)
 	b, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -371,7 +371,7 @@ func TestResponsesProviderUpstreamErrorKeepsStatusAndShape(t *testing.T) {
 
 func TestResponsesProviderCountTokensIsLocal(t *testing.T) {
 	e := setup(t)
-	e.rt.Key = func(string) (string, error) { return "sk-openai-123456", nil }
+	e.rt.Key = func(provider.Provider, string) (string, error) { return "sk-openai-123456", nil }
 	resp := e.post(t, "/v1/messages/count_tokens", `{"model":"openai/gpt-x","messages":[{"role":"user","content":"hello"}]}`, nil)
 	b, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -393,7 +393,7 @@ func TestChatProviderIsTranslatedBothWays(t *testing.T) {
 	defer up.Close()
 	e := setup(t)
 	e.rt.Providers["groq"] = provider.Provider{Name: "groq", BaseURL: up.URL + "/openai/v1", Dialect: provider.OpenAIChat}
-	e.rt.Key = func(string) (string, error) { return "gsk-123456789", nil }
+	e.rt.Key = func(provider.Provider, string) (string, error) { return "gsk-123456789", nil }
 
 	resp := e.post(t, "/v1/messages", `{"model":"groq/llama-x","stream":true,"max_tokens":9,"system":"sys","messages":[{"role":"user","content":"yo"}]}`,
 		map[string]string{"Authorization": "Bearer oauth-claude-login"})
@@ -421,7 +421,7 @@ func TestCatalogueProviderCannotReachLoopback(t *testing.T) {
 		e := setup(t)
 		e.rt.guarded = guardedTransport(http.DefaultTransport.(*http.Transport))
 		e.rt.Providers["acme"] = provider.Provider{Name: "acme", BaseURL: up.URL + "/v1", Dialect: d, Untrusted: true}
-		e.rt.Key = func(string) (string, error) { return "acme-key-123456", nil }
+		e.rt.Key = func(provider.Provider, string) (string, error) { return "acme-key-123456", nil }
 		resp := e.post(t, "/v1/messages", `{"model":"acme/x","messages":[]}`, nil)
 		b, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
@@ -458,7 +458,7 @@ func TestSignInProviderForcesStreamAndAssemblesPlainReply(t *testing.T) {
 	defer up.Close()
 	e := setup(t)
 	e.rt.Providers["chatgpt"] = provider.Provider{Name: "chatgpt", BaseURL: up.URL + "/v1", Dialect: provider.OpenAIResponses, Auth: "chatgpt"}
-	e.rt.Key = func(n string) (string, error) { return "access-token-xyz", nil }
+	e.rt.Key = func(_ provider.Provider, n string) (string, error) { return "access-token-xyz", nil }
 
 	resp := e.post(t, "/v1/messages", `{"model":"chatgpt/gpt-x","max_tokens":9,"messages":[{"role":"user","content":"yo"}]}`, nil)
 	b, _ := io.ReadAll(resp.Body)

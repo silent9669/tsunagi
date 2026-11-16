@@ -68,3 +68,36 @@ func TestLiveModelsReadsOpenAIAndOllamaShapes(t *testing.T) {
 		t.Fatal("a 401 must be an error")
 	}
 }
+
+func TestLiveModelsDoesNotFollowRedirectsWithTheKey(t *testing.T) {
+	leaked := false
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("Authorization") != ""
+		w.Write([]byte(`{"data":[{"id":"x"}]}`))
+	}))
+	defer other.Close()
+	gw := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+"/models", http.StatusFound)
+	}))
+	defer gw.Close()
+	if _, err := liveModels(context.Background(), provider.Provider{BaseURL: gw.URL, Dialect: provider.OpenAIChat}, "secret-key"); err == nil {
+		t.Fatal("a redirect must not be followed")
+	}
+	if leaked {
+		t.Fatal("the key reached the redirect target")
+	}
+}
+
+func TestLiveModelsUsesGuardForCatalogueProviders(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"data":[]}`)) }))
+	defer srv.Close()
+	for _, h := range []string{"HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"} {
+		t.Setenv(h, "")
+	}
+	if _, err := liveModels(context.Background(), provider.Provider{BaseURL: srv.URL, Dialect: provider.OpenAIChat, Untrusted: true}, "k"); err == nil {
+		t.Fatal("a catalogue provider reached a loopback server")
+	}
+	if _, err := liveModels(context.Background(), provider.Provider{BaseURL: srv.URL, Dialect: provider.OpenAIChat}, "k"); err != nil {
+		t.Fatalf("a user-added gateway on loopback must work: %v", err)
+	}
+}

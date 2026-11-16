@@ -60,7 +60,9 @@ func Parse(body []byte) ([]Entry, error) {
 	var out []Entry
 	for id, p := range raw {
 		d, ok := provider.DialectForPackage(p.NPM)
-		if !ok || id == "anthropic" { // Claude has its own route
+		// Claude has its own route. Ids with dots or other odd characters could
+		// imitate "<provider>.<label>" account names, so they are not accepted.
+		if !ok || id == "anthropic" || !provider.ValidName(id) {
 			continue
 		}
 		api := p.API

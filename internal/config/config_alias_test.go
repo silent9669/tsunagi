@@ -29,3 +29,18 @@ func TestSavePreservesAliases(t *testing.T) {
 		t.Fatal("provider not saved")
 	}
 }
+
+func TestConfigRejectsDottedProviderNamesAndStaysPrivate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sub", "config.json")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	os.WriteFile(path, []byte(`{"providers":[{"name":"chatgpt.work","base_url":"https://x.example","dialect":"openai-chat"}]}`), 0o644)
+	if _, err := LoadFrom(path); err == nil {
+		t.Fatal("a dotted provider name could imitate an account of another provider")
+	}
+	if err := Save(path, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if fi, _ := os.Stat(path); fi.Mode().Perm() != 0o600 {
+		t.Fatalf("config mode = %v, want 0600 (headers may hold credentials)", fi.Mode().Perm())
+	}
+}

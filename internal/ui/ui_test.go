@@ -95,3 +95,55 @@ func TestDumpFrames(t *testing.T) {
 	}
 	t.Logf("final\n%s", strings.Join(tm.SplashFrame(0, true), "\n"))
 }
+
+func TestRoutesFramesAreASCIIAndStableHeight(t *testing.T) {
+	for _, color := range []bool{true, false} {
+		tm := testTerm(color)
+		for _, targets := range [][]string{nil, {"anthropic"}, {"anthropic", "chatgpt x2", "openrouter"}} {
+			want := len(targets)
+			if want == 0 {
+				want = 1
+			}
+			var width int
+			for _, ts := range []float64{0, 0.2, 0.5, 0.79} {
+				for _, final := range []bool{false, true} {
+					lines := tm.RoutesFrame(ts, targets, final)
+					if len(lines) != want {
+						t.Fatalf("lines = %d, want %d", len(lines), want)
+					}
+					for _, l := range lines {
+						for i := 0; i < len(l); i++ {
+							if l[i] >= 0x80 {
+								t.Fatalf("non-ASCII in %q", l)
+							}
+						}
+						if !color && strings.Contains(l, "\x1b") {
+							t.Fatalf("escape in plain output: %q", l)
+						}
+					}
+					if width == 0 {
+						width = VisibleLen(lines[0])
+					}
+				}
+			}
+			if len(targets) > 0 && !strings.Contains(tm.RoutesFrame(0, targets, true)[len(targets)/2], "claude") {
+				t.Fatal("the claude node is missing from the middle row")
+			}
+		}
+	}
+}
+
+func TestGaugeAndCount(t *testing.T) {
+	tm := testTerm(false)
+	if g := tm.Gauge(0.5, 10); g != "[#####-----]  50%" {
+		t.Fatalf("gauge = %q", g)
+	}
+	if tm.Gauge(-1, 4) != "[----]   0%" || tm.Gauge(9, 4) != "[####] 100%" {
+		t.Fatal("gauge must clamp")
+	}
+	for n, want := range map[int]string{0: "0", 950: "950", 12345: "12.3k", 4_600_000: "4.6M"} {
+		if got := Count(n); got != want {
+			t.Errorf("Count(%d) = %s, want %s", n, got, want)
+		}
+	}
+}

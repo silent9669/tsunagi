@@ -36,40 +36,56 @@ func cmdWatch(t *ui.Term) int {
 	defer fmt.Fprint(t.Out, altOff)
 
 	var (
-		tail   events.Tail
+		tails  = map[string]*events.Tail{} // one per session's event file
 		log    []events.Event
 		counts = map[string]int{}
 		start  = time.Now()
 	)
 	tick := time.NewTicker(50 * time.Millisecond)
 	defer tick.Stop()
-	for {
+	eelX := 0.0
+	for n := 0; ; n++ {
 		select {
 		case <-ch:
 			return 0
 		case <-tick.C:
 		}
-		if p := events.Latest(dir); p != tail.Path {
-			tail = events.Tail{Path: p}
-			log, counts = nil, map[string]int{}
+		if n%20 == 0 { // look for new sessions once a second
+			for _, p := range events.Recent(dir, time.Hour) {
+				if tails[p] == nil {
+					tails[p] = &events.Tail{Path: p}
+				}
+			}
 		}
-		for _, e := range tail.Poll() {
-			log = append(log, e)
-			counts[acctOf(e)]++
+		fresh := false
+		for _, tl := range tails {
+			for _, e := range tl.Poll() {
+				if time.Since(e.Time) > 10*time.Minute {
+					continue // history from before watch started
+				}
+				fresh = true
+				log = append(log, e)
+				counts[acctOf(e)]++
+			}
+		}
+		if fresh {
+			sort.Slice(log, func(i, j int) bool { return log[i].Time.Before(log[j].Time) })
 		}
 		if len(log) > 500 {
 			log = log[len(log)-500:]
 		}
-		t.Out.Write([]byte(renderWatch(t, time.Since(start).Seconds(), tail.Path != "", log, counts)))
+		// the eel swims faster while requests are flowing
+		eelX += 1.5 + 0.9*float64(recent(log, 3*time.Second))
+		t.Out.Write([]byte(renderWatch(t, time.Since(start).Seconds(), int(eelX), len(tails) > 0, log, counts)))
 	}
 }
 
-func renderWatch(t *ui.Term, tsec float64, live bool, log []events.Event, counts map[string]int) string {
+func renderWatch(t *ui.Term, tsec float64, eelX int, live bool, log []events.Event, counts map[string]int) string {
 	w, h := t.W, t.H
 	c := ui.NewCanvas(w, watchH)
 	ui.DrawWater(c, tsec)
 	span := w + ui.EelLen + 6
-	ui.DrawEel(c, int(tsec*30)%span-2, 1, 0.9, tsec*8, ui.Blinks(tsec))
+	ui.DrawEel(c, eelX%span-2, 1, 0.9, tsec*8, ui.Blinks(tsec))
 	lines := c.Lines(t)
 
 	state := "waiting for a session"
@@ -87,7 +103,8 @@ func renderWatch(t *ui.Term, tsec float64, live bool, log []events.Event, counts
 	for _, n := range names {
 		chips = append(chips, t.Paint(ui.Teal, clean(n))+" "+fmt.Sprint(counts[n]))
 	}
-	lines = append(lines, "  "+strings.Join(chips, "   "), "")
+	lines = append(lines, "  "+strings.Join(chips, "   "))
+	lines = append(lines, "  "+t.Dim("traffic ")+t.Paint(ui.Teal, sparkline(log, time.Now(), min(w-14, 60), 5*time.Second))+t.Dim("  5 min"), "")
 
 	lines = append(lines,
 		"  "+t.Dim(fmt.Sprintf("%-9s %-16s %-26s %-4s %-6s %s", "time", "account", "model", "http", "ms", "tokens in/out")),
@@ -185,4 +202,45 @@ func acctOf(e events.Event) string {
 		return e.Account
 	}
 	return e.Provider
+}
+
+// recent counts events newer than d.
+func recent(log []events.Event, d time.Duration) int {
+	n := 0
+	for _, e := range log {
+		if time.Since(e.Time) < d {
+			n++
+		}
+	}
+	return n
+}
+
+// sparkline draws requests per bucket, oldest to newest, with a ramp of ASCII
+// characters from quiet to busy.
+func sparkline(log []events.Event, now time.Time, buckets int, step time.Duration) string {
+	if buckets < 1 {
+		return ""
+	}
+	counts := make([]int, buckets)
+	peak := 0
+	for _, e := range log {
+		age := int(now.Sub(e.Time) / step)
+		if age >= 0 && age < buckets {
+			counts[buckets-1-age]++
+			if counts[buckets-1-age] > peak {
+				peak = counts[buckets-1-age]
+			}
+		}
+	}
+	const ramp = " .:-=+*#"
+	b := make([]byte, buckets)
+	for i, n := range counts {
+		switch {
+		case n == 0:
+			b[i] = '_'
+		default:
+			b[i] = ramp[max(1, n*(len(ramp)-1)/peak)]
+		}
+	}
+	return string(b)
 }

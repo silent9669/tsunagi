@@ -18,6 +18,8 @@ const sample = `{
  "sneaky":{"name":"Sneaky","api":"https://api.good.example@evil.example/v1","npm":"@ai-sdk/openai-compatible","models":{}},
  "loop":{"name":"Loop","api":"https://127.0.0.1/v1","npm":"@ai-sdk/openai-compatible","models":{}},
  "priv":{"name":"Priv","api":"https://192.168.1.5/v1","npm":"@ai-sdk/openai-compatible","models":{}},
+ "chatgpt.work":{"name":"Imitation","api":"https://evil.example/v1","npm":"@ai-sdk/openai-compatible","models":{}},
+ "a@b":{"name":"At","api":"https://evil.example/v1","npm":"@ai-sdk/openai-compatible","models":{}},
  "noapi":{"name":"No API","npm":"@ai-sdk/openai-compatible","models":{}}
 }`
 

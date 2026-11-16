@@ -121,7 +121,11 @@ const (
 )
 
 // guardCursor hides the cursor and restores it on return, SIGINT or SIGTERM.
-func (t *Term) guardCursor() (restore func()) {
+func (t *Term) guardCursor() (restore func()) { return t.guard(nil) }
+
+// guard is guardCursor plus an extra cleanup that also runs on return and on
+// those signals.
+func (t *Term) guard(extra func()) (restore func()) {
 	if !t.TTY {
 		return func() {}
 	}
@@ -130,6 +134,9 @@ func (t *Term) guardCursor() (restore func()) {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		if _, ok := <-ch; ok {
+			if extra != nil {
+				extra()
+			}
 			fmt.Fprint(t.Out, "\x1b[0m"+showCursor+"\n")
 			os.Exit(130)
 		}
@@ -137,6 +144,9 @@ func (t *Term) guardCursor() (restore func()) {
 	return func() {
 		signal.Stop(ch)
 		close(ch)
+		if extra != nil {
+			extra()
+		}
 		fmt.Fprint(t.Out, "\x1b[0m"+showCursor)
 	}
 }

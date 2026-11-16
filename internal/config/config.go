@@ -87,10 +87,14 @@ func Save(path string, def string, user []provider.Provider) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	// Headers in this file can carry credentials, so keep it private.
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(b, '\n'), 0o644)
+	if err := os.WriteFile(path, append(b, '\n'), 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600) // WriteFile keeps the mode of an existing file
 }
 
 // User returns only what the config file at path defines.
@@ -132,6 +136,9 @@ func LoadFrom(path string) (Config, error) {
 	for _, up := range f.Providers {
 		if up.Name == "" || up.BaseURL == "" {
 			return cfg, fmt.Errorf("%s: provider needs name and base_url", path)
+		}
+		if !provider.ValidName(up.Name) {
+			return cfg, fmt.Errorf("%s: provider name %q must be lowercase letters, digits and dashes", path, up.Name)
 		}
 		if up.Dialect == "" {
 			up.Dialect = provider.Anthropic

@@ -51,7 +51,7 @@ type Router struct {
 	Accounts func(provider string) []string
 	// Aliases rewrite a requested model name before routing.
 	Aliases map[string]string
-	Key     func(provider string) (string, error)
+	Key     func(p provider.Provider, account string) (string, error)
 	Claude  *url.URL
 	OnEvent func(events.Event)
 
@@ -69,7 +69,7 @@ func (rt *Router) transportFor(p provider.Provider) http.RoundTripper {
 	return rt.transport
 }
 
-func New(host, token string, providers []provider.Provider, def string, key func(string) (string, error)) *Router {
+func New(host, token string, providers []provider.Provider, def string, key func(provider.Provider, string) (string, error)) *Router {
 	rt := &Router{
 		Host:      host,
 		Token:     token,

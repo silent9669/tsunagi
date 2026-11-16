@@ -13,6 +13,7 @@ import (
 
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/provider"
+	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
@@ -78,7 +79,7 @@ func parseAdd(args []string) (provider.Provider, error) {
 		return p, fmt.Errorf("usage: tsunagi add <name> <base-url> [--dialect anthropic|openai-chat|openai-responses] [--local] [--header \"K: V\"]")
 	}
 	p.Name, p.BaseURL = pos[0], strings.TrimRight(pos[1], "/")
-	if !validName.MatchString(p.Name) {
+	if !provider.ValidName(p.Name) {
 		return p, fmt.Errorf("name must be lowercase letters, digits and dashes")
 	}
 	u, err := url.Parse(p.BaseURL)
@@ -207,7 +208,16 @@ func liveModels(ctx context.Context, p provider.Provider, key string) ([]string,
 			req.Header.Set("Authorization", "Bearer "+key)
 		}
 	}
-	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	// A key goes with this request, so never follow a redirect with it, and keep
+	// catalogue providers away from internal addresses, as the router does.
+	client := &http.Client{
+		Timeout:       15 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	if p.Untrusted {
+		client.Transport = router.GuardedTransport()
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("cannot reach %s", req.URL.Host)
 	}

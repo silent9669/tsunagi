@@ -73,7 +73,7 @@ func cmdUsage(t *ui.Term, args []string) int {
 		wg.Add(1)
 		go func(a string, p provider.Provider) {
 			defer wg.Done()
-			key, err := keys(a)
+			key, err := keys(p, a)
 			if err != nil {
 				mu.Lock()
 				results[a] = result{err: err, ok: true}

@@ -144,3 +144,15 @@ func ReadAll(dir string, since time.Time) []Event {
 	sort.Slice(out, func(i, j int) bool { return out[i].Time.Before(out[j].Time) })
 	return out
 }
+
+// Recent lists event files modified within the given time.
+func Recent(dir string, within time.Duration) []string {
+	files, _ := filepath.Glob(filepath.Join(dir, "events-*.jsonl"))
+	var out []string
+	for _, p := range files {
+		if st, err := os.Stat(p); err == nil && time.Since(st.ModTime()) < within {
+			out = append(out, p)
+		}
+	}
+	return out
+}
