@@ -176,3 +176,29 @@ func TestPlainJSONReplyTokensAreCounted(t *testing.T) {
 		t.Fatalf("event = %+v", ev)
 	}
 }
+
+func TestUsageStrategyPrefersTheAccountWithMostHeadroom(t *testing.T) {
+	up, k := keyedUpstream(t, nil, anthropicSSE)
+	e := twoAccounts(t, up, make(chan events.Event, 8))
+	p := e.rt.Providers["opencode"]
+	p.Strategy = "usage"
+	e.rt.Providers["opencode"] = p
+	e.rt.Headroom = func(_ provider.Provider, acct string) (float64, bool) {
+		return map[string]float64{"opencode": 0.1, "opencode.work": 0.9}[acct], true
+	}
+	e.post(t, "/v1/messages", `{"model":"opencode/m"}`, nil).Body.Close()
+	if k.hits["k-work"] != 1 || k.hits["k-main"] != 0 {
+		t.Fatalf("hits = %v: the roomier account must go first", k.hits)
+	}
+}
+
+func TestRankByHeadroomTreatsUnknownAsHalfFull(t *testing.T) {
+	known := map[string]float64{"a": 0.9, "c": 0.1}
+	got := rankByHeadroom([]string{"c", "b", "a"}, func(x string) (float64, bool) { f, ok := known[x]; return f, ok })
+	if got[0] != "a" || got[1] != "b" || got[2] != "c" {
+		t.Fatalf("order = %v", got)
+	}
+	if got := rankByHeadroom([]string{"x", "y"}, func(string) (float64, bool) { return 0, false }); got[0] != "x" {
+		t.Fatalf("ties keep the given order: %v", got)
+	}
+}

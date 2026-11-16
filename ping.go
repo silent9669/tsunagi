@@ -50,6 +50,7 @@ func cmdPing(t *ui.Term, args []string) int {
 	host := ln.Addr().String()
 	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg))
 	rt.Accounts = accountsOf
+	rt.Headroom = newHeadroom(cfg).get
 	if dir, err := events.Dir(); err == nil {
 		if w, err := events.NewWriter(dir); err == nil {
 			defer w.Close()

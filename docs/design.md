@@ -69,12 +69,14 @@ Known side effects of a custom base URL, from Claude Code docs:
 
 Goal: finish a plan in a normal Claude session, send it to a tsunagi session, get a message back when it is done.
 
-1. The Claude session types the plan into the tsunagi terminal tab (terminal-panel tool of the desktop app).
-2. The plan ends with: "when finished, write a short summary to `/tmp/tsunagi-done.txt`".
-3. The Claude session starts a background waiter (`until [ -f /tmp/tsunagi-done.txt ]; do sleep 2; done`). Background shell commands re-invoke the session when they exit, so the result arrives without polling.
-4. Fallback: read the terminal tab output and check whether the session is idle.
+- Each launch registers itself (`tsunagi sessions`) and gets `TSUNAGI_SESSION` and `TSUNAGI_DONE` in its environment.
+- The launcher adds a Stop hook through `--settings` (skipped when you pass your own `--settings` or set `TSUNAGI_NO_HOOK`). When the session ends a turn the hook runs `tsunagi done --hook`, which writes the last assistant message to the done file. The hook can fire before that message reaches the transcript, so it waits up to three seconds for it. Completion therefore does not depend on a non-Claude model obeying a closing instruction; a model can still call `tsunagi done "<summary>"` itself.
+- The sending Claude session types the plan into the tsunagi terminal tab (the desktop app's terminal panel tool), then runs `tsunagi wait --session <id>` in the background. The command exits, and wakes the session, when the target finishes its next turn; the summary is its output. `tsunagi handoff` prints these steps with the right ids.
+- The done file outlives its session so a waiter that started first can still read the last result; stale ones are cleaned up later.
 
-Plain text is enough. No Markdown plan file is required.
+tsunagi cannot type into another terminal itself: that needs a pty proxy, which would change who owns the terminal, so it stays with the terminal tool.
+
+Checked end to end with real Claude Code 2.1.308 against a fake gateway (`make e2e`): a tool-call loop and a waiter woken by the hook.
 
 ## Open questions
 
@@ -123,3 +125,7 @@ Any provider tsunagi does not list can be added with `tsunagi add <name> <url>`:
 ## Interface
 
 The intro is the eel swimming through bubbles and revealing the name, then the boot lines, then a small map of where requests can go (Claude Code, tsunagi, Anthropic and every ready provider) with pulses running along the links. Any key skips the animations: the terminal is switched to a no-wait read mode and restored afterwards, with no background reader left to swallow a keystroke meant for Claude Code, and a signal restores it too. `tsunagi watch` follows every session's event file, shows account, tokens and failovers per request and a five-minute sparkline, and the eel swims faster while requests flow. `tsunagi usage` draws balances as `[####------]` gauges. Everything is plain ASCII, with color only where the terminal supports it.
+
+## Account ranking by headroom
+
+`"strategy": "usage"` orders accounts by the share of quota left, for providers with a balance endpoint (OpenRouter, DeepSeek, Moonshot). Lookups never delay a request: the first one answers from what is known and refreshes in the background (cached two minutes); an account of unknown headroom counts as half full. Failover still applies on top.

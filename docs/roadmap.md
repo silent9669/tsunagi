@@ -37,7 +37,7 @@
 - [x] Token counts per account from the reply stream; `tsunagi usage`
 - [x] Live balances: OpenRouter, DeepSeek, Moonshot (checked live against OpenRouter only)
 - [ ] Balances for Z.AI, OpenCode Go and ChatGPT once their endpoints are documented
-- [ ] Usage-aware ranking (pick the account with most headroom)
+- [x] Usage-aware ranking (`strategy: usage`)
 
 ## Phase 2c: gateways
 
@@ -47,10 +47,11 @@
 
 ## Phase 3: hand-off
 
-- [ ] Send a plan from a Claude session into the tsunagi terminal tab
-- [ ] Done-file marker at a per-session path exported as `TSUNAGI_DONE`, plus background waiter
-- [ ] Test long and multi-line plans against the TUI
-- [ ] Test non-Claude model compliance with the done-file instruction
+- [x] Session registry, per-session done file, `tsunagi sessions`, `wait`, `done`, `handoff`
+- [x] Stop hook writes the done file, so completion does not depend on the model
+- [x] Verified with real Claude Code against a fake gateway (`make e2e`)
+- [ ] Test very long and multi-line plans typed into the TUI
+- [ ] Test non-Claude model compliance with a manual `tsunagi done`
 
 ## Phase 4: Chat Translator and polish
 

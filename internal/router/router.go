@@ -49,6 +49,9 @@ type Router struct {
 	// Accounts lists the accounts (keys or sign-ins) of a provider, the one to
 	// prefer first. Nil means one account named after the provider.
 	Accounts func(provider string) []string
+	// Headroom reports how much of an account's quota is left (0..1), when
+	// known. It is used by the "usage" strategy and must not block.
+	Headroom func(p provider.Provider, account string) (float64, bool)
 	// Aliases rewrite a requested model name before routing.
 	Aliases map[string]string
 	Key     func(p provider.Provider, account string) (string, error)

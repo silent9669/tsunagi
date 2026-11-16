@@ -100,8 +100,8 @@ func parseAdd(args []string) (provider.Provider, error) {
 		local = isLoopback(u.Hostname())
 	}
 	p.Local = local
-	if p.Strategy != "" && p.Strategy != "sequential" && p.Strategy != "round_robin" {
-		return p, fmt.Errorf("strategy must be sequential or round_robin")
+	if p.Strategy != "" && p.Strategy != "sequential" && p.Strategy != "round_robin" && p.Strategy != "usage" {
+		return p, fmt.Errorf("strategy must be sequential, round_robin or usage")
 	}
 	return p, nil
 }

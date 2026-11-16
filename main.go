@@ -23,6 +23,14 @@ func run(args []string) int {
 			return cmdLogout(t, args[1:])
 		case "providers":
 			return cmdProviders(t, args[1:])
+		case "sessions":
+			return cmdSessions(t)
+		case "done":
+			return cmdDone(t, args[1:])
+		case "wait":
+			return cmdWait(t, args[1:])
+		case "handoff":
+			return cmdHandoff(t, args[1:])
 		case "add":
 			return cmdAdd(t, args[1:])
 		case "remove":
@@ -60,6 +68,9 @@ func cmdHelp(t *ui.Term) int {
 		{"  ... --as <label>", "add a second account for a provider"},
 		{"tsunagi accounts", "list every key and sign-in"},
 		{"tsunagi add <name> <url>", "add your own gateway or provider"},
+		{"tsunagi sessions", "running sessions, and when each last finished"},
+		{"tsunagi handoff", "how to pass a plan to a session"},
+		{"tsunagi wait [--session id]", "block until that session finishes a turn"},
 		{"tsunagi usage [--days N]", "traffic per account, plus balances"},
 		{"tsunagi logout <provider>", "remove a key"},
 		{"tsunagi providers [--all]", "list providers and key status"},

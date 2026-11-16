@@ -101,6 +101,9 @@ func (rt *Router) candidates(p provider.Provider, label string) []string {
 			all = a
 		}
 	}
+	if p.Strategy == "usage" && rt.Headroom != nil && len(all) > 1 {
+		all = rankByHeadroom(all, func(a string) (float64, bool) { return rt.Headroom(p, a) })
+	}
 	return rt.pool.order(p.Name, all, p.Strategy == "round_robin")
 }
 
@@ -361,4 +364,21 @@ func (rt *Router) forwardTranslated(rec *recorder, r *http.Request, body []byte,
 // such a provider (listing its models) must use it too.
 func GuardedTransport() http.RoundTripper {
 	return guardedTransport(http.DefaultTransport.(*http.Transport))
+}
+
+// rankByHeadroom puts the account with the most quota left first. An account
+// whose quota is unknown counts as half full, so it neither jumps the queue
+// nor sinks behind one that is nearly empty. Ties keep their given order.
+func rankByHeadroom(accounts []string, headroom func(string) (float64, bool)) []string {
+	score := map[string]float64{}
+	for _, a := range accounts {
+		if f, ok := headroom(a); ok {
+			score[a] = f
+		} else {
+			score[a] = 0.5
+		}
+	}
+	out := append([]string{}, accounts...)
+	sort.SliceStable(out, func(i, j int) bool { return score[out[i]] > score[out[j]] })
+	return out
 }

@@ -54,6 +54,7 @@ func launch(t *ui.Term, args []string) int {
 	}
 	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg))
 	rt.Accounts = accountsOf
+	rt.Headroom = newHeadroom(cfg).get
 	rt.Aliases = cfg.Aliases
 	if dir, err := events.Dir(); err == nil {
 		if w, err := events.NewWriter(dir); err == nil {
@@ -107,10 +108,15 @@ func launch(t *ui.Term, args []string) int {
 	t.Routes(targets)
 	t.Printf("\n")
 
+	sessionEnv, unregister := registerSession()
+	defer unregister()
+	if exe, err := os.Executable(); err == nil {
+		args = stopHookArgs(args, exe)
+	}
 	cmd := exec.Command(claude, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	cmd.Env = append(withoutEnv(os.Environ(), "ANTHROPIC_BASE_URL"),
-		"ANTHROPIC_BASE_URL=http://"+host+"/"+token)
+	cmd.Env = append(append(withoutEnv(os.Environ(), "ANTHROPIC_BASE_URL"),
+		"ANTHROPIC_BASE_URL=http://"+host+"/"+token), sessionEnv...)
 
 	// Ctrl+C reaches claude directly through the terminal; the router must
 	// outlive it, so only forward termination signals.
