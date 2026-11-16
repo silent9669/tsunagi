@@ -221,3 +221,125 @@ func TestErrorToAnthropic(t *testing.T) {
 		t.Fatal("plain body lost")
 	}
 }
+
+func TestChatRequest(t *testing.T) {
+	in := `{"model":"x","max_tokens":50,"stream":true,"temperature":0.2,"stop_sequences":["END"],
+	 "system":"sys",
+	 "tools":[{"name":"Read","description":"d","input_schema":{"type":"object"}}],
+	 "tool_choice":{"type":"tool","name":"Read"},
+	 "messages":[
+	  {"role":"user","content":"hi"},
+	  {"role":"assistant","content":[{"type":"thinking","thinking":"hm","signature":"s"},
+	    {"type":"text","text":"ok"},{"type":"tool_use","id":"t1","name":"Read","input":{"p":1}}]},
+	  {"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"body"},{"type":"text","text":"next"}]}]}`
+	out, stream, err := ToChat([]byte(in), "llama-x")
+	if err != nil || !stream {
+		t.Fatalf("err=%v stream=%v", err, stream)
+	}
+	if bytes.Contains(out, []byte("signature")) {
+		t.Fatalf("thinking leaked: %s", out)
+	}
+	m := decode(t, out)
+	if m["model"] != "llama-x" || m["max_tokens"].(float64) != 50 || m["temperature"].(float64) != 0.2 {
+		t.Fatalf("head = %s", out)
+	}
+	if m["stream_options"].(map[string]any)["include_usage"] != true {
+		t.Fatal("usage not requested")
+	}
+	var roles []string
+	for _, x := range m["messages"].([]any) {
+		roles = append(roles, x.(map[string]any)["role"].(string))
+	}
+	if got := strings.Join(roles, ","); got != "system,user,assistant,tool,user" {
+		t.Fatalf("roles = %s", got)
+	}
+	asst := m["messages"].([]any)[2].(map[string]any)
+	call := asst["tool_calls"].([]any)[0].(map[string]any)
+	if asst["content"] != "ok" || call["id"] != "t1" || call["function"].(map[string]any)["arguments"] != `{"p":1}` {
+		t.Fatalf("assistant = %v", asst)
+	}
+	tc := m["tool_choice"].(map[string]any)["function"].(map[string]any)["name"]
+	if tc != "Read" {
+		t.Fatalf("tool_choice = %v", m["tool_choice"])
+	}
+}
+
+func chatSSE(chunks ...string) string {
+	var b strings.Builder
+	for _, c := range chunks {
+		b.WriteString("data: " + c + "\n\n")
+	}
+	return b.String()
+}
+
+func runChat(t *testing.T, in string) []map[string]any {
+	t.Helper()
+	var out bytes.Buffer
+	if err := ChatStreamToAnthropic(strings.NewReader(in), &out, func() {}, "m"); err != nil {
+		t.Fatal(err)
+	}
+	var evs []map[string]any
+	for _, blk := range strings.Split(strings.TrimSpace(out.String()), "\n\n") {
+		lines := strings.SplitN(blk, "\n", 2)
+		evs = append(evs, decode(t, []byte(strings.TrimPrefix(lines[1], "data: "))))
+	}
+	return evs
+}
+
+func TestChatStreamTextThenParallelToolCalls(t *testing.T) {
+	evs := runChat(t, chatSSE(
+		`{"id":"c","choices":[{"delta":{"role":"assistant","content":"Hi"}}]}`,
+		`{"id":"c","choices":[{"delta":{"content":" there"}}]}`,
+		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"id":"a","type":"function","function":{"name":"Read","arguments":""}}]}}]}`,
+		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"p\":"}}]}}]}`,
+		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"1}"}}]}}]}`,
+		`{"id":"c","choices":[{"delta":{"tool_calls":[{"index":1,"id":"b","type":"function","function":{"name":"Bash","arguments":"{}"}}]}}]}`,
+		`{"id":"c","choices":[{"delta":{},"finish_reason":"tool_calls"}]}`,
+		`{"id":"c","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":4,"prompt_tokens_details":{"cached_tokens":6}}}`,
+		`[DONE]`,
+	))
+	want := "message_start,content_block_start,content_block_delta,content_block_delta,content_block_stop," +
+		"content_block_start,content_block_delta,content_block_delta,content_block_stop," +
+		"content_block_start,content_block_delta,content_block_stop,message_delta,message_stop"
+	if types(evs) != want {
+		t.Fatalf("events:\n got %s\nwant %s", types(evs), want)
+	}
+	md := evs[len(evs)-2]
+	u := md["usage"].(map[string]any)
+	if md["delta"].(map[string]any)["stop_reason"] != "tool_use" || u["input_tokens"].(float64) != 4 || u["cache_read_input_tokens"].(float64) != 6 {
+		t.Fatalf("message_delta = %v", md)
+	}
+}
+
+func TestChatStreamWithoutDoneAndStopWithToolsAndErrors(t *testing.T) {
+	// no [DONE], finish_reason "stop" but tools were called -> tool_use
+	evs := runChat(t, chatSSE(
+		`{"id":"c","choices":[{"delta":{"tool_calls":[{"id":"a","function":{"name":"X","arguments":"{}"}}]},"finish_reason":"stop"}]}`,
+	))
+	if evs[len(evs)-2]["delta"].(map[string]any)["stop_reason"] != "tool_use" {
+		t.Fatalf("got %v", evs)
+	}
+	// error chunk
+	evs = runChat(t, chatSSE(`{"error":{"message":"bad key"}}`))
+	if evs[len(evs)-1]["type"] != "error" {
+		t.Fatalf("got %v", evs)
+	}
+	// cut stream
+	evs = runChat(t, "")
+	if evs[len(evs)-1]["type"] != "error" {
+		t.Fatalf("got %v", evs)
+	}
+}
+
+func TestChatReplyToAnthropic(t *testing.T) {
+	in := `{"id":"z","choices":[{"message":{"content":"yo","tool_calls":[{"id":"c","function":{"name":"Read","arguments":"{\"a\":1}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":3,"completion_tokens":2}}`
+	b, err := ChatReplyToAnthropic([]byte(in), "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := decode(t, b)
+	c := m["content"].([]any)
+	if m["stop_reason"] != "tool_use" || len(c) != 2 || c[1].(map[string]any)["input"].(map[string]any)["a"].(float64) != 1 {
+		t.Fatalf("got %s", b)
+	}
+}

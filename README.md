@@ -2,7 +2,7 @@
 
 Run Claude Code against Claude and many other providers' models from one terminal session, using your own keys and without touching your Claude subscription credentials.
 
-> **Status: Phase 2 in progress.** Router, launcher, keychain login, provider list and live watch work. `openai` and `xai` work with an API key through the Responses translator (tested against fake upstreams only, not yet against the real APIs). Sign-in (OAuth) and the chat-format translator are not built, so groq, together and mistral show as `soon`.
+> **Status: Phase 2 in progress.** Router, launcher, keychain login, provider list and live watch work. `openai` and `xai` work with an API key through the Responses translator (tested against fake upstreams only, not yet against the real APIs). The chat-format translator makes groq, together, mistral and any OpenAI-compatible provider work with a key (also fake-upstream tests only). Sign-in (OAuth) is not built yet.
 
 ## Why
 

@@ -32,7 +32,7 @@
 
 ## Phase 4: Chat Translator and polish
 
-- [ ] Translator for `openai-chat` (Groq, Together, Mistral, Gemini compat, Keys)
+- [x] Translator for `openai-chat` (Groq, Together, Mistral, any OpenAI-compatible endpoint); built early because the models.dev catalogue is mostly this Dialect
 - [ ] Model mapping config for Opus, Sonnet and Haiku slots, including background requests
 - [ ] Clear error when a Provider rejects a request
 - [ ] Packaging (Homebrew tap)

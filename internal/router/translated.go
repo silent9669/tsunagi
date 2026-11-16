@@ -12,12 +12,13 @@ import (
 	"github.com/silent9669/tsunagi/internal/translate"
 )
 
-// forwardResponses serves a Claude Code request from a Responses-only
-// provider: translate the request, call /responses, translate the reply back.
-func (rt *Router) forwardResponses(w http.ResponseWriter, r *http.Request, body []byte, p provider.Provider, model string) {
+// forwardTranslated serves a Claude Code request from a provider that does
+// not speak the Anthropic format: translate the request, call the provider,
+// translate the reply back.
+func (rt *Router) forwardTranslated(w http.ResponseWriter, r *http.Request, body []byte, p provider.Provider, model string) {
 	switch r.URL.Path {
 	case "/v1/messages/count_tokens":
-		// Responses has no counting endpoint; a rough size is enough for Claude Code.
+		// The translated APIs have no counting endpoint; a rough size is enough for Claude Code.
 		json.NewEncoder(w).Encode(map[string]int{"input_tokens": len(body)/4 + 1})
 		return
 	case "/v1/messages":
@@ -35,13 +36,17 @@ func (rt *Router) forwardResponses(w http.ResponseWriter, r *http.Request, body 
 			fmt.Sprintf("tsunagi: no key for %s. Run: tsunagi login %s", p.Name, p.Name))
 		return
 	}
-	out, stream, err := translate.ToResponses(body, model)
+	endpoint, toReq, toStream, toReply := "/responses", translate.ToResponses, translate.StreamToAnthropic, translate.ReplyToAnthropic
+	if p.Dialect == provider.OpenAIChat {
+		endpoint, toReq, toStream, toReply = "/chat/completions", translate.ToChat, translate.ChatStreamToAnthropic, translate.ChatReplyToAnthropic
+	}
+	out, stream, err := toReq(body, model)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid_request_error", "tsunagi: "+err.Error())
 		return
 	}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost,
-		strings.TrimRight(p.BaseURL, "/")+"/responses", bytes.NewReader(out))
+		strings.TrimRight(p.BaseURL, "/")+endpoint, bytes.NewReader(out))
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "api_error", "tsunagi: bad base_url for "+p.Name)
 		return
@@ -70,12 +75,12 @@ func (rt *Router) forwardResponses(w http.ResponseWriter, r *http.Request, body 
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(http.StatusOK)
 		rc := http.NewResponseController(w)
-		translate.StreamToAnthropic(resp.Body, w, func() { rc.Flush() }, model)
+		toStream(resp.Body, w, func() { rc.Flush() }, model)
 		return
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
 	if err == nil {
-		b, err = translate.ReplyToAnthropic(b, model)
+		b, err = toReply(b, model)
 	}
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "api_error", "tsunagi: "+err.Error())

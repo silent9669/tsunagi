@@ -146,12 +146,12 @@ func (rt *Router) forwardProvider(w http.ResponseWriter, r *http.Request, body [
 		return
 	}
 	if !p.Ready() {
-		writeErr(w, http.StatusNotImplemented, "api_error",
-			fmt.Sprintf("tsunagi: %s speaks %s, which needs the translator (not built yet). Use it through opencode or openrouter", p.Name, p.Dialect))
+		writeErr(w, http.StatusBadRequest, "invalid_request_error",
+			fmt.Sprintf("tsunagi: provider %s has unknown dialect %q (use anthropic, openai-chat or openai-responses)", p.Name, p.Dialect))
 		return
 	}
-	if p.Dialect == provider.OpenAIResponses {
-		rt.forwardResponses(w, r, body, p, d.model)
+	if p.Dialect != provider.Anthropic {
+		rt.forwardTranslated(w, r, body, p, d.model)
 		return
 	}
 	key := ""

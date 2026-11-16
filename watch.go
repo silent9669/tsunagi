@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/silent9669/tsunagi/internal/events"
 	"github.com/silent9669/tsunagi/internal/ui"
@@ -99,12 +100,12 @@ func renderWatch(t *ui.Term, tsec float64, live bool, log []events.Event, counts
 		log = log[len(log)-rows:]
 	}
 	for _, e := range log {
-		model := e.Model
+		model := clean(e.Model)
 		if model == "" {
 			model = "-"
 		}
 		lines = append(lines, fmt.Sprintf("  %-9s %-12s %-28s %s %d",
-			e.Time.Format("15:04:05"), clip(e.Provider, 12), clip(model, 28),
+			e.Time.Format("15:04:05"), clip(clean(e.Provider), 12), clip(model, 28),
 			pad4(t, e.Status), e.Millis))
 	}
 
@@ -126,6 +127,17 @@ func pad4(t *ui.Term, status int) string {
 		return t.Paint(ui.Amber, s)
 	}
 	return t.Paint(ui.Mint, s)
+}
+
+// clean drops control characters: model names come from request bodies and
+// must not be able to inject terminal escape sequences.
+func clean(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 func clip(s string, n int) string {

@@ -127,20 +127,8 @@ func ErrorToAnthropic(status int, body []byte) []byte {
 	return b
 }
 
-type block struct {
-	idx  int
-	tool bool
-	open bool
-	sent bool // tool block: any argument bytes sent
-}
-
 type streamer struct {
-	w       io.Writer
-	flush   func()
-	model   string
-	started bool
-	done    bool
-	next    int
+	*sink
 	sawTool bool
 	blocks  map[int]*block // by Responses output_index
 }
@@ -148,7 +136,7 @@ type streamer struct {
 // StreamToAnthropic reads Responses server-sent events and writes the
 // equivalent Anthropic events, flushing after each one.
 func StreamToAnthropic(r io.Reader, w io.Writer, flush func(), model string) error {
-	s := &streamer{w: w, flush: flush, model: model, blocks: map[int]*block{}}
+	s := &streamer{sink: &sink{w: w, flush: flush, model: model}, blocks: map[int]*block{}}
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64<<10), 16<<20)
 	for sc.Scan() && !s.done {
@@ -174,45 +162,6 @@ func StreamToAnthropic(r io.Reader, w io.Writer, flush func(), model string) err
 	return nil
 }
 
-func (s *streamer) emit(event string, v any) {
-	b, _ := json.Marshal(v)
-	fmt.Fprintf(s.w, "event: %s\ndata: %s\n\n", event, b)
-	s.flush()
-}
-
-func (s *streamer) start(id string) {
-	if s.started {
-		return
-	}
-	s.started = true
-	s.emit("message_start", map[string]any{"type": "message_start", "message": map[string]any{
-		"id": "msg_" + id, "type": "message", "role": "assistant", "model": s.model,
-		"content": []any{}, "stop_reason": nil, "stop_sequence": nil,
-		"usage": map[string]int{"input_tokens": 0, "output_tokens": 0},
-	}})
-}
-
-func (s *streamer) open(outIdx int, content map[string]any, tool bool) *block {
-	b := &block{idx: s.next, tool: tool, open: true}
-	s.next++
-	s.blocks[outIdx] = b
-	s.emit("content_block_start", map[string]any{"type": "content_block_start", "index": b.idx, "content_block": content})
-	return b
-}
-
-func (s *streamer) close(b *block) {
-	if b != nil && b.open {
-		b.open = false
-		s.emit("content_block_stop", map[string]any{"type": "content_block_stop", "index": b.idx})
-	}
-}
-
-func (s *streamer) fail(msg string) {
-	s.done = true
-	s.start("err")
-	s.emit("error", map[string]any{"type": "error", "error": map[string]string{"type": "api_error", "message": "tsunagi: " + msg}})
-}
-
 func (s *streamer) handle(data []byte) error {
 	var ev struct {
 		Type        string `json:"type"`
@@ -233,33 +182,27 @@ func (s *streamer) handle(data []byte) error {
 		s.start("")
 		if ev.Item.Type == "function_call" {
 			s.sawTool = true
-			s.open(ev.OutputIndex, map[string]any{
-				"type": "tool_use", "id": ev.Item.CallID, "name": ev.Item.Name, "input": map[string]any{},
-			}, true)
+			s.blocks[ev.OutputIndex] = s.openBlock(toolBlock(ev.Item.CallID, ev.Item.Name), true)
 		}
 
 	case "response.output_text.delta", "response.refusal.delta":
 		s.start("")
 		b := s.blocks[ev.OutputIndex]
 		if b == nil {
-			b = s.open(ev.OutputIndex, map[string]any{"type": "text", "text": ""}, false)
+			b = s.openBlock(textBlock, false)
+			s.blocks[ev.OutputIndex] = b
 		}
-		s.emit("content_block_delta", map[string]any{"type": "content_block_delta", "index": b.idx,
-			"delta": map[string]any{"type": "text_delta", "text": ev.Delta}})
+		s.textDelta(b, ev.Delta)
 
 	case "response.function_call_arguments.delta":
 		if b := s.blocks[ev.OutputIndex]; b != nil && b.tool {
-			b.sent = true
-			s.emit("content_block_delta", map[string]any{"type": "content_block_delta", "index": b.idx,
-				"delta": map[string]any{"type": "input_json_delta", "partial_json": ev.Delta}})
+			s.argsDelta(b, ev.Delta)
 		}
 
 	case "response.output_item.done":
 		b := s.blocks[ev.OutputIndex]
 		if b != nil && b.tool && !b.sent && ev.Item.Arguments != "" {
-			b.sent = true
-			s.emit("content_block_delta", map[string]any{"type": "content_block_delta", "index": b.idx,
-				"delta": map[string]any{"type": "input_json_delta", "partial_json": ev.Item.Arguments}})
+			s.argsDelta(b, ev.Item.Arguments)
 		}
 		s.close(b)
 
@@ -268,11 +211,7 @@ func (s *streamer) handle(data []byte) error {
 		for _, b := range s.blocks {
 			s.close(b)
 		}
-		s.emit("message_delta", map[string]any{"type": "message_delta",
-			"delta": map[string]any{"stop_reason": ev.Response.stopReason(s.sawTool), "stop_sequence": nil},
-			"usage": ev.Response.Usage.anthropic()})
-		s.emit("message_stop", map[string]any{"type": "message_stop"})
-		s.done = true
+		s.finish(ev.Response.stopReason(s.sawTool), ev.Response.Usage.anthropic())
 
 	case "response.failed":
 		msg := "upstream reported a failed response"

@@ -18,8 +18,9 @@ type Provider struct {
 }
 
 // Ready reports whether the router can talk to the provider today.
-// The openai-chat dialect needs a translator that is not built yet.
-func (p Provider) Ready() bool { return p.Dialect == Anthropic || p.Dialect == OpenAIResponses }
+func (p Provider) Ready() bool {
+	return p.Dialect == Anthropic || p.Dialect == OpenAIChat || p.Dialect == OpenAIResponses
+}
 
 func Builtin() []Provider {
 	return []Provider{

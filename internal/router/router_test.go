@@ -197,7 +197,7 @@ func TestMissingKeyAndTranslatorGiveAnthropicShapedErrors(t *testing.T) {
 		text   string
 	}{
 		`{"model":"opencode/x"}`: {401, "tsunagi login opencode"},
-		`{"model":"groq/x"}`:     {501, "translator"},
+		`{"model":"groq/x"}`:     {401, "tsunagi login groq"},
 		`{"model":"openai/gpt"}`: {401, "tsunagi login openai"},
 		`{"model":"nope/x"}`:     {401, "tsunagi login opencode"}, // unknown prefix -> default provider
 	} {
@@ -376,5 +376,37 @@ func TestResponsesProviderCountTokensIsLocal(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != 200 || !strings.Contains(string(b), "input_tokens") {
 		t.Fatalf("status %d body %s", resp.StatusCode, b)
+	}
+}
+
+func TestChatProviderIsTranslatedBothWays(t *testing.T) {
+	var gotPath, gotAuth, gotBody string
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		gotPath, gotAuth, gotBody = r.URL.Path, r.Header.Get("Authorization"), string(b)
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, "data: {\"id\":\"c1\",\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n")
+		io.WriteString(w, "data: {\"id\":\"c1\",\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n")
+		io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer up.Close()
+	e := setup(t)
+	e.rt.Providers["groq"] = provider.Provider{Name: "groq", BaseURL: up.URL + "/openai/v1", Dialect: provider.OpenAIChat}
+	e.rt.Key = func(string) (string, error) { return "gsk-123456789", nil }
+
+	resp := e.post(t, "/v1/messages", `{"model":"groq/llama-x","stream":true,"max_tokens":9,"system":"sys","messages":[{"role":"user","content":"yo"}]}`,
+		map[string]string{"Authorization": "Bearer oauth-claude-login"})
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if gotPath != "/openai/v1/chat/completions" || gotAuth != "Bearer gsk-123456789" {
+		t.Fatalf("upstream saw path=%s auth=%s", gotPath, gotAuth)
+	}
+	if !strings.Contains(gotBody, `"model":"llama-x"`) || !strings.Contains(gotBody, `"role":"system"`) {
+		t.Fatalf("upstream body = %s", gotBody)
+	}
+	for _, want := range []string{"event: message_start", `"text":"hi"`, `"stop_reason":"end_turn"`, "event: message_stop"} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("reply lacks %q:\n%s", want, b)
+		}
 	}
 }
