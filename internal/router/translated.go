@@ -36,7 +36,9 @@ func (rt *Router) forwardTranslated(w http.ResponseWriter, r *http.Request, body
 	}
 	endpoint, toReq, toStream, toReply := "/responses", translate.ToResponses, translate.StreamToAnthropic, translate.ReplyToAnthropic
 	if p.Dialect == provider.OpenAIChat {
-		endpoint, toReq, toStream, toReply = "/chat/completions", translate.ToChat, translate.ChatStreamToAnthropic, translate.ChatReplyToAnthropic
+		opts := chatOptions(p, model)
+		toReq = func(b []byte, m string) ([]byte, bool, error) { return translate.ToChatWith(b, m, opts) }
+		endpoint, toStream, toReply = "/chat/completions", translate.ChatStreamToAnthropic, translate.ChatReplyToAnthropic
 	}
 	out, stream, err := toReq(body, model)
 	if err != nil {

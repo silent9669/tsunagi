@@ -11,6 +11,27 @@ const (
 	OpenAIResponses Dialect = "openai-responses"
 )
 
+// Compat describes quirks of an OpenAI-compatible endpoint. Unset fields are
+// detected from the provider and model name, as opencode does.
+type Compat struct {
+	// MaxTokensField is "max_tokens" or "max_completion_tokens".
+	MaxTokensField string `json:"max_tokens_field,omitempty"`
+	// ReasoningField carries reasoning on assistant messages ("reasoning_content").
+	ReasoningField string `json:"reasoning_field,omitempty"`
+	// RequireReasoning sends the reasoning field, empty, on every prior assistant
+	// message. DeepSeek-style endpoints reject history without it.
+	RequireReasoning *bool `json:"require_reasoning,omitempty"`
+	// StreamUsage asks for token usage in the stream (stream_options).
+	StreamUsage *bool `json:"stream_usage,omitempty"`
+	// AssistantAfterTool inserts an assistant message between a tool result and
+	// the next user message, for endpoints that reject that order.
+	AssistantAfterTool *bool `json:"assistant_after_tool,omitempty"`
+	// ToolIDs "alnum9" rewrites tool call ids to 9 letters and digits (Mistral).
+	ToolIDs string `json:"tool_ids,omitempty"`
+	// CacheFormat "anthropic" adds cache_control markers (Claude behind a proxy).
+	CacheFormat string `json:"cache_format,omitempty"`
+}
+
 type Provider struct {
 	Name    string  `json:"name"`
 	BaseURL string  `json:"base_url"`
@@ -19,6 +40,8 @@ type Provider struct {
 	Local bool `json:"local,omitempty"`
 	// Auth names a sign-in flow ("chatgpt") used instead of a key.
 	Auth string `json:"auth,omitempty"`
+	// Compat overrides quirk detection for the chat dialect.
+	Compat Compat `json:"compat,omitempty"`
 	// Untrusted marks providers whose endpoint came from the downloaded
 	// catalogue. The router refuses to connect them to loopback or private
 	// addresses.

@@ -2,15 +2,36 @@ package translate
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 )
 
-// ToChat turns an Anthropic /v1/messages body into a Chat Completions body.
-// It reports whether the client asked for a stream.
+// ChatOptions are the endpoint quirks the chat translator works around.
+type ChatOptions struct {
+	MaxTokensField     string // "max_tokens" or "max_completion_tokens"
+	ReasoningField     string // set (with RequireReasoning) to send it on prior assistant messages
+	RequireReasoning   bool
+	StreamUsage        bool
+	AssistantAfterTool bool
+	ShortToolIDs       bool // 9 letters and digits
+	CacheAnthropic     bool
+}
+
+// DefaultChatOptions has no workarounds.
+var DefaultChatOptions = ChatOptions{MaxTokensField: "max_tokens", StreamUsage: true}
+
+// ToChat is ToChatWith using DefaultChatOptions.
 func ToChat(body []byte, model string) ([]byte, bool, error) {
+	return ToChatWith(body, model, DefaultChatOptions)
+}
+
+// ToChatWith turns an Anthropic /v1/messages body into a Chat Completions body.
+// It reports whether the client asked for a stream.
+func ToChatWith(body []byte, model string, o ChatOptions) ([]byte, bool, error) {
 	var in aReq
 	if err := json.Unmarshal(body, &in); err != nil {
 		return nil, false, fmt.Errorf("invalid request body: %w", err)
@@ -23,11 +44,15 @@ func ToChat(body []byte, model string) ([]byte, bool, error) {
 	json.Unmarshal(body, &raw)
 
 	out := map[string]any{"model": model, "stream": in.Stream}
-	if in.Stream {
+	if in.Stream && o.StreamUsage {
 		out["stream_options"] = map[string]any{"include_usage": true}
 	}
 	if in.MaxTokens > 0 {
-		out["max_tokens"] = in.MaxTokens
+		field := o.MaxTokensField
+		if field == "" {
+			field = "max_tokens"
+		}
+		out[field] = in.MaxTokens
 	}
 	if raw.Temperature != nil {
 		out["temperature"] = *raw.Temperature
@@ -44,7 +69,10 @@ func ToChat(body []byte, model string) ([]byte, bool, error) {
 		msgs = append(msgs, map[string]any{"role": "system", "content": s})
 	}
 	for _, m := range in.Messages {
-		msgs = append(msgs, chatMessages(m)...)
+		msgs = append(msgs, chatMessages(m, o)...)
+	}
+	if o.AssistantAfterTool {
+		msgs = assistantAfterTool(msgs)
 	}
 	out["messages"] = msgs
 
@@ -56,6 +84,9 @@ func ToChat(body []byte, model string) ([]byte, bool, error) {
 		tools = append(tools, map[string]any{"type": "function", "function": map[string]any{
 			"name": t.Name, "description": t.Description, "parameters": t.InputSchema,
 		}})
+	}
+	if o.CacheAnthropic {
+		markCache(msgs, tools)
 	}
 	if len(tools) > 0 {
 		out["tools"] = tools
@@ -82,10 +113,12 @@ func ToChat(body []byte, model string) ([]byte, bool, error) {
 
 // chatMessages maps one Anthropic message to chat messages. Tool results come
 // first, because chat requires them right after the assistant's tool calls.
-func chatMessages(m aMsg) []any {
+func chatMessages(m aMsg, o ChatOptions) []any {
 	var s string
 	if json.Unmarshal(m.Content, &s) == nil {
-		return []any{map[string]any{"role": m.Role, "content": s}}
+		msg := map[string]any{"role": m.Role, "content": s}
+		reasoningBack(msg, m.Role, o)
+		return []any{msg}
 	}
 	var blocks []aBlock
 	if json.Unmarshal(m.Content, &blocks) != nil {
@@ -115,10 +148,10 @@ func chatMessages(m aMsg) []any {
 			if args == "" || args == "null" {
 				args = "{}"
 			}
-			calls = append(calls, map[string]any{"id": b.ID, "type": "function",
+			calls = append(calls, map[string]any{"id": toolID(b.ID, o), "type": "function",
 				"function": map[string]any{"name": b.Name, "arguments": args}})
 		case "tool_result":
-			results = append(results, map[string]any{"role": "tool", "tool_call_id": b.ToolUseID, "content": blocksText(b.Content)})
+			results = append(results, map[string]any{"role": "tool", "tool_call_id": toolID(b.ToolUseID, o), "content": blocksText(b.Content)})
 		}
 	}
 	msgs := results
@@ -131,6 +164,7 @@ func chatMessages(m aMsg) []any {
 		if len(calls) > 0 {
 			am["tool_calls"] = calls
 		}
+		reasoningBack(am, "assistant", o)
 		msgs = append(msgs, am)
 	case m.Role == "user" && len(parts) > 0:
 		if hasImage {
@@ -337,5 +371,77 @@ func (s *chatStreamer) handle(data []byte) {
 	}
 	if c.FinishReason != "" {
 		s.reason = c.FinishReason
+	}
+}
+
+// reasoningBack adds the empty reasoning field some endpoints insist on. The
+// translator never keeps reasoning, so an empty string is all it can send.
+func reasoningBack(msg map[string]any, role string, o ChatOptions) {
+	if role == "assistant" && o.RequireReasoning {
+		field := o.ReasoningField
+		if field == "" {
+			field = "reasoning_content"
+		}
+		msg[field] = ""
+	}
+}
+
+// toolID rewrites an id to 9 letters and digits when the endpoint needs that.
+// The same input always gives the same output, so calls and results still match.
+func toolID(id string, o ChatOptions) string {
+	if !o.ShortToolIDs {
+		return id
+	}
+	if len(id) == 9 && strings.Trim(id, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") == "" {
+		return id
+	}
+	sum := sha256.Sum256([]byte(id))
+	return hex.EncodeToString(sum[:])[:9]
+}
+
+// assistantAfterTool puts a short assistant turn between a tool result and a
+// following user message.
+func assistantAfterTool(msgs []any) []any {
+	var out []any
+	for i, m := range msgs {
+		out = append(out, m)
+		cur, _ := m.(map[string]any)
+		if cur == nil || cur["role"] != "tool" || i+1 >= len(msgs) {
+			continue
+		}
+		if next, _ := msgs[i+1].(map[string]any); next != nil && next["role"] == "user" {
+			out = append(out, map[string]any{"role": "assistant", "content": "Understood."})
+		}
+	}
+	return out
+}
+
+// markCache adds Anthropic-style cache_control markers to the system prompt,
+// the last tool and the last message.
+func markCache(msgs, tools []any) {
+	mark := func(m map[string]any) {
+		switch c := m["content"].(type) {
+		case string:
+			m["content"] = []any{map[string]any{"type": "text", "text": c, "cache_control": map[string]any{"type": "ephemeral"}}}
+		case []any:
+			if len(c) > 0 {
+				if last, ok := c[len(c)-1].(map[string]any); ok {
+					last["cache_control"] = map[string]any{"type": "ephemeral"}
+				}
+			}
+		}
+	}
+	if len(msgs) > 0 {
+		if m, ok := msgs[0].(map[string]any); ok && m["role"] == "system" {
+			mark(m)
+		}
+		if m, ok := msgs[len(msgs)-1].(map[string]any); ok && m["role"] != "system" {
+			mark(m)
+		}
+	}
+	if len(tools) > 0 {
+		if t, ok := tools[len(tools)-1].(map[string]any); ok {
+			t["cache_control"] = map[string]any{"type": "ephemeral"}
+		}
 	}
 }

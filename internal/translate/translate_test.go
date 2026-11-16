@@ -350,3 +350,67 @@ func TestErrorToAnthropicArrayWrapped(t *testing.T) {
 		t.Fatalf("got %s", b)
 	}
 }
+
+const compatReq = `{"model":"x","max_tokens":50,"stream":true,
+ "system":"sys",
+ "tools":[{"name":"Read","description":"d","input_schema":{"type":"object"}}],
+ "messages":[
+  {"role":"user","content":"hi"},
+  {"role":"assistant","content":[{"type":"text","text":"ok"},{"type":"tool_use","id":"toolu_01ABCDEFGHIJ","name":"Read","input":{"p":1}}]},
+  {"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_01ABCDEFGHIJ","content":"body"},{"type":"text","text":"next"}]}]}`
+
+func chatWith(t *testing.T, o ChatOptions) map[string]any {
+	t.Helper()
+	out, _, err := ToChatWith([]byte(compatReq), "m", o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return decode(t, out)
+}
+
+func TestChatCompatMaxTokensStreamUsageAndReasoning(t *testing.T) {
+	m := chatWith(t, ChatOptions{MaxTokensField: "max_completion_tokens", RequireReasoning: true})
+	if m["max_completion_tokens"].(float64) != 50 || m["max_tokens"] != nil {
+		t.Fatalf("max tokens field: %v", m)
+	}
+	if m["stream_options"] != nil {
+		t.Fatal("stream_options sent although StreamUsage is off")
+	}
+	asst := m["messages"].([]any)[2].(map[string]any)
+	if v, ok := asst["reasoning_content"]; !ok || v != "" {
+		t.Fatalf("assistant message lacks empty reasoning_content: %v", asst)
+	}
+	if _, ok := m["messages"].([]any)[1].(map[string]any)["reasoning_content"]; ok {
+		t.Fatal("reasoning_content must only go on assistant messages")
+	}
+}
+
+func TestChatCompatMistralToolIDsAndAssistantAfterTool(t *testing.T) {
+	m := chatWith(t, ChatOptions{MaxTokensField: "max_tokens", ShortToolIDs: true, AssistantAfterTool: true})
+	msgs := m["messages"].([]any)
+	var roles []string
+	for _, x := range msgs {
+		roles = append(roles, x.(map[string]any)["role"].(string))
+	}
+	if got := strings.Join(roles, ","); got != "system,user,assistant,tool,assistant,user" {
+		t.Fatalf("roles = %s", got)
+	}
+	callID := msgs[2].(map[string]any)["tool_calls"].([]any)[0].(map[string]any)["id"].(string)
+	resultID := msgs[3].(map[string]any)["tool_call_id"].(string)
+	if len(callID) != 9 || callID != resultID {
+		t.Fatalf("ids must be 9 chars and match: %q vs %q", callID, resultID)
+	}
+}
+
+func TestChatCompatAnthropicCacheMarkers(t *testing.T) {
+	m := chatWith(t, ChatOptions{MaxTokensField: "max_tokens", CacheAnthropic: true})
+	msgs := m["messages"].([]any)
+	sys := msgs[0].(map[string]any)["content"].([]any)[0].(map[string]any)
+	last := msgs[len(msgs)-1].(map[string]any)["content"].([]any)[0].(map[string]any)
+	tool := m["tools"].([]any)[0].(map[string]any)
+	for name, x := range map[string]map[string]any{"system": sys, "last message": last, "last tool": tool} {
+		if x["cache_control"] == nil {
+			t.Errorf("%s has no cache_control", name)
+		}
+	}
+}
