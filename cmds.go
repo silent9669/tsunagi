@@ -189,7 +189,11 @@ func cmdLogout(t *ui.Term, args []string) int {
 }
 
 // cmdAccounts lists every stored key and sign-in.
-func cmdAccounts(t *ui.Term) int {
+func cmdAccounts(t *ui.Term, args []string) int {
+	args, asJSON := popFlag(args, "--json")
+	if len(args) > 0 {
+		return fail(t, "usage: tsunagi accounts [--json]")
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return fail(t, "%v", err)
@@ -199,6 +203,7 @@ func cmdAccounts(t *ui.Term) int {
 		byName[p.Name] = p
 	}
 	var rows [][]string
+	var data []map[string]any
 	for _, acct := range config.Keyed() {
 		p, ok := byName[baseOf(acct)]
 		if !ok {
@@ -213,6 +218,14 @@ func cmdAccounts(t *ui.Term) int {
 			kind, detail = "sign-in", chatgptFor(labelOf(acct)).Email()
 		}
 		rows = append(rows, []string{p.Name, label, kind, accountState(t, p, acct), detail})
+		data = append(data, map[string]any{"provider": p.Name, "account": acct, "label": label, "kind": kind,
+			"state": accountStateText(p, acct), "detail": detail})
+	}
+	if asJSON {
+		if data == nil {
+			data = []map[string]any{}
+		}
+		return printJSON(t, data)
 	}
 	if len(rows) == 0 {
 		t.Printf("  %s\n", t.Dim("no accounts yet. Run: tsunagi login <provider> [--as label]"))
@@ -222,19 +235,34 @@ func cmdAccounts(t *ui.Term) int {
 	return 0
 }
 
-func accountState(t *ui.Term, p provider.Provider, account string) string {
+func accountStateText(p provider.Provider, account string) string {
 	switch {
 	case p.Untrusted && config.Pin(account) == "" && keychain.Has(account):
-		return t.Paint(ui.Amber, "re-login") // key saved before endpoints were pinned
+		return "re-login" // key saved before endpoints were pinned
 	case hasAccount(p, account):
-		return t.Paint(ui.Mint, "ready")
+		return "ready"
 	}
-	return t.Paint(ui.Rose, "missing")
+	return "missing"
+}
+
+func accountState(t *ui.Term, p provider.Provider, account string) string {
+	st := accountStateText(p, account)
+	switch st {
+	case "ready":
+		return t.Paint(ui.Mint, st)
+	case "re-login":
+		return t.Paint(ui.Amber, st)
+	}
+	return t.Paint(ui.Rose, st)
 }
 
 // cmdProviders lists the built-in and configured providers plus any catalogue
 // provider that has a key. --all adds the rest of the catalogue.
 func cmdProviders(t *ui.Term, args []string) int {
+	args, asJSON := popFlag(args, "--json")
+	if len(args) == 1 && args[0] == "--names" { // for shell completion
+		return printProviderNames(t)
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return fail(t, "%v", err)
@@ -253,6 +281,14 @@ func cmdProviders(t *ui.Term, args []string) int {
 			}
 		}
 	}
+	if asJSON {
+		data := make([]map[string]any, 0, len(list))
+		for _, p := range list {
+			data = append(data, map[string]any{"name": p.Name, "dialect": string(p.Dialect), "endpoint": p.BaseURL,
+				"status": statusText(p), "default": p.Name == cfg.Default, "accounts": ready(p), "local": p.Local})
+		}
+		return printJSON(t, data)
+	}
 	rows := make([][]string, 0, len(list))
 	for _, p := range list {
 		name := p.Name
@@ -268,21 +304,32 @@ func cmdProviders(t *ui.Term, args []string) int {
 	return 0
 }
 
-func status(t *ui.Term, p provider.Provider) string {
+// statusText is the provider's state without color.
+func statusText(p provider.Provider) string {
 	switch {
 	case !p.Ready():
-		return t.Dim("soon")
+		return "soon"
 	case p.Local:
-		return t.Paint(ui.Mint, "local")
-	case ready(p) > 0:
-		if n := ready(p); n > 1 {
-			return t.Paint(ui.Mint, fmt.Sprintf("ready x%d", n))
-		}
-		return t.Paint(ui.Mint, "ready")
+		return "local"
+	case ready(p) > 1:
+		return fmt.Sprintf("ready x%d", ready(p))
+	case ready(p) == 1:
+		return "ready"
 	case p.Untrusted && config.Pin(p.Name) == "" && keychain.Has(p.Name):
-		return t.Paint(ui.Amber, "re-login")
+		return "re-login"
 	case p.Auth != "":
-		return t.Paint(ui.Amber, "no login")
+		return "no login"
 	}
-	return t.Paint(ui.Amber, "no key")
+	return "no key"
+}
+
+func status(t *ui.Term, p provider.Provider) string {
+	st := statusText(p)
+	switch {
+	case st == "soon":
+		return t.Dim(st)
+	case strings.HasPrefix(st, "ready"), st == "local":
+		return t.Paint(ui.Mint, st)
+	}
+	return t.Paint(ui.Amber, st)
 }

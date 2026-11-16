@@ -18,6 +18,7 @@ import (
 // cmdUsage shows what each account carried (from the event files of every
 // session) and, where the provider publishes one, what is left.
 func cmdUsage(t *ui.Term, args []string) int {
+	args, asJSON := popFlag(args, "--json")
 	days := 1
 	if len(args) == 2 && args[0] == "--days" {
 		n, err := strconv.Atoi(args[1])
@@ -63,7 +64,10 @@ func cmdUsage(t *ui.Term, args []string) int {
 			accounts = append(accounts, a)
 		}
 	}
-	sp := t.Spin("balances")
+	var sp *ui.Spinner
+	if !asJSON {
+		sp = t.Spin("balances")
+	}
 	client := &http.Client{Timeout: 10 * time.Second}
 	for _, a := range accounts {
 		p, ok := byName[baseOf(a)]
@@ -89,12 +93,34 @@ func cmdUsage(t *ui.Term, args []string) int {
 		}(a, p)
 	}
 	wg.Wait()
-	sp.Stop(true, fmt.Sprintf("last %d day(s)", days))
+	if sp != nil {
+		sp.Stop(true, fmt.Sprintf("last %d day(s)", days))
+	}
 
 	// One line per account: traffic from the events, balance from the provider.
 	byAcct := map[string]usage.Row{}
 	for _, r := range rows {
 		byAcct[r.Account] = r
+	}
+	if asJSON {
+		data := make([]map[string]any, 0, len(accounts))
+		for _, a := range accounts {
+			r := byAcct[a]
+			row := map[string]any{"account": a, "requests": r.Requests, "errors": r.Errors, "failovers": r.Skipped, "in": r.In, "out": r.Out}
+			if res, ok := results[a]; ok {
+				switch {
+				case res.err != nil:
+					row["balance_error"] = res.err.Error()
+				default:
+					row["balance"] = res.b.Text
+					if res.b.Frac >= 0 {
+						row["balance_fraction"] = res.b.Frac
+					}
+				}
+			}
+			data = append(data, row)
+		}
+		return printJSON(t, data)
 	}
 	var table [][]string
 	for _, a := range accounts {

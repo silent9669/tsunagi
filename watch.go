@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -22,13 +23,21 @@ const (
 
 // cmdWatch shows live traffic from the newest running session. It reads the
 // events file the router writes; it never talks to the router.
-func cmdWatch(t *ui.Term) int {
-	if !t.TTY {
-		return fail(t, "watch needs a terminal")
+func cmdWatch(t *ui.Term, args []string) int {
+	args, logMode := popFlag(args, "--log")
+	args, jsonMode := popFlag(args, "--json")
+	if len(args) > 0 || (logMode && jsonMode) {
+		return fail(t, "usage: tsunagi watch [--log | --json]")
 	}
 	dir, err := events.Dir()
 	if err != nil {
 		return fail(t, "%v", err)
+	}
+	if logMode || jsonMode {
+		return watchStream(t, dir, jsonMode)
+	}
+	if !t.TTY {
+		return fail(t, "the dashboard needs a terminal. Use: tsunagi watch --log")
 	}
 	fmt.Fprint(t.Out, altOn)
 	ch := make(chan os.Signal, 1)
@@ -243,4 +252,58 @@ func sparkline(log []events.Event, now time.Time, buckets int, step time.Duratio
 		}
 	}
 	return string(b)
+}
+
+// watchStream prints each request as one line (or one JSON object) as it
+// happens. It needs no terminal, so it can be piped, logged or grepped.
+func watchStream(t *ui.Term, dir string, asJSON bool) int {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	tails := map[string]*events.Tail{}
+	for n := 0; ; n++ {
+		if n%4 == 0 {
+			for _, p := range events.Recent(dir, time.Hour) {
+				if tails[p] == nil {
+					tl := &events.Tail{Path: p}
+					tl.Poll() // skip what happened before watch started
+					tails[p] = tl
+				}
+			}
+		}
+		var fresh []events.Event
+		for _, tl := range tails {
+			fresh = append(fresh, tl.Poll()...)
+		}
+		sort.Slice(fresh, func(i, j int) bool { return fresh[i].Time.Before(fresh[j].Time) })
+		for _, e := range fresh {
+			if asJSON {
+				b, _ := json.Marshal(e)
+				fmt.Fprintf(t.Out, "%s\n", b)
+			} else {
+				fmt.Fprintln(t.Out, eventLine(e))
+			}
+		}
+		select {
+		case <-ch:
+			return 0
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
+}
+
+// eventLine is one request as plain text, with control characters removed.
+func eventLine(e events.Event) string {
+	model := clean(e.Model)
+	if model == "" {
+		model = "-"
+	}
+	tokens := "-"
+	if e.In+e.Out > 0 {
+		tokens = fmt.Sprintf("%d/%d", e.In, e.Out)
+	}
+	line := fmt.Sprintf("%s %s %s %d %dms tokens=%s", e.Time.Format("15:04:05"), clean(acctOf(e)), model, e.Status, e.Millis, tokens)
+	if e.Skipped > 0 {
+		line += fmt.Sprintf(" failover=%d", e.Skipped)
+	}
+	return line
 }

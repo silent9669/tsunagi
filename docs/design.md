@@ -129,3 +129,9 @@ The intro is the eel swimming through bubbles and revealing the name, then the b
 ## Account ranking by headroom
 
 `"strategy": "usage"` orders accounts by the share of quota left, for providers with a balance endpoint (OpenRouter, DeepSeek, Moonshot). Lookups never delay a request: the first one answers from what is known and refreshes in the background (cached two minutes); an account of unknown headroom counts as half full. Failover still applies on top.
+
+## Slash commands and display modes
+
+The launcher writes a small plugin (`/tsunagi:usage`, `accounts`, `providers`, `models`, `ping`, `sessions`, `handoff`) to the cache directory and passes it with `--plugin-dir`, so the user's own `~/.claude` is untouched. Each command runs the tsunagi binary through an `allowed-tools: Bash(<path>:*)` grant limited to that binary, and the output is injected into the prompt; the binary path must need no quoting, otherwise the plugin is skipped. Checked with real Claude Code: `/tsunagi:accounts` ran the binary and its table reached the model.
+
+Every command has the same data in several shapes: a table for people, `--json` for scripts, `watch --log` and `--json` for pipes, a one-line `statusline` for Claude Code's status bar (opt-in, since a status line replaces the user's own), and `--plain`/`--no-color`/`--no-anim` for terminals that cannot take the animation.

@@ -7,7 +7,7 @@ class H(http.server.BaseHTTPRequestHandler):
         self.wfile.write(json.dumps({"data":[{"id":"tiny-model"}]}).encode())
     def do_POST(self):
         n=int(self.headers.get("Content-Length",0)); body=json.loads(self.rfile.read(n))
-        LOG.write(json.dumps({"path":self.path,"keys":list(body.keys()),"model":body.get("model"),"ntools":len(body.get("tools",[])),"roles":[m["role"] for m in body["messages"]]})+"\n"); LOG.flush()
+        LOG.write(json.dumps({"path":self.path,"keys":list(body.keys()),"model":body.get("model"),"ntools":len(body.get("tools",[])),"roles":[m["role"] for m in body["messages"]],"last":json.dumps(body["messages"])})+"\n"); LOG.flush()
         self.send_response(200); self.send_header("Content-Type","text/event-stream"); self.end_headers()
         def ev(o): self.wfile.write(("data: "+json.dumps(o)+"\n\n").encode()); self.wfile.flush()
         last=body["messages"][-1]

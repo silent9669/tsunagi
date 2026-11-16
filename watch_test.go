@@ -30,3 +30,11 @@ func TestSparklineBucketsAndRamp(t *testing.T) {
 		t.Fatal("empty cases")
 	}
 }
+
+func TestEventLineIsPlainAndSafe(t *testing.T) {
+	e := events.Event{Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.Local), Provider: "p", Account: "p.work", Model: "m\x1b[2J", Status: 429, Millis: 12, In: 5, Out: 2, Skipped: 1}
+	want := "03:04:05 p.work m[2J 429 12ms tokens=5/2 failover=1"
+	if got := eventLine(e); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}

@@ -7,12 +7,14 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/silent9669/tsunagi/internal/events"
 	"github.com/silent9669/tsunagi/internal/handoff"
+	"github.com/silent9669/tsunagi/internal/slash"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
@@ -28,8 +30,12 @@ func stopHookArgs(args []string, exe string) []string {
 			return args
 		}
 	}
-	cmd := handoff.ShellQuote(exe) + " done --hook"
-	return append([]string{"--settings", handoff.HookSettings(cmd)}, args...)
+	stop := handoff.ShellQuote(exe) + " done --hook"
+	status := ""
+	if os.Getenv("TSUNAGI_STATUSLINE") != "" { // opt-in: it replaces the user's own status line
+		status = handoff.ShellQuote(exe) + " statusline"
+	}
+	return append([]string{"--settings", handoff.Settings(stop, status)}, args...)
 }
 
 // registerSession records this launch for `tsunagi sessions` and returns the
@@ -145,12 +151,28 @@ func sessionFlag(args []string) (rest []string, id int, timeout time.Duration, e
 	return rest, id, timeout, nil
 }
 
-func cmdSessions(t *ui.Term) int {
+func cmdSessions(t *ui.Term, args []string) int {
+	args, asJSON := popFlag(args, "--json")
+	if len(args) > 0 {
+		return fail(t, "usage: tsunagi sessions [--json]")
+	}
 	base, err := events.Dir()
 	if err != nil {
 		return fail(t, "%v", err)
 	}
 	list := handoff.List(base)
+	if asJSON {
+		data := make([]map[string]any, 0, len(list))
+		for _, s := range list {
+			row := map[string]any{"session": s.PID, "cwd": s.CWD, "tty": s.TTY, "started": s.Started, "done_file": s.Done}
+			if d, ok := handoff.ReadDone(s.Done); ok {
+				row["last_finished"] = d.Time
+				row["summary"] = d.Summary
+			}
+			data = append(data, row)
+		}
+		return printJSON(t, data)
+	}
 	if len(list) == 0 {
 		t.Printf("  %s\n", t.Dim("no tsunagi session is running"))
 		return 0
@@ -228,4 +250,21 @@ func cmdHandoff(t *ui.Term, args []string) int {
 	t.Printf("so the plan needs no closing instruction. If the model should report differently, it can run:\n\n")
 	t.Printf("   tsunagi done \"<summary>\"\n")
 	return 0
+}
+
+// pluginArgs adds the tsunagi slash commands to the launched session through
+// --plugin-dir. TSUNAGI_NO_PLUGIN turns it off.
+func pluginArgs(args []string, exe string) []string {
+	if os.Getenv("TSUNAGI_NO_PLUGIN") != "" {
+		return args
+	}
+	base, err := events.Dir()
+	if err != nil {
+		return args
+	}
+	dir := filepath.Join(base, "plugin")
+	if err := slash.Write(dir, exe); err != nil {
+		return args
+	}
+	return append([]string{"--plugin-dir", dir}, args...)
 }

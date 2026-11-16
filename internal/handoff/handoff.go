@@ -215,11 +215,16 @@ func SettledAssistantText(path string, wait time.Duration) string {
 	}
 }
 
-// HookSettings is the --settings JSON that adds a Stop hook running command.
-func HookSettings(command string) string {
-	b, _ := json.Marshal(map[string]any{"hooks": map[string]any{"Stop": []any{
-		map[string]any{"hooks": []any{map[string]any{"type": "command", "command": command}}},
-	}}})
+// Settings is the --settings JSON that adds a Stop hook running stopCmd and,
+// when statusCmd is not empty, a status line running statusCmd.
+func Settings(stopCmd, statusCmd string) string {
+	doc := map[string]any{"hooks": map[string]any{"Stop": []any{
+		map[string]any{"hooks": []any{map[string]any{"type": "command", "command": stopCmd}}},
+	}}}
+	if statusCmd != "" {
+		doc["statusLine"] = map[string]any{"type": "command", "command": statusCmd}
+	}
+	b, _ := json.Marshal(doc)
 	return string(b)
 }
 

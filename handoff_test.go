@@ -17,6 +17,11 @@ func TestStopHookArgs(t *testing.T) {
 	if !strings.Contains(got[1], `'/opt/my bin/tsunagi' done --hook`) || !json.Valid([]byte(got[1])) {
 		t.Fatalf("settings = %s", got[1])
 	}
+	t.Setenv("TSUNAGI_STATUSLINE", "1")
+	if g := stopHookArgs([]string{"a"}, "/t"); !strings.Contains(g[1], `"statusLine"`) {
+		t.Fatalf("TSUNAGI_STATUSLINE should add the status line: %s", g[1])
+	}
+	t.Setenv("TSUNAGI_STATUSLINE", "")
 	own := []string{"--settings", "x.json"}
 	if g := stopHookArgs(own, "/t"); len(g) != 2 {
 		t.Fatalf("the user's own --settings must be left alone: %v", g)

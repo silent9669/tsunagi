@@ -76,6 +76,19 @@ func TestLastAssistantTextSkipsToolOnlyTurns(t *testing.T) {
 	}
 }
 
+func TestSettingsStatusLineIsOptional(t *testing.T) {
+	if strings.Contains(Settings("x", ""), "statusLine") {
+		t.Fatal("no status line unless asked")
+	}
+	var d struct {
+		StatusLine struct{ Type, Command string }
+	}
+	json.Unmarshal([]byte(Settings("x", "'/t' statusline")), &d)
+	if d.StatusLine.Type != "command" || d.StatusLine.Command != "'/t' statusline" {
+		t.Fatalf("statusLine = %+v", d)
+	}
+}
+
 func TestHookSettingsAndQuote(t *testing.T) {
 	var s struct {
 		Hooks struct {
@@ -84,7 +97,7 @@ func TestHookSettingsAndQuote(t *testing.T) {
 			}
 		}
 	}
-	if err := json.Unmarshal([]byte(HookSettings("'/a b/tsunagi' done --hook")), &s); err != nil {
+	if err := json.Unmarshal([]byte(Settings("'/a b/tsunagi' done --hook", "")), &s); err != nil {
 		t.Fatal(err)
 	}
 	if len(s.Hooks.Stop) != 1 || s.Hooks.Stop[0].Hooks[0].Type != "command" || s.Hooks.Stop[0].Hooks[0].Command != "'/a b/tsunagi' done --hook" {

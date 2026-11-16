@@ -156,6 +156,7 @@ func cmdSync(t *ui.Term) int {
 // cmdModels lists the names to type after /model: from the catalogue, or live
 // from the provider (always for gateways, or with --live).
 func cmdModels(t *ui.Term, args []string) int {
+	args, asJSON := popFlag(args, "--json")
 	live := false
 	var rest []string
 	for _, a := range args {
@@ -166,9 +167,21 @@ func cmdModels(t *ui.Term, args []string) int {
 		}
 	}
 	if len(rest) != 1 {
-		return fail(t, "usage: tsunagi models [--live] <provider>")
+		return fail(t, "usage: tsunagi models [--live] [--json] <provider>")
 	}
 	name := rest[0]
+	emit := func(list []string) int {
+		if asJSON {
+			if list == nil {
+				list = []string{}
+			}
+			return printJSON(t, list)
+		}
+		for _, m := range list {
+			t.Printf("%s\n", m)
+		}
+		return 0
+	}
 	if name == "chatgpt" { // the list depends on the account, so ask live
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -176,10 +189,11 @@ func cmdModels(t *ui.Term, args []string) int {
 		if err != nil {
 			return fail(t, "%v", err)
 		}
+		var names []string
 		for _, m := range models {
-			t.Printf("chatgpt/%s\n", m.Slug)
+			names = append(names, "chatgpt/"+m.Slug)
 		}
-		return 0
+		return emit(names)
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -188,10 +202,11 @@ func cmdModels(t *ui.Term, args []string) int {
 	if !live {
 		for _, e := range catalog.Load() {
 			if e.ID == name && len(e.Models) > 0 {
+				var names []string
 				for _, m := range e.Models {
-					t.Printf("%s/%s\n", e.ID, m)
+					names = append(names, e.ID+"/"+m)
 				}
-				return 0
+				return emit(names)
 			}
 		}
 	}
@@ -213,10 +228,11 @@ func cmdModels(t *ui.Term, args []string) int {
 		if err != nil {
 			return fail(t, "%v", err)
 		}
+		var names []string
 		for _, m := range models {
-			t.Printf("%s/%s\n", name, m)
+			names = append(names, name+"/"+m)
 		}
-		return 0
+		return emit(names)
 	}
 	return fail(t, "unknown provider %q. Run: tsunagi providers --all", name)
 }

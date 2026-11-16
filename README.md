@@ -56,7 +56,15 @@ tsunagi ping --tool <model>   # one real test request through the router (add --
 tsunagi watch                 # live traffic from every session: accounts, tokens, failovers, a sparkline; run it in a second tab
 ```
 
-Inside the session:
+Inside the session, tsunagi adds slash commands (loaded with `--plugin-dir`, nothing is installed in your Claude Code setup):
+
+```text
+/tsunagi:usage        /tsunagi:accounts     /tsunagi:providers
+/tsunagi:models <provider>                  /tsunagi:ping [--tool] <provider/model>
+/tsunagi:sessions     /tsunagi:handoff
+```
+
+And the model switch:
 
 ```text
 /model claude-sonnet-5-5       # Claude, billed to your subscription
@@ -67,6 +75,8 @@ Inside the session:
 ```
 
 Claude Code prints a "does not recognize the model" notice for non-Claude names and assumes a 200k context window. The notice is cosmetic.
+
+Display modes: `--plain`, `--no-color` and `--no-anim` before a command; `--json` on `providers`, `accounts`, `usage`, `sessions` and `models`; `tsunagi watch` is a dashboard, `watch --log` prints one line per request (pipeable), `watch --json` streams events. `TSUNAGI_STATUSLINE=1` also puts a one-line tsunagi status in Claude Code's status line (it replaces your own). `tsunagi doctor` checks the setup, `tsunagi completion zsh|bash|fish` prints a completion script, `make e2e` runs a real Claude Code against a fake gateway. `TSUNAGI_NO_HOOK=1` and `TSUNAGI_NO_PLUGIN=1` turn off the Stop hook and the slash commands.
 
 Any key skips the intro animation. Set `TSUNAGI_NO_ANIM=1` to turn animation off, or `NO_COLOR=1` for plain text. Extra providers go in `~/.config/tsunagi/config.json` (`name`, `base_url`, `dialect`). The same file takes `"models": {"claude-haiku-5-5": "opencode/glm-5.3", "fast": "deepseek/deepseek-v4-flash"}` to rewrite a model name before routing, for example to send Claude Code's background haiku calls to a cheaper provider. Any provider in the catalogue works as `/model <provider>/<model>` once it has a key; OAuth logins in opencode cannot be imported.
 

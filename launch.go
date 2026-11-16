@@ -112,6 +112,7 @@ func launch(t *ui.Term, args []string) int {
 	defer unregister()
 	if exe, err := os.Executable(); err == nil {
 		args = stopHookArgs(args, exe)
+		args = pluginArgs(args, exe)
 	}
 	cmd := exec.Command(claude, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr

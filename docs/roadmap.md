@@ -45,6 +45,12 @@
 - [x] Built-in local `ollama`, `lmstudio`, `vllm`; live model lists (`models`)
 - [x] Checked with a real binary against a local fake OpenAI-compatible server (plain reply and tool call)
 
+## Phase 2d: complete CLI
+
+- [x] Slash commands through `--plugin-dir` (checked with real Claude Code)
+- [x] `--json`, `--plain`, `watch --log|--json`, `statusline`, `doctor`, `help <command>`, shell completion
+- [ ] Press the keys in a live interactive session: `/model` switch, `/tsunagi:usage`
+
 ## Phase 3: hand-off
 
 - [x] Session registry, per-session done file, `tsunagi sessions`, `wait`, `done`, `handoff`
