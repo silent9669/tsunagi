@@ -128,6 +128,18 @@ func newFreeScreen(a *App) *freeScreen {
 
 func (s *freeScreen) title() string { return "Free models" }
 
+func (s *freeScreen) crumbs() []string {
+	switch s.stage {
+	case fsProbed:
+		return []string{"Free models", "Probe"}
+	case fsCombo:
+		return []string{"Free models", "free/auto"}
+	case fsPolicy:
+		return []string{"Free models", "Data policy"}
+	}
+	return []string{"Free models"}
+}
+
 func (s *freeScreen) setSnap(snap Snapshot)     { s.a.snap = snap }
 func (s *freeScreen) setLocals(map[string]bool) {}
 
@@ -401,6 +413,20 @@ func newSettingsScreen(a *App) *settingsScreen {
 
 func (s *settingsScreen) title() string { return "Settings" }
 
+func (s *settingsScreen) crumbs() []string {
+	switch s.stage {
+	case ssRouting:
+		return []string{"Settings", "Routing"}
+	case ssAppearance:
+		return []string{"Settings", "Appearance"}
+	case ssAdvanced:
+		return []string{"Settings", "Advanced"}
+	case ssTry, ssTried:
+		return []string{"Settings", "Routing", "Try a route"}
+	}
+	return []string{"Settings"}
+}
+
 func (s *settingsScreen) setSnap(snap Snapshot)     { s.a.snap = snap }
 func (s *settingsScreen) setLocals(map[string]bool) {}
 
@@ -649,6 +675,8 @@ func newStatusScreen(a *App) *statusScreen {
 }
 
 func (s *statusScreen) title() string { return "Status" }
+
+func (s *statusScreen) crumbs() []string { return []string{"Status"} }
 
 func (s *statusScreen) setSnap(snap Snapshot)     { s.a.snap = snap }
 func (s *statusScreen) setLocals(map[string]bool) {}

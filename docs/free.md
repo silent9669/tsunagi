@@ -20,13 +20,21 @@ pages. The machine-readable copy lives in `internal/free/registry.go`.
 | NVIDIA NIM | tier | up to 40 requests/min, prototyping only | trains — trial terms: prompts and outputs may be collected to improve NVIDIA products | verified phone number | https://build.nvidia.com/ | https://build.nvidia.com/settings/api-keys | https://build.nvidia.com/search | 2026-11-21 |
 | Cloudflare Workers AI | tier | 10,000 neurons/day; some models need a paid plan | private — inputs and outputs are not retained or used for training | account-id | https://dash.cloudflare.com/sign-up | https://dash.cloudflare.com/profile/api-tokens | https://developers.cloudflare.com/workers-ai/platform/data-usage/ | 2026-11-21 |
 | Z.ai | models | GLM-4.7-Flash and GLM-4.5-Flash only; other models are paid | private — content is processed only to provide the API service and is not saved on Z.ai servers; processing is generally in Singapore | | https://z.ai/model-api | https://z.ai/manage-apikey/apikey-list | https://docs.z.ai/guides/overview/pricing | 2026-11-21 |
+| Kilo Gateway | models | free models only; 200 requests/hour per IP, with or without an account | trains — free models may be routed to providers that log prompts and outputs to improve their services (NVIDIA's free endpoints are named) | | https://app.kilo.ai | keyless — https://app.kilo.ai optional | https://kilo.ai/docs/getting-started/using-kilo-for-free | 2026-11-21 |
+| Reflection AI (beta) | models | public beta: free with daily token allowances that reset daily; Reflection may end the beta at any time | unknown — content is kept up to 30 days for safety monitoring; whether it trains models depends on the account terms | | https://platform.reflection.ai | https://developers.reflection.ai/quickstart | https://reflection.ai/legal/beta-pricing-information | 2026-11-21 |
+| Requesty | models | free models only; new organizations 200 requests/day and 20/min, paying organizations 1,000/day and 60/min | unknown — prompts are not stored unless logging is enabled; each free model's upstream provider sets its own terms | | https://www.requesty.ai/free-models | https://www.requesty.ai/free-models | https://docs.requesty.ai/features/free-models | 2026-11-21 |
 
 `models` mode means only some models are priced at zero and the list is read
 live — from the provider's discovery endpoint, or from the synced catalogue's
-zero-priced caps for `FromCatalog` entries (Z.ai). `tier` mode means every
-model the provider serves is usable on a rate-limited free plan, so
-candidates come from the provider's live `/models` list intersected with the
-catalogue's capability data.
+zero-priced caps for `FromCatalog` entries (Z.ai, Kilo Gateway, Reflection
+AI, Requesty). `tier` mode means every model the provider serves is usable on
+a rate-limited free plan, so candidates come from the provider's live
+`/models` list intersected with the catalogue's capability data.
+
+Kilo Gateway is `keyless`: its free models answer with no account and no key
+(the anonymous use is documented at
+https://kilo.ai/docs/gateway/authentication). A stored key is still used when
+one exists.
 
 Offers that look free but are not are documented in `Excluded` and never
 routed:
@@ -40,6 +48,14 @@ routed:
 | ollama-cloud | pay as you go, no recurring free credits |
 | huggingface | free accounts no longer get Inference Providers credits |
 | modelscope | needs a ModelScope account bound to a real-name-verified Alibaba Cloud account; evaluation use only (modelscope.cn API-Inference docs) |
+| poolside | hosted inference announced shut down on 2026-10-31 (Poolside's own sites) |
+| poe | free accounts cannot call paid models through the API (creator.poe.com) |
+| zenmux | the Free plan has no API access (zenmux.ai docs) |
+| reka | no current recurring free credit, credits are prepaid (docs.reka.ai/pricing) |
+| iteracompute | free promotion ends 2026-11-24 |
+| qiniu-ai | free Conatus activity ends 2026-11-30 and needs mainland-China real-name verification |
+| orcarouter | free tier depends on lifetime spend and has an unpublished prompt-size cap |
+| llmgateway | free models are limited to 5 requests per 10 minutes without purchased credits (docs.llmgateway.io) |
 
 ## Data policy
 
@@ -79,7 +95,8 @@ in `probe.json` next to it and count for 7 days.
 for `models` providers, live `/models` intersected with catalogue
 capabilities for `tier` providers — then applies, in order:
 
-1. **Key gate**: the provider must have a usable key (Cloudflare additionally
+1. **Key gate**: the provider must have a usable key — a `keyless` provider
+   (Kilo Gateway) passes it with none (Cloudflare additionally
    needs an `account-id`, which is step 4's job; until a `cloudflare`
    provider exists in config it is never a candidate).
 2. **Data gate**: private always, trains only when allowed, unknown never.

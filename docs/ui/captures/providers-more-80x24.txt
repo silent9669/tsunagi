@@ -1,0 +1,24 @@
+◆ tsunagi dev                                                          Providers
+
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ › Search 71 providers, or paste a key                                    │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+   All 71   Free 12   Ready 2   Paid 10   Local 5
+    ↑ 40 more
+    ○ cat02
+    ○ cat03
+    ○ cat04
+    ○ cat05
+    ○ cat06
+    ○ cat07
+    ○ cat08
+    35 more, type to search
+
+    Other
+      Add a gateway
+      Import from opencode
+  ❯   Back to menu
+
+
+  type to search   ↑↓ move   ←→ filter   ↵ open   esc back

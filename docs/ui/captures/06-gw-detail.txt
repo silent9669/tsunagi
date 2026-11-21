@@ -1,0 +1,30 @@
+◆ tsunagi dev                                                                        Providers › e2e
+  ◆ Providers ─ ○ Skills ─ ○ Ready
+
+  ╭─ e2e ───────────────────────────────────────────────────────────────────────────────  local  ╮
+  │ state   not set up                                                                           │
+  │ group   Local                                                                                │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ❯ 1 Test again
+    2 Replace key
+    3 Remove
+    4 Back
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ move   ↵ select   esc back

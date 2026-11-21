@@ -3,30 +3,35 @@
 Claude Code on your own Claude login **and** other providers' models, free or paid, in one terminal session. `/model` switches between them. Your Claude credentials are never touched, and your Claude Desktop and plain `claude` sessions are left exactly as they are.
 
 ```text
-                           _                                           _
-                          | |_   ___   _   _   _ __     __ _    __ _  (_)
-                          | __| / __| | | | | | '_ \   / _` |  / _` | | |
-                          | |_  \__ \ | |_| | | | | | | (_| | | (_| | | |
-                           \__| |___/  \__,_| |_| |_|  \__,_|  \__, | |_|
-                                                               |___/
+◆ tsunagi 0.6.0                                                                                         claude ✓ · 3 ready
 
-              ⢟⢟⢿⢿⢶⢶⢶⢶⢶⢶⢶⢶⢶⢶⢶⣦⢤⣤⢄⣀⢀⣀⢀⣤⢤⣴⢶⢶⢿⢟⢟⢟⢟⢟⢿⢿⢿⢿⢿⢿⢿⢟⢟⢟⢟⢟⢿⢿⢶⣶⢤⣤⢄⣀⢀⣀⢀⣠⢤⣤⢴⣶⢶⢶⢶⢶⢶⢶⢶⢶⢶⢶
-              ⠕⠕⠑⠕⠑⠕⠑⠕⠑⠅⠅⠅⠅⠅⠅⢕⠑⢝⠝⢝⠝⢝⠝⢝⠑⠕⠅⠅⠅⠕⠑⠕⠑⠕⠑⠕⠑⠕⠅⠅⠅⠅⠅⢅⢁⢥⢅⢥⢅⢵⢑⢝⠝⠝⠝⠝⠝⠝⠑⠕⠑⠕⠑⠕⠑⠕⠁⠅⠍⠅⢷⢅
-              ⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⢁⢥⣵⢽⢿⢿⢿⢽⢿⢿⢿⢿⢿⣽⣕⣵⢅⢥⢅⢥⢅⡥⣵⣵⠓⢷⣵⢥⠁⠅⠫⠵
-              ⠁⠅⠁⠅⠁⠅⠁⠅⠑⠔⠑⠔⠑⠄⠅⠄⠅⠄⠅⠅⠅⠅⠅⠕⠑⠔⠑⠔⠁⠅⠁⠅⠁⠅⠁⢥⣕⣴⢵⢽⢿⠽⠝⠝⠍⠍⠍⠍⠍⠝⠝⠽⢝⢽⢿⢽⢿⢿⢿⢿⢿⢰⢿⢽⢿⠶⠔⠜⠑⠔⠅⠄
-              ⠁⠄⠁⠄⢁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠉⢍⠉⠅⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠉⠍⠉⠝⠙⠝⠉⠍⠉⠄⠁⠄⠁⠄⠁⠄⠁⠄
-              ⠁⠄⠁⠄⠉⢵⠅⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⢤⠅⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⢁⠔⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⢅⢄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⢵⠅⠄⠁⠄⠁⠄⠁⠄
-              ⠁⠀⠁⠀⠁⢰⠕⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⢱⠅⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⢙⠅⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⢑⠕⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⢀⠕⠀⠁⠀⠁⠀⠁⠀
+                                ████████╗███████╗██╗   ██╗███╗   ██╗ █████╗  ██████╗ ██╗
+                                ╚══██╔══╝██╔════╝██║   ██║████╗  ██║██╔══██╗██╔════╝ ██║
+                                   ██║   ███████╗██║   ██║██╔██╗ ██║███████║██║  ███╗██║
+                                   ██║   ╚════██║██║   ██║██║╚██╗██║██╔══██║██║   ██║██║
+                                   ██║   ███████║╚██████╔╝██║ ╚████║██║  ██║╚██████╔╝██║
+                                   ╚═╝   ╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚═╝
 
-                      ▏ 1 Start Claude Code                        claude
-                        2 Providers                                    5 ready
-                        3 Skills                                           1/2
-                        4 Free models                                        -
-                        5 Settings
-                        6 Status
-                        7 Quit
+                        ⢤⣤⢤⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀⠀        ⣀⢀⣀⢠⣤⢤⣤⢤⣤⢤⣤⢄⣀⢀⣤⢤⣤⢤⣤⢤⣤⢤⣀⢀⣀⢀        ⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀
+                        ⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⢟⢟⢟⢟⢟⢿⢟⢟⢟⢟⠟⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⢝⢙⢽⢝⣽⢝⣽⢟⢟⢟⢟⢿⢟⢟⢟⢟⢟⠟⠝⠝⠝⠝⠝⠝⠝⠟⠝⢿⠽
+                        ⠅⠅⠅⠅⠅⠅⠅⠅⠅⠅⠅⢅⠁⢅⠁⢅⠁⢅⠁⢅⠁⢅⠁⢅⠁⠅⠅⠅⠅⠅⠅⠅⠅⠅⠅⢅⢅⢅⢅⣥⢵⢽⢿⢿⠟⢽⠝⢽⠝⢽⢿⢽⢿⢿⢿⢽⢽⢽⢽⢽⢽⢁⢿⢿⣅⣙⢛⠳⠁⢅⠑⢝
+                        ⠁⠄⠁⠄⠁⢄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠍⠉⢍⠉⠍⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠅⠉⠍⠙⠝⠙⠝⠙⠌⠉⢍⠉⠄⠁⠄⠁⠄⠁⠄
+                        ⠁⠄⠁⠄⠁⢴⠅⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⢴⠅⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⢙⠅⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⢙⠅⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⢔⠕⠄⠁⠄⠁⠄⠁⠄
 
-                      ↑↓ move   ↵ select   1-9 jump   q quit
+      ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+      │ › Search actions, providers…                                                                             │
+      ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+      ❯   Start Claude Code                                                                        claude 2.1.311
+          Add a free provider                                                                                next
+          Providers                                                                                       3 ready
+          Free models                                                                                           -
+          Skills                                                                                              1/2
+          Settings
+          Status
+          Quit
+
+      type to search   ↑↓ move   ↵ open   esc quit
 ```
 
 macOS only (arm64 and amd64). Open source, built on your own keys.
@@ -58,11 +63,11 @@ Update with `brew upgrade --cask tsunagi`. Remove with `tsunagi uninstall`, then
 
 Run `tsunagi`. The first time it opens a short setup:
 
-1. **Providers**: type to search about 300 providers, press enter on one and follow its steps (account, key, verify, done). Free offers show their limits and what the provider does with your prompts. Keys are typed hidden and saved in the macOS keychain.
+1. **Providers**: filter the list (All, Free, Ready, Paid, Local) or type to search about 300 providers, press enter on one and follow its steps (account, key, verify, done). Paste a key anywhere in the search box and tsunagi recognises the provider from its prefix. Keys found in your environment (for example `GROQ_API_KEY`) are offered for import, names only until you agree. Kilo Gateway's free models need no account at all. Free offers show their limits and what the provider does with your prompts. Keys are typed hidden and saved in the macOS keychain.
 2. **Skills**: optional skills so Claude Code, Codex, Cursor and opencode can hand off plans and manage tsunagi.
 3. **Start Claude Code**.
 
-After that `tsunagi` opens the menu: Start Claude Code, Providers, Skills, Free models, Settings, Status. Everything works with the keyboard (arrows, enter, the number next to a row, type to search, esc) and with the mouse (click a row, scroll). `tsunagi claude [args]` skips the menu and starts Claude Code with your arguments, and so does running it without a terminal. The interface adapts to any terminal size, down to 20 columns.
+After that `tsunagi` opens one search box over everything: type to filter actions and all providers (`gro` finds Groq), arrows and enter to pick, esc to clear or leave. With nothing typed, Start Claude Code is selected and a single `next` row suggests the next setup step. It also works with the mouse (click a row, scroll). `tsunagi claude [args]` skips the menu and starts Claude Code with your arguments, and so does running it without a terminal. The interface adapts to any terminal size, down to 20 columns.
 
 In the session:
 
@@ -78,7 +83,7 @@ Claude Code prints a "does not recognize the model" notice for non-Claude names 
 
 ## Free models
 
-`tsunagi free` lists providers with a documented, recurring free API tier, with their limits, what they need, and a data label from their own terms: `private` (not used for training) or `trains`. Only labelled providers can enter the `free/auto` combo, and `trains` ones only after `tsunagi free allow <provider>`. The list is checked against the providers' own pages and corrects itself: Mistral, Cerebras, Hugging Face, Ollama Cloud, GitHub Models and ModelScope are documented as not usable this way. Current entries: OpenCode Zen, OpenRouter, Groq, Google AI Studio, SambaNova, Cohere (trial key), NVIDIA NIM, Cloudflare Workers AI, Z.ai. Details and sources: [docs/free.md](docs/free.md).
+`tsunagi free` lists providers with a documented, recurring free API tier, with their limits, what they need, and a data label from their own terms: `private` (not used for training) or `trains`. Only labelled providers can enter the `free/auto` combo, and `trains` ones only after `tsunagi free allow <provider>`. The list is checked against the providers' own pages and corrects itself: Mistral, Cerebras, Hugging Face, Ollama Cloud, GitHub Models and ModelScope are documented as not usable this way. Current entries: OpenCode Zen, OpenRouter, Groq, Google AI Studio, SambaNova, Cohere (trial key), NVIDIA NIM, Cloudflare Workers AI, Z.ai, Kilo Gateway (needs no key), Reflection AI (beta), Requesty. Details and sources: [docs/free.md](docs/free.md).
 
 ```bash
 tsunagi free                 # the offers, their limits and data labels

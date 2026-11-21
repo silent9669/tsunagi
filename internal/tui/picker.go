@@ -184,7 +184,7 @@ func (p Picker) itemLine(it PickItem, focused bool) string {
 	if focused {
 		marker = ">" + " "
 		if p.utf8 {
-			marker = "▏ "
+			marker = "❯ "
 		}
 	}
 	w := max(p.w, 12)

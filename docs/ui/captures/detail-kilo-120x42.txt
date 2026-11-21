@@ -1,0 +1,42 @@
+◆ tsunagi dev                                                                                   Providers › Kilo Gateway
+
+      ╭─ Kilo Gateway ────────────────────────────────────────────────────────────────  free   trains   keyless  ╮
+      │ limits  free models only; 200 requests/hour per IP, with or without an account                           │
+      │ data    trains - free models may be routed to providers that log prompts and outputs to improve their    │
+      │         services (NVIDIA's free endpoints are named)                                                     │
+      │ source  kilo.ai checked 2026-11-21                                                                       │
+      │ signup  https://app.kilo.ai                                                                              │
+      │ key     https://app.kilo.ai                                                                              │
+      ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+      ❯ 1 Use now, no key needed
+        2 Add a key (optional)
+        3 Open sign-up
+        4 Open key page
+        5 Back
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ↑↓ move   ↵ select   esc back

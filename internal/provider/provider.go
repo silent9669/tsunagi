@@ -63,6 +63,10 @@ type Provider struct {
 	// catalogue. The router refuses to connect them to loopback or private
 	// addresses.
 	Untrusted bool `json:"-"`
+	// OptionalKey marks providers whose free offer needs no key: a request
+	// goes out with no credential when none is stored, and with the stored
+	// key when there is one.
+	OptionalKey bool `json:"-"`
 }
 
 // Ready reports whether the router can talk to the provider today.

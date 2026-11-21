@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/free"
 	"github.com/silent9669/tsunagi/internal/keychain"
+	"github.com/silent9669/tsunagi/internal/keyprefix"
 	"github.com/silent9669/tsunagi/internal/opencode"
 	"github.com/silent9669/tsunagi/internal/provider"
 	"github.com/silent9669/tsunagi/internal/router"
@@ -55,17 +57,19 @@ func (backend) Snapshot() app.Snapshot {
 			row.Tag = e.Data
 			row.Setup = e.Setup
 			row.FreeEntry = true
+			row.Limits = e.Limits
+			if e.Access == free.Keyless {
+				row.Keyless, row.Ready = true, true
+			}
 		} else if p.Auth == "chatgpt" {
 			row.Group = "plan"
 			row.Tag = "plan"
 		} else if p.Local {
 			row.Group = "local"
 			row.Ready = true
-		} else if !p.Untrusted || len(row.Accounts) > 0 {
-			// catalogue providers only appear once they hold a key
-			if p.Untrusted && !row.Ready {
-				continue
-			}
+		} else if p.Untrusted && len(row.Accounts) == 0 && !row.Ready {
+			// unkeyed catalogue providers stay browseable behind search
+		} else {
 			row.Group = "paid"
 		}
 		seen[p.Name] = true
@@ -76,6 +80,7 @@ func (backend) Snapshot() app.Snapshot {
 		if !seen[e.ID] {
 			snap.Providers = append(snap.Providers, app.ProviderRow{
 				Name: e.ID, Group: "free", Tag: e.Data, Setup: e.Setup, FreeEntry: true,
+				Keyless: e.Access == free.Keyless, Ready: e.Access == free.Keyless, Limits: e.Limits,
 			})
 		}
 	}
@@ -266,7 +271,7 @@ func verifyCandidate(ctx context.Context, cfg config.Config, p provider.Provider
 	// live list
 	key := ""
 	if !p.Local {
-		k, err := keyFor(cfg)(p, router.Account(p.Name, ""))
+		k, err := fetchKey(cfg, p)
 		if err != nil {
 			return "", err
 		}
@@ -586,4 +591,92 @@ func (backend) ProbeFree(ctx context.Context) ([]app.ProbeRow, error) {
 		out = append(out, app.ProbeRow{Target: r.Target, OK: r.OK, Tools: r.Tools, Millis: r.Millis, Err: r.Err})
 	}
 	return out, err
+}
+
+// storeKey saves a key for an account; a var so tests never touch the
+// keychain.
+var storeKey = keychain.Set
+
+// envKeys lists unkeyed routable providers an environment variable can key,
+// provider and variable names only.
+func envKeys(cfg config.Config) []app.EnvKey {
+	vars := map[string][]string{}
+	for _, e := range catalog.Load() {
+		vars[e.ID] = e.Env
+	}
+	var out []app.EnvKey
+	for _, p := range cfg.All() {
+		if p.Name == "anthropic" || p.Name == "claude" || ready(p) > 0 {
+			continue
+		}
+		for _, v := range vars[p.Name] {
+			if v != "ANTHROPIC_API_KEY" && os.Getenv(v) != "" {
+				out = append(out, app.EnvKey{Provider: p.Name, Var: v})
+				break
+			}
+		}
+	}
+	return out
+}
+
+// EnvKeys reports the providers ImportEnvKey will accept.
+func (backend) EnvKeys() []app.EnvKey {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil
+	}
+	return envKeys(cfg)
+}
+
+// ImportEnvKey saves the environment variable's value for the provider,
+// exactly like SaveKey. The value never leaves this function.
+func (backend) ImportEnvKey(providerName string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	want := ""
+	for _, ek := range envKeys(cfg) {
+		if ek.Provider == providerName {
+			want = ek.Var
+			break
+		}
+	}
+	v := ""
+	if want != "" {
+		v = os.Getenv(want)
+	}
+	if v == "" {
+		return fmt.Errorf("no environment key for %s", providerName)
+	}
+	for _, p := range cfg.All() {
+		if p.Name == providerName {
+			if err := storeKey(providerName, v); err != nil {
+				return err
+			}
+			config.SetKeyed(providerName, true, pinHost(cfg, p))
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown provider %q", providerName)
+}
+
+// DetectKey guesses providers from a pasted key's prefix, keeping only
+// names that show up in the snapshot.
+func (backend) DetectKey(key string) ([]string, error) {
+	names, err := keyprefix.Check(key)
+	if err != nil || len(names) == 0 {
+		return names, err
+	}
+	known := map[string]bool{}
+	for _, r := range (backend{}).Snapshot().Providers {
+		known[r.Name] = true
+	}
+	var out []string
+	for _, n := range names {
+		if known[n] {
+			out = append(out, n)
+		}
+	}
+	return out, nil
 }

@@ -8,8 +8,12 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Chosen carries the Value of the menu item the user picked.
-type Chosen struct{ Value string }
+// Chosen carries the Value of the menu item the user picked. Ref echoes the
+// caller's row index when the source list set one.
+type Chosen struct {
+	Value string
+	Ref   int
+}
 
 // Confirmed carries the Values of every checked checklist item.
 type Confirmed struct{ Values []string }
@@ -179,7 +183,7 @@ func (m Menu) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Menu) View() tea.View {
 	marker := ">"
 	if m.utf8 {
-		marker = "▏"
+		marker = "❯"
 	}
 	m.reveal()
 	w := max(m.w, 8)
@@ -549,15 +553,74 @@ type Input struct {
 // bullets so its length never leaks.
 func NewInput(placeholder string, masked bool, th Theme, utf8 bool) Input {
 	ti := textinput.New()
+	ti.Prompt = ""
 	ti.Placeholder = placeholder
 	ti.CharLimit = 4096
 	ti.SetWidth(80)
+	if th.Plain() {
+		var st textinput.Styles
+		ti.SetStyles(st)
+		ti.SetVirtualCursor(false)
+	}
 	ti.Focus() // value semantics: focus must be set before the model is stored
 	return Input{ti: ti, theme: th, masked: masked, utf8: utf8, w: 80}
 }
 
 // Value returns the entered text (always the real value, even when masked).
 func (m Input) Value() string { return m.ti.Value() }
+
+// SetValue replaces the field's text; an empty string clears it.
+func (m *Input) SetValue(v string) { m.ti.SetValue(v) }
+
+// line is the one rendered row of the field: prompt glyph plus the value or
+// its mask.
+func (m Input) line() string {
+	prompt := ">"
+	if m.utf8 {
+		prompt = "›"
+	}
+	content := m.theme.Text.Render(m.ti.View())
+	if m.masked {
+		n := len([]rune(m.ti.Value()))
+		if n > 24 {
+			n = 24
+		}
+		bullet := "*"
+		if m.utf8 {
+			bullet = "•"
+		}
+		content = m.theme.Accent.Render(strings.Repeat(bullet, n))
+	}
+	if m.theme.Plain() {
+		caret := "_"
+		if m.utf8 {
+			caret = "▌"
+		}
+		content += caret
+	}
+	return m.theme.Accent.Render(prompt) + " " + content
+}
+
+// Boxed renders the field inside a one-row card: ╭──╮ │ › value │ ╰──╯.
+func (m Input) Boxed(w int) []string {
+	h, v := "─", "│"
+	tl, tr, bl, br := "╭", "╮", "╰", "╯"
+	if !m.utf8 {
+		h, v, tl, tr, bl, br = "-", "|", "+", "+", "+", "+"
+	}
+	if w < 8 {
+		return []string{m.line()}
+	}
+	m.ti.SetWidth(max(w-8, 4))
+	line := truncateCells(m.line(), max(w-4, 1))
+	pad := max(w-4-lipgloss.Width(line), 0)
+	border := m.theme.Border
+	return []string{
+		border.Render(tl + strings.Repeat(h, w-2) + tr),
+		border.Render(v) + " " + line + strings.Repeat(" ", pad) + " " + border.Render(v),
+		border.Render(bl + strings.Repeat(h, w-2) + br),
+	}
+}
 
 func (m Input) Init() tea.Cmd { return m.ti.Focus() }
 
@@ -587,16 +650,5 @@ func (m Input) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the field. Masked input shows a fixed run of bullets capped
 // at 24 characters regardless of the real length.
 func (m Input) View() tea.View {
-	if m.masked {
-		n := len([]rune(m.ti.Value()))
-		if n > 24 {
-			n = 24
-		}
-		bullet := "*"
-		if m.utf8 {
-			bullet = "•"
-		}
-		return tea.NewView(m.theme.Accent.Render(strings.Repeat(bullet, n)))
-	}
-	return tea.NewView(m.theme.Text.Render(m.ti.View()))
+	return tea.NewView(m.line())
 }

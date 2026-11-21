@@ -13,15 +13,19 @@ import (
 func TestEveryScreenFitsEverySize(t *testing.T) {
 	widths := []int{20, 24, 30, 40, 50, 60, 80, 100, 140}
 	heights := []int{5, 6, 8, 10, 12, 16, 20, 24, 30, 40, 50}
+	// keys are typed into the always-focused search boxes; \r picks the top row
 	screens := map[string][]string{
-		"menu":      {},
-		"providers": {"2"},
-		"flow":      {"2", "g", "r", "o", "\r"},
-		"skills":    {"3"},
-		"free":      {"4"},
-		"settings":  {"5"},
-		"routing":   {"5", "1"},
-		"status":    {"6"},
+		"home":      {},
+		"providers": {"p", "r", "o", "v", "\r"},
+		"detail":    {"p", "r", "o", "v", "\r", "g", "r", "o", "\r"},
+		"rail":      {"p", "r", "o", "v", "\r", "g", "r", "o", "\r", "1"},
+		"envcard":   {"p", "r", "o", "v", "\r", "\r"},
+		"skills":    {"s", "k", "i", "\r"},
+		"free":      {"f", "r", "e", "\r"},
+		"settings":  {"s", "e", "t", "\r"},
+		"routing":   {"s", "e", "t", "\r", "1"},
+		"status":    {"s", "t", "a", "t", "u", "\r"},
+		"scrolled":  {"p", "r", "o", "v", "\r", "END"},
 	}
 	for name, keys := range screens {
 		for _, W := range widths {
@@ -29,16 +33,29 @@ func TestEveryScreenFitsEverySize(t *testing.T) {
 				opts := testOpts
 				opts.W, opts.H = W, H
 				be := moreBackend()
+				if name == "envcard" {
+					be.envKeys = []EnvKey{{Provider: "groq", Var: "GROQ_API_KEY"}}
+				}
+				if name == "scrolled" {
+					for i := 0; i < 40; i++ {
+						be.snap.Providers = append(be.snap.Providers, ProviderRow{Name: "prov" + itoa(i), Group: "paid"})
+					}
+				}
 				m, err := New(opts, be, false)
 				if err != nil {
 					t.Fatal(err)
 				}
 				send(m, tea.WindowSizeMsg{Width: W, Height: H})
 				for _, k := range keys {
-					if k == "\r" {
+					switch {
+					case k == "\r":
 						enter(m)
-					} else {
+					case k == "END":
+						key(m, tea.KeyEnd, "")
+					case k >= "0" && k <= "9":
 						press(m, k)
+					default:
+						typeIn(m, k)
 					}
 				}
 				out := m.View().Content
@@ -56,7 +73,7 @@ func TestEveryScreenFitsEverySize(t *testing.T) {
 	}
 }
 
-func TestPickerKeepsTheCursorVisible(t *testing.T) {
+func TestListKeepsTheCursorVisible(t *testing.T) {
 	be := moreBackend()
 	for i := 0; i < 60; i++ {
 		be.snap.Providers = append(be.snap.Providers, ProviderRow{Name: "prov" + itoa(i), Group: "paid"})
@@ -65,14 +82,15 @@ func TestPickerKeepsTheCursorVisible(t *testing.T) {
 	opts.W, opts.H = 60, 14
 	m, _ := New(opts, be, false)
 	send(m, tea.WindowSizeMsg{Width: 60, Height: 14})
-	press(m, "2")
+	choose(m, "providers")
 	for i := 0; i < 40; i++ {
 		key(m, tea.KeyDown, "")
 	}
 	v := viewText(m)
-	if !strings.Contains(v, "▏") {
+	if !strings.Contains(v, "❯") {
 		t.Fatalf("the cursor row scrolled out of view:\n%s", v)
 	}
+	typeIn(m, "prov")
 	key(m, tea.KeyEnd, "")
 	if !strings.Contains(viewText(m), "prov59") {
 		t.Fatalf("End did not reach the last row:\n%s", viewText(m))
@@ -81,18 +99,19 @@ func TestPickerKeepsTheCursorVisible(t *testing.T) {
 
 func TestSearchFindsCatalogueProviders(t *testing.T) {
 	be := moreBackend()
-	be.snap.Providers = append(be.snap.Providers, ProviderRow{Name: "hyperbolic", Group: ""}, ProviderRow{Name: "novita-ai", Group: ""})
+	for i := 0; i < 10; i++ {
+		be.snap.Providers = append(be.snap.Providers, ProviderRow{Name: "cat" + itoa(i), Group: ""})
+	}
+	be.snap.Providers = append(be.snap.Providers, ProviderRow{Name: "hyperbolic", Group: ""})
 	m := newTestApp(t, be, false)
-	press(m, "2")
+	choose(m, "providers")
 	v := viewText(m)
-	if strings.Contains(v, "hyperbolic") || !strings.Contains(v, "+2 more") {
+	if strings.Contains(v, "hyperbolic") || !strings.Contains(v, "3 more") {
 		t.Fatalf("catalogue providers must stay behind the search:\n%s", v)
 	}
-	for _, r := range "hyper" {
-		press(m, string(r))
-	}
+	typeIn(m, "hyper")
 	v = viewText(m)
-	if !strings.Contains(v, "hyperbolic") || strings.Contains(v, "novita") {
+	if !strings.Contains(v, "hyperbolic") || strings.Contains(v, "cat0") {
 		t.Fatalf("search must filter:\n%s", v)
 	}
 	esc(m) // clears the query first
@@ -105,8 +124,10 @@ func TestMouseClickOpensARowAndWheelMoves(t *testing.T) {
 	be := moreBackend()
 	m := newTestApp(t, be, false)
 	f := m.frame(m.scr)
-	// click on "Status" (row 6 of the menu)
-	send(m, tea.MouseClickMsg{X: f.indent + 3, Y: f.headerRows + 5, Button: tea.MouseLeft})
+	hs := m.scr.(*homeScreen)
+	_ = viewText(m) // render once so mtop is set
+	// home rows: Start, next-step, Providers, Free models, Skills, Settings, Status
+	send(m, tea.MouseClickMsg{X: f.indent + 3, Y: f.headerRows + hs.mtop + 6, Button: tea.MouseLeft})
 	if !strings.Contains(viewText(m), "no keys yet") {
 		t.Fatalf("a click on Status did not open it:\n%s", viewText(m))
 	}
@@ -114,13 +135,13 @@ func TestMouseClickOpensARowAndWheelMoves(t *testing.T) {
 	send(m, tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	send(m, tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	enter(m)
-	if !strings.Contains(viewText(m), "Codex, Cursor, opencode") {
-		// two wheel steps move the cursor from Start Claude Code to Skills
-		t.Fatalf("wheel + enter did not open Skills:\n%s", viewText(m))
+	if !strings.Contains(viewText(m), "Providers") || !strings.Contains(viewText(m), "OpenRouter") {
+		// two wheel steps move the cursor from Start to Providers
+		t.Fatalf("wheel + enter did not open Providers:\n%s", viewText(m))
 	}
 }
 
-func TestStepperAdaptsToWidth(t *testing.T) {
+func TestRailAdaptsToSize(t *testing.T) {
 	be := moreBackend()
 	be.snap.Providers = []ProviderRow{{Name: "groq", Group: "free", Tag: "private", FreeEntry: true}}
 	for _, w := range []int{100, 40} {
@@ -128,13 +149,17 @@ func TestStepperAdaptsToWidth(t *testing.T) {
 		opts.W, opts.H = w, 24
 		m, _ := New(opts, be, false)
 		send(m, tea.WindowSizeMsg{Width: w, Height: 24})
-		press(m, "2")
-		enter(m)
+		choose(m, "groq")
+		press(m, "1") // Set up
 		v := viewText(m)
-		if w == 100 && !strings.Contains(v, "Account") || !strings.Contains(v, "Key") && w == 100 {
-			t.Fatalf("full stepper missing at %d:\n%s", w, v)
+		if w == 100 {
+			for _, want := range []string{"Account", "Key", "Verify", "Done", "Set up"} {
+				if !strings.Contains(v, want) {
+					t.Fatalf("rail missing %q at %d:\n%s", want, w, v)
+				}
+			}
 		}
-		if w == 40 && !strings.Contains(v, "1/4") {
+		if w == 40 && !strings.Contains(v, "2/4") {
 			t.Fatalf("compact stepper missing at %d:\n%s", w, v)
 		}
 	}

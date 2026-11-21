@@ -197,6 +197,9 @@ func (s *skillsScreen) simpleMenu(labels ...string) tui.Menu {
 
 func (s *skillsScreen) title() string { return "Skills" }
 
+func (s *skillsScreen) crumbs() []string      { return []string{"Skills"} }
+func (s *skillsScreen) wizStage() (int, bool) { return 1, s.wizard }
+
 func (s *skillsScreen) legend() []string {
 	if s.stage == skList {
 		return []string{"↑↓|move", "space|toggle", "↵|apply", "esc|back"}

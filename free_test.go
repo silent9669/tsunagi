@@ -88,7 +88,7 @@ func TestFreeTable(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code %d out %s", code, out)
 	}
-	for _, want := range []string{"opencode", "openrouter", "groq", "cloudflare", "all models", "setup", "private", "trains"} {
+	for _, want := range []string{"opencode", "openrouter", "groq", "cloudflare", "all models", "setup", "private", "trains", "kilo", "no key needed"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output lacks %q:\n%s", want, out)
 		}
@@ -105,32 +105,31 @@ func TestFreeTableJSON(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code %d out %s", code, out)
 	}
-	var doc struct {
-		Providers []struct {
-			Provider string `json:"provider"`
-			Free     any    `json:"free"`
-			Data     string `json:"data"`
-			Key      string `json:"key"`
-		} `json:"providers"`
-	}
-	if err := json.Unmarshal([]byte(out), &doc); err != nil {
-		t.Fatalf("bad json %q: %v", out, err)
-	}
-	if len(doc.Providers) != 9 {
-		t.Fatalf("providers = %+v", doc.Providers)
-	}
-	var or, cf *struct {
+	type row struct {
 		Provider string `json:"provider"`
 		Free     any    `json:"free"`
 		Data     string `json:"data"`
 		Key      string `json:"key"`
+		Access   string `json:"access"`
 	}
+	var doc struct {
+		Providers []row `json:"providers"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("bad json %q: %v", out, err)
+	}
+	if len(doc.Providers) != 12 {
+		t.Fatalf("providers = %+v", doc.Providers)
+	}
+	var or, cf, kilo *row
 	for i := range doc.Providers {
 		switch doc.Providers[i].Provider {
 		case "openrouter":
 			or = &doc.Providers[i]
 		case "cloudflare":
 			cf = &doc.Providers[i]
+		case "kilo":
+			kilo = &doc.Providers[i]
 		}
 	}
 	if or == nil || or.Free != float64(2) {
@@ -138,6 +137,9 @@ func TestFreeTableJSON(t *testing.T) {
 	}
 	if cf == nil || cf.Key != "setup" {
 		t.Fatalf("cloudflare row = %+v", cf)
+	}
+	if kilo == nil || kilo.Key != "no key needed" || kilo.Access != "keyless" {
+		t.Fatalf("kilo row = %+v", kilo)
 	}
 }
 

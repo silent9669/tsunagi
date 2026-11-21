@@ -83,8 +83,9 @@ func chatgptFor(label string) *signin.ChatGPT {
 	return g
 }
 
-// hasAccount reports whether the account's key or sign-in is stored.
-func hasAccount(p provider.Provider, account string) bool {
+// hasAccount reports whether the account's key or sign-in is stored. It is a
+// var so tests never touch the keychain.
+var hasAccount = func(p provider.Provider, account string) bool {
 	if p.Auth == "chatgpt" {
 		return chatgptFor(labelOf(account)).Signed()
 	}

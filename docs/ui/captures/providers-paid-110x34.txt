@@ -1,0 +1,34 @@
+◆ tsunagi dev                                                                                        Providers
+
+  ╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ › Search 71 providers, or paste a key                                                                  │
+  ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+   All 71   Free 12   Ready 2   Paid 10   Local 5
+    ↑ 23 more
+  ❯ ○ vllm                   local
+    ○ e2e                    local
+
+    Paid
+    ○ opencode-go            paid
+    ○ deepseek               paid
+    ○ moonshot               paid
+    ○ minimax                paid
+    ○ qwen                   paid
+    ○ fireworks              paid
+    ○ openai                 paid
+    ○ xai                    paid
+    ○ together               paid
+    ○ mistral                paid
+
+    More
+    ○ cat01
+    ○ cat02
+    ○ cat03
+    ○ cat04
+    ○ cat05
+    ○ cat06
+    ○ cat07
+    ↓ 7 more
+
+  type to search   ↑↓ move   ←→ filter   ↵ open   esc back

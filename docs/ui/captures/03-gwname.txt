@@ -1,19 +1,17 @@
-                      Providers
+◆ tsunagi dev                                                                    Providers › Gateway
+  ◆ Providers ─ ○ Skills ─ ○ Ready
 
-                      Gateway name
-                      > gateway name
-
-
-
-
-
-
-
-
-
-
-
-
+  ┌ Add a gateway
+  │
+  ◆ Name
+  │   Gateway name
+  │   ╭──────────────────────────────────────────────────────────────────────────────────────────╮
+  │   │ › gateway name                                                                           │
+  │   ╰──────────────────────────────────────────────────────────────────────────────────────────╯
+  │
+  ○ URL
+  ○ Done
+  └
 
 
 
@@ -27,4 +25,6 @@
 
 
 
-                      ↵ confirm   esc back
+
+
+  ↵ confirm   esc back

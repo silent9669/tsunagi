@@ -6,17 +6,27 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/silent9669/tsunagi/internal/art"
-	"github.com/silent9669/tsunagi/internal/ui"
 )
 
-// Wordmark renders the six logo rows gradient-colored and centered in w
-// cells. It returns nil when the terminal is compact.
-func Wordmark(w int, th Theme) []string {
-	if Compact(w, 24) {
-		return nil
+// wordmark is "TSUNAGI" in the ANSI-Shadow block font, six rows.
+var wordmark = []string{
+	"████████╗███████╗██╗   ██╗███╗   ██╗ █████╗  ██████╗ ██╗",
+	"╚══██╔══╝██╔════╝██║   ██║████╗  ██║██╔══██╗██╔════╝ ██║",
+	"   ██║   ███████╗██║   ██║██╔██╗ ██║███████║██║  ███╗██║",
+	"   ██║   ╚════██║██║   ██║██║╚██╗██║██╔══██║██║   ██║██║",
+	"   ██║   ███████║╚██████╔╝██║ ╚████║██║  ██║╚██████╔╝██║",
+	"   ╚═╝   ╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚═╝",
+}
+
+// Wordmark renders the block-font wordmark with a horizontal gradient and
+// centered in w cells. Non-UTF-8 terminals get a one-row bold line; mono
+// themes get the glyphs unstyled.
+func Wordmark(w int, th Theme, utf8 bool) []string {
+	if !utf8 {
+		return []string{centerLineRaw(th.Title.Render("tsunagi"), w, 7)}
 	}
 	var out []string
-	for _, line := range ui.LogoLines() {
+	for _, line := range wordmark {
 		out = append(out, centerLine(line, w, th))
 	}
 	return out

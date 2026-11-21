@@ -2,19 +2,22 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/silent9669/tsunagi/internal/free"
 	"github.com/silent9669/tsunagi/internal/tui"
 )
 
-// providersScreen is the searchable provider list plus the per-provider
-// setup flow: account, key, verify, done, drawn under a stepper.
+// providersScreen is the searchable provider browser plus the per-provider
+// setup flow: a search field with filter chips and sections, a detail card,
+// then a vertical rail through the flow's steps.
 type providersScreen struct {
 	opts   tui.Options
 	th     tui.Theme
@@ -22,10 +25,20 @@ type providersScreen struct {
 	wizard bool
 	w, h   int
 
-	stage int
-	pk    tui.Picker
-	menu  tui.Menu
-	in    tui.Input
+	stage  int
+	search tui.Input // psList search box, always focused
+	list   tui.List
+	menu   tui.Menu
+	in     tui.Input // stage inputs (key, account id, gateway)
+
+	chip    int
+	envSkip map[string]bool
+	envProv string
+
+	pendingKey   string // a pasted or detected key, masked everywhere
+	pendingNames []string
+	pendingErr   error
+	pendingAsk   bool // no candidate: ask which provider it is for
 
 	// flow state
 	prov       ProviderRow
@@ -42,13 +55,16 @@ type providersScreen struct {
 	urlCh      chan string
 	chatCancel context.CancelFunc
 	gwName     string
-	menuTop    int // body rows above the menu, for mouse clicks
+	menuTop    int   // body rows above the menu, for mouse clicks
+	mtop       int   // body rows above the list, for mouse clicks
+	chipY      int   // chip row in body coordinates, for mouse clicks
+	chipX      []int // chip cell x starts, for mouse clicks
 }
 
 const (
 	psList = iota
 	psDetail
-	psPanel
+	psEnv
 	psAcctID
 	psGWName
 	psGWURL
@@ -62,25 +78,31 @@ const (
 	psImport
 )
 
+const (
+	chipAll = iota
+	chipFree
+	chipReady
+	chipPaid
+	chipLocal
+)
+
 func groupTitle(g string) string {
 	switch g {
 	case "free":
 		return "Free"
 	case "plan":
-		return "Your plans"
+		return "Plan"
 	case "paid":
-		return "Paid keys"
+		return "Paid"
 	case "local":
-		return "Local and own"
+		return "Local"
 	}
 	return "Catalogue"
 }
 
-var groupOrder = []string{"free", "plan", "paid", "local", ""}
-
 func newProvidersScreen(a *App, wizard bool) *providersScreen {
 	f := a.frame(&providersScreen{})
-	s := &providersScreen{opts: a.opts, th: a.theme, app: a, wizard: wizard, w: f.bodyW, h: f.bodyH}
+	s := &providersScreen{opts: a.opts, th: a.theme, app: a, wizard: wizard, w: f.bodyW, h: f.bodyH, chip: -1}
 	s.build()
 	return s
 }
@@ -89,9 +111,10 @@ func (s *providersScreen) setSnap(snap Snapshot) { s.app.snap = snap }
 func (s *providersScreen) setLocals(m map[string]bool) {
 	s.localUp = m
 	if s.stage == psList {
-		s.build()
+		s.rebuild()
 	}
 }
+func (s *providersScreen) wizStage() (int, bool) { return 0, s.wizard }
 
 // registryEntry finds the free-registry facts for a provider name.
 func registryEntry(name string) *free.Entry {
@@ -104,61 +127,289 @@ func registryEntry(name string) *free.Entry {
 	return nil
 }
 
-// pickItems turns the snapshot into the picker's rows: the curated providers
-// by group, the gateway and import actions, and the whole catalogue behind
-// the search.
-func (s *providersScreen) pickItems() []tui.PickItem {
-	var items []tui.PickItem
-	if s.wizard {
-		items = append(items, tui.PickItem{Label: "Continue", Value: "@continue", Group: "", Action: true, Featured: true, Glyph: "→", AsciiGlyph: ">"})
+func (s *providersScreen) display(p ProviderRow) string {
+	if e := registryEntry(p.Name); e != nil {
+		return e.Name
 	}
+	return p.Name
+}
+
+func (s *providersScreen) ready(p ProviderRow) bool {
+	if p.Group == "local" && s.localUp != nil {
+		return s.localUp[p.Name]
+	}
+	return p.Ready
+}
+
+// chipOK reports whether the provider belongs to the active filter chip.
+func (s *providersScreen) chipOK(p ProviderRow) bool {
+	switch s.chip {
+	case chipFree:
+		return p.Group == "free"
+	case chipReady:
+		return s.ready(p)
+	case chipPaid:
+		return p.Group == "paid"
+	case chipLocal:
+		return p.Group == "local"
+	}
+	return true
+}
+
+func (s *providersScreen) glyphs() (check, open string) {
+	if s.opts.UTF8 {
+		return "✓", "○"
+	}
+	return "x", "o"
+}
+
+// badges is the group badge slot then the data/access slots, in that order.
+func (s *providersScreen) badges(p ProviderRow) []string {
+	var b []string
+	if p.FreeEntry {
+		b = append(b, "free")
+	} else if g := p.Group; g == "plan" || g == "paid" || g == "local" {
+		b = append(b, g)
+	}
+	switch p.Tag {
+	case "private", "trains", "unknown":
+		b = append(b, p.Tag)
+	}
+	if p.Keyless {
+		b = append(b, "keyless")
+	}
+	return b
+}
+
+func (s *providersScreen) provRow(p ProviderRow, keyfor bool) tui.ListRow {
+	check, open := s.glyphs()
+	glyph := open
+	if s.ready(p) {
+		glyph = check
+	}
+	value := p.Name
+	if keyfor {
+		value = "keyfor/" + p.Name
+	}
+	return tui.ListRow{
+		Kind: tui.RowItem, Label: s.display(p), Value: value,
+		Glyph: glyph, Badges: s.badges(p), Note: p.Limits, NoteCol: true,
+	}
+}
+
+func (s *providersScreen) matchOK(p ProviderRow, q string) bool {
+	if q == "" {
+		return true
+	}
+	text := p.Name + " " + s.display(p)
+	return tui.RankMatch(q, text) > 0
+}
+
+// flatRows is the one ranked list used with a query or a non-All chip:
+// ready first, then free-registry order, then the rest alphabetically.
+func (s *providersScreen) flatRows(q string, keyfor bool) []tui.ListRow {
+	var ready, freeRest, other []ProviderRow
 	for _, p := range s.app.snap.Providers {
-		state := tui.None
-		if p.Ready {
-			state = tui.Done
+		if !keyfor && !s.chipOK(p) {
+			continue
 		}
-		if p.Group == "local" && s.localUp != nil {
-			state = tui.None
-			if s.localUp[p.Name] {
-				state = tui.Done
+		if !s.matchOK(p, q) {
+			continue
+		}
+		switch {
+		case s.ready(p):
+			ready = append(ready, p)
+		case p.Group == "free":
+			freeRest = append(freeRest, p)
+		default:
+			other = append(other, p)
+		}
+	}
+	sort.SliceStable(other, func(i, j int) bool { return other[i].Name < other[j].Name })
+	var rows []tui.ListRow
+	for _, g := range [][]ProviderRow{ready, freeRest, other} {
+		for _, p := range g {
+			rows = append(rows, s.provRow(p, keyfor))
+		}
+	}
+	return rows
+}
+
+// sectionRows is the All-chip, empty-query layout: Ready, Free, Plan, Local,
+// Paid, then a capped More section for catalogue providers.
+func (s *providersScreen) sectionRows() []tui.ListRow {
+	var rows []tui.ListRow
+	head := func(t string) {
+		if len(rows) > 0 {
+			rows = append(rows, tui.ListRow{Kind: tui.RowDim})
+		}
+		rows = append(rows, tui.ListRow{Kind: tui.RowHead, Label: t})
+	}
+	var ready, freeRest, plan, local, paid, catalog []ProviderRow
+	for _, p := range s.app.snap.Providers {
+		switch {
+		case p.Group == "":
+			catalog = append(catalog, p)
+		case s.ready(p) && p.Group != "local":
+			ready = append(ready, p)
+		case p.Group == "free":
+			freeRest = append(freeRest, p)
+		case p.Group == "plan":
+			plan = append(plan, p)
+		case p.Group == "local":
+			local = append(local, p)
+		default:
+			paid = append(paid, p)
+		}
+	}
+	emit := func(title string, ps []ProviderRow) {
+		if len(ps) == 0 {
+			return
+		}
+		head(title)
+		for _, p := range ps {
+			rows = append(rows, s.provRow(p, false))
+		}
+	}
+	emit("Ready", ready)
+	emit("Free", freeRest)
+	emit("Plan", plan)
+	emit("Local", local)
+	emit("Paid", paid)
+	if len(catalog) > 0 {
+		sort.SliceStable(catalog, func(i, j int) bool { return catalog[i].Name < catalog[j].Name })
+		head("More")
+		for i, p := range catalog {
+			if i >= 8 {
+				rows = append(rows, tui.ListRow{Kind: tui.RowDim, Label: itoa(len(catalog)-i) + " more, type to search"})
+				break
+			}
+			rows = append(rows, s.provRow(p, false))
+		}
+	}
+	return rows
+}
+
+// listRows builds the whole list for the current state: env rows, the paste
+// flow, or the chip/query provider list plus the trailing actions.
+func (s *providersScreen) listRows() []tui.ListRow {
+	q := strings.TrimSpace(s.search.Value())
+	var rows []tui.ListRow
+	switch {
+	case s.pendingErr != nil:
+		return []tui.ListRow{{Kind: tui.RowDim, Label: s.pendingErr.Error()}}
+	case s.pendingKey != "" && !s.pendingAsk:
+		for _, n := range s.pendingNames {
+			disp := n
+			if p, ok := s.rowProvider(n); ok {
+				disp = s.display(p)
+			}
+			rows = append(rows, tui.ListRow{Kind: tui.RowItem, Label: "Looks like " + disp + " - use this key", Value: "keyfor/" + n})
+		}
+		return rows
+	}
+	if q == "" && !s.pendingAsk {
+		if env := s.envRows(); len(env) > 0 {
+			rows = append(rows, tui.ListRow{Kind: tui.RowHead, Label: "Found in your environment"})
+			rows = append(rows, env...)
+		}
+	}
+	if s.pendingAsk {
+		rows = append(rows, tui.ListRow{Kind: tui.RowDim, Label: "Which provider is this key for?"})
+	}
+	if s.chip != chipAll || q != "" || s.pendingAsk {
+		rows = append(rows, s.flatRows(q, s.pendingAsk)...)
+	} else {
+		rows = append(rows, s.sectionRows()...)
+	}
+	if !s.pendingAsk {
+		var actions []tui.ListRow
+		actions = append(actions,
+			tui.ListRow{Kind: tui.RowItem, Label: "Add a gateway", Value: "@add-gateway"},
+			tui.ListRow{Kind: tui.RowItem, Label: "Import from opencode", Value: "@import"},
+		)
+		if s.wizard {
+			actions = append(actions, tui.ListRow{Kind: tui.RowItem, Label: "Continue", Value: "@continue"})
+		} else {
+			actions = append(actions, tui.ListRow{Kind: tui.RowItem, Label: "Back to menu", Value: "@back"})
+		}
+		if q != "" {
+			var kept []tui.ListRow
+			for _, a := range actions {
+				if tui.RankMatch(q, a.Label) > 0 {
+					kept = append(kept, a)
+				}
+			}
+			actions = kept
+		}
+		if len(actions) > 0 {
+			rows = append(rows, tui.ListRow{Kind: tui.RowDim}, tui.ListRow{Kind: tui.RowHead, Label: "Other"})
+			rows = append(rows, actions...)
+		}
+	}
+	if q != "" && !s.pendingAsk {
+		has := false
+		for _, r := range rows {
+			if r.Kind == tui.RowItem {
+				has = true
+				break
 			}
 		}
-		tag := p.Tag
-		if p.Setup != "" && tag == "" {
-			tag = "setup"
+		if !has {
+			rows = append(rows, tui.ListRow{Kind: tui.RowDim, Label: "No match"})
 		}
-		items = append(items, tui.PickItem{
-			Label: p.Name, Value: p.Name, Tag: tag, Group: groupTitle(p.Group),
-			State: state, Featured: p.Group != "" || p.Ready,
+	}
+	return rows
+}
+
+func (s *providersScreen) envRows() []tui.ListRow {
+	arrow := "->"
+	if s.opts.UTF8 {
+		arrow = "↳"
+	}
+	var rows []tui.ListRow
+	for _, e := range s.app.be.EnvKeys() {
+		if s.envSkip[e.Provider] {
+			continue
+		}
+		rows = append(rows, tui.ListRow{
+			Kind: tui.RowItem, Label: e.Provider, Value: "env/" + e.Provider,
+			Glyph: arrow, Note: "$" + e.Var + "  import", NoteCol: true,
 		})
 	}
-	items = append(items,
-		tui.PickItem{Label: "Add a gateway", Value: "@add-gateway", Group: groupTitle("local"), Action: true, Featured: true},
-		tui.PickItem{Label: "Import from opencode", Value: "@import", Group: groupTitle("local"), Action: true, Featured: true},
-	)
-	rank := map[string]int{}
-	for i, g := range groupOrder {
-		rank[groupTitle(g)] = i
-	}
-	sort.SliceStable(items, func(i, j int) bool {
-		gi, gj := items[i].Group, items[j].Group
-		if items[i].Value == "@continue" || items[j].Value == "@continue" {
-			return items[i].Value == "@continue" && items[j].Value != "@continue"
-		}
-		return rank[gi] < rank[gj]
-	})
-	return items
+	return rows
+}
+
+func (s *providersScreen) rebuild() {
+	s.list.SetRows(s.listRows())
 }
 
 func (s *providersScreen) build() {
-	keep := ""
-	if it, ok := s.pk.Selected(); ok {
-		keep = it.Value
+	s.search = tui.NewInput("Search "+itoa(len(s.app.snap.Providers))+" providers, or paste a key", false, s.th, s.opts.UTF8)
+	s.search = fit(s.search, s.w-6, 1).(tui.Input)
+	s.list = fit(tui.NewList(s.th, s.opts.UTF8), s.w, s.listH()).(tui.List)
+	if s.chip < 0 {
+		s.chip = chipAll
+		any := false
+		for _, p := range s.app.snap.Providers {
+			if s.ready(p) && !p.Keyless && p.Group != "local" {
+				any = true
+			}
+		}
+		if !any {
+			s.chip = chipFree
+		}
 	}
-	s.pk = fit(tui.NewPicker(s.pickItems(), s.th, s.opts.UTF8), s.w, s.h).(tui.Picker)
-	if keep != "" {
-		s.pk.Select(keep)
+	s.rebuild()
+}
+
+// listH is the row budget for the list under the field and chip rows.
+func (s *providersScreen) listH() int {
+	fr := 2
+	if tui.CardsOK(s.w, s.h) {
+		fr = 4
 	}
+	return max(s.h-fr-2, 1)
 }
 
 func (s *providersScreen) Init() tea.Cmd { return nil }
@@ -174,6 +425,10 @@ func (s *providersScreen) rowProvider(name string) (ProviderRow, bool) {
 
 // steps are the stages the flow for the current provider goes through.
 func (s *providersScreen) steps() []string {
+	switch s.stage {
+	case psGWName, psGWURL:
+		return []string{"Name", "URL", "Done"}
+	}
 	switch {
 	case s.prov.Group == "plan":
 		return []string{"Sign in", "Verify", "Done"}
@@ -197,7 +452,11 @@ func (s *providersScreen) stepIndex() int {
 		return 0
 	}
 	switch s.stage {
-	case psPanel, psAcctID:
+	case psGWName:
+		return 0
+	case psGWURL:
+		return 1
+	case psAcctID:
 		return find("Account")
 	case psKey:
 		return find("Key")
@@ -218,6 +477,9 @@ func (s *providersScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
 		s.w, s.h = v.Width, v.Height
+		if s.stage == psList {
+			s.list = fit(s.list, s.w, s.listH()).(tui.List)
+		}
 	case verifyDoneMsg:
 		s.result = v.result
 		if v.result.OK && s.prov.Group == "free" {
@@ -285,18 +547,169 @@ func (s *providersScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s *providersScreen) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
-	nm, cmd := s.pk.Update(msg)
-	s.pk = nm.(tui.Picker)
 	switch v := msg.(type) {
-	case tui.Chosen:
-		return s.open(v.Value)
-	case tui.Quit:
-		if s.wizard {
-			return s, func() tea.Msg { return wizSkipMsg{} }
+	case tea.PasteMsg:
+		s.onPaste(v.Content)
+		s.rebuild()
+		return s, nil
+	case tea.MouseClickMsg:
+		mo := tea.Mouse(v)
+		if mo.Y == s.chipY {
+			s.clickChip(mo.X)
+			s.rebuild()
+			s.list.Reset()
+			return s, nil
 		}
-		return s, s.leave()
+		mo.Y -= s.mtop
+		if mo.Y < 0 {
+			return s, nil
+		}
+		nm, cmd := s.list.Update(tea.MouseClickMsg(mo))
+		s.list = nm.(tui.List)
+		return s, cmd
+	case tea.MouseWheelMsg:
+		nm, cmd := s.list.Update(msg)
+		s.list = nm.(tui.List)
+		return s, cmd
+	case tui.Chosen:
+		return s.listChosen(v.Value)
+	case tea.KeyPressMsg:
+		switch {
+		case v.Code == tea.KeyEscape || (v.Code == 'c' && v.Mod&tea.ModCtrl != 0):
+			return s, s.escList()
+		case v.Code == tea.KeyLeft || v.Code == tea.KeyRight || v.Code == tea.KeyTab:
+			d := 1
+			if v.Code == tea.KeyLeft {
+				d = -1
+			}
+			s.chip = (s.chip + d + 5) % 5
+			s.rebuild()
+			s.list.Reset()
+			return s, nil
+		case v.Code == tea.KeyEnter || v.Code == tea.KeyUp || v.Code == tea.KeyDown ||
+			v.Code == tea.KeyPgUp || v.Code == tea.KeyPgDown ||
+			v.Code == tea.KeyHome || v.Code == tea.KeyEnd:
+			nm, cmd := s.list.Update(msg)
+			s.list = nm.(tui.List)
+			return s, cmd
+		}
 	}
+	if (s.pendingKey != "" && !s.pendingAsk) || s.pendingErr != nil {
+		if k, ok := msg.(tea.KeyPressMsg); ok && k.Code == tea.KeyBackspace {
+			s.clearPaste()
+			s.rebuild()
+		}
+		return s, nil
+	}
+	nm, cmd := s.search.Update(msg)
+	s.search = nm.(tui.Input)
+	if _, ok := msg.(tea.KeyPressMsg); ok {
+		s.detectKey()
+	}
+	s.rebuild()
+	s.list.Reset()
 	return s, cmd
+}
+
+func (s *providersScreen) escList() tea.Cmd {
+	if s.pendingKey != "" || s.pendingErr != nil {
+		s.clearPaste()
+		s.rebuild()
+		return nil
+	}
+	if s.search.Value() != "" {
+		s.search.SetValue("")
+		s.rebuild()
+		s.list.Reset()
+		return nil
+	}
+	if s.wizard {
+		return func() tea.Msg { return wizSkipMsg{} }
+	}
+	return s.leave()
+}
+
+// detectKey treats a long spaceless search value as a pasted key when the
+// detector recognises its prefix.
+func (s *providersScreen) detectKey() {
+	v := strings.TrimSpace(s.search.Value())
+	if len(v) < 24 || strings.ContainsAny(v, " \t") {
+		return
+	}
+	names, err := s.app.be.DetectKey(v)
+	if err != nil || len(names) > 0 {
+		s.pendingKey, s.pendingNames, s.pendingErr = v, names, err
+	}
+}
+
+// onPaste holds a bracketed paste as a key candidate: candidate rows when it
+// has a known prefix, an ask row when it does not.
+func (s *providersScreen) onPaste(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	names, err := s.app.be.DetectKey(text)
+	s.pendingKey = text
+	s.pendingNames = names
+	s.pendingErr = err
+	s.pendingAsk = err == nil && len(names) == 0
+	s.search.SetValue("")
+}
+
+func (s *providersScreen) clearPaste() {
+	s.pendingKey = ""
+	s.pendingNames = nil
+	s.pendingErr = nil
+	s.pendingAsk = false
+	s.search.SetValue("")
+}
+
+// listChosen starts what picking a row means.
+func (s *providersScreen) listChosen(v string) (tea.Model, tea.Cmd) {
+	switch {
+	case strings.HasPrefix(v, "env/"):
+		s.envProv = strings.TrimPrefix(v, "env/")
+		s.menu = s.simpleMenu("Import", "Skip")
+		s.stage = psEnv
+		return s, nil
+	case strings.HasPrefix(v, "keyfor/"):
+		return s.usePasted(strings.TrimPrefix(v, "keyfor/"))
+	case v == "@continue" || v == "@back":
+		return s, s.leave()
+	case v == "@add-gateway":
+		s.stage = psGWName
+		s.in = s.newInput("gateway name", false)
+		return s, nil
+	case v == "@import":
+		return s, func() tea.Msg {
+			sum, err := s.app.be.ImportOpencode()
+			if err != nil {
+				sum = err.Error()
+			}
+			return importDoneMsg{summary: sum}
+		}
+	}
+	return s.open(v)
+}
+
+// usePasted stores the held key for the chosen provider and goes straight to
+// verify; the key is wiped from memory right after SaveKey returns.
+func (s *providersScreen) usePasted(name string) (tea.Model, tea.Cmd) {
+	p, ok := s.rowProvider(name)
+	if !ok {
+		return s, nil
+	}
+	s.prov, s.entry, s.account, s.result = p, registryEntry(name), name, VerifyResult{}
+	err := s.app.be.SaveKey(name, name, s.pendingKey)
+	s.clearPaste()
+	if err != nil {
+		s.result = VerifyResult{Err: err.Error()}
+		s.menu = s.resultMenu()
+		s.stage = psResult
+		return s, nil
+	}
+	return s, s.verifyCmd()
 }
 
 // leave ends the visit: when a free provider was just set up it first offers
@@ -308,67 +721,65 @@ func (s *providersScreen) leave() tea.Cmd {
 	return s.done()
 }
 
-// open starts what choosing a row means: an action, the detail of a provider
-// that is already set up, or its setup flow.
+// open shows the provider's detail card.
 func (s *providersScreen) open(value string) (tea.Model, tea.Cmd) {
-	switch value {
-	case "@continue":
-		return s, s.leave()
-	case "@add-gateway":
-		s.stage = psGWName
-		s.in = s.newInput("gateway name", false)
-		return s, nil
-	case "@import":
-		return s, func() tea.Msg {
-			sum, err := s.app.be.ImportOpencode()
-			if err != nil {
-				sum = err.Error()
-			}
-			return importDoneMsg{summary: sum}
-		}
-	}
 	p, ok := s.rowProvider(value)
 	if !ok {
 		return s, nil
 	}
 	s.prov, s.entry, s.account, s.result = p, registryEntry(value), p.Name, VerifyResult{}
-	ready := p.Ready
-	if p.Group == "local" {
-		ready = s.localUp[p.Name]
-	}
-	if ready && p.Group != "local" {
-		s.stage = psDetail
-		s.menu = s.simpleMenu("Test again", "Replace key", "Remove", "Back")
-		if p.Group == "plan" {
-			s.menu = s.simpleMenu("Test again", "Sign in again", "Remove", "Back")
-		}
-		return s, nil
-	}
-	return s, s.startSetup()
+	s.stage = psDetail
+	s.menu = s.detailMenu()
+	return s, nil
 }
 
-// startSetup begins the flow for s.prov and returns any cmd it needs.
-func (s *providersScreen) startSetup() tea.Cmd {
+// detailMenu is the action list under the detail card.
+func (s *providersScreen) detailMenu() tui.Menu {
 	p := s.prov
+	hasKey := p.Ready && len(p.Accounts) > 0
+	var ls []string
 	switch {
 	case p.Group == "plan":
-		return s.startChat()
+		if p.Ready {
+			ls = []string{"Test again", "Sign in again", "Remove", "Back"}
+		} else {
+			ls = []string{"Sign in", "Back"}
+		}
+	case p.Keyless && !hasKey:
+		ls = []string{"Use now, no key needed", "Add a key (optional)"}
+	case p.Ready:
+		ls = []string{"Test again", "Replace key", "Remove"}
 	case p.Group == "local":
-		return s.verifyCmd()
-	case s.entry != nil && s.entry.Setup == "account-id":
-		s.stage = psAcctID
-		s.in = s.newInput("account id", false)
-	case s.entry != nil && s.entry.Signup != "":
-		s.toPanel()
+		ls = []string{"Test connection", "I have a key"}
 	default:
-		s.toKey()
+		if s.entry != nil {
+			ls = []string{"Set up", "I have a key"}
+		} else {
+			ls = []string{"I have a key"}
+		}
 	}
-	return nil
+	if s.entry != nil && !(p.Group == "plan") {
+		if s.entry.Signup != "" {
+			ls = append(ls, "Open sign-up")
+		}
+		if s.entry.KeyURL != "" {
+			ls = append(ls, "Open key page")
+		}
+	}
+	if ls[len(ls)-1] != "Back" {
+		ls = append(ls, "Back")
+	}
+	return s.simpleMenu(ls...)
 }
 
-func (s *providersScreen) toPanel() {
-	s.stage = psPanel
-	s.menu = s.simpleMenu("Open signup page", "I have a key", "Skip")
+// continueSetup moves from the detail card into the flow.
+func (s *providersScreen) continueSetup() {
+	if s.entry != nil && s.entry.Setup == "account-id" {
+		s.stage = psAcctID
+		s.in = s.newInput("account id", false)
+		return
+	}
+	s.toKey()
 }
 
 func (s *providersScreen) toKey() {
@@ -379,7 +790,7 @@ func (s *providersScreen) toKey() {
 func (s *providersScreen) toList() {
 	s.stage = psList
 	s.app.refresh()
-	s.build()
+	s.rebuild()
 }
 
 // finishQueue offers the free/auto combo when a free provider is keyed.
@@ -387,7 +798,7 @@ func (s *providersScreen) finishQueue() tea.Cmd {
 	s.trains = nil
 	hasFree := false
 	for _, p := range s.app.snap.Providers {
-		if p.Group == "free" && p.Ready {
+		if p.Group == "free" && s.ready(p) {
 			hasFree = true
 			if p.Tag == "trains" && !s.app.snap.AllowTrains[p.Name] {
 				s.trains = append(s.trains, p.Name)
@@ -459,30 +870,49 @@ func (s *providersScreen) menuChosen(v string) (tea.Model, tea.Cmd) {
 	switch s.stage {
 	case psDetail:
 		switch v {
-		case "Test again":
-			return s, s.verifyCmd()
-		case "Replace key", "Sign in again":
-			if s.prov.Group == "plan" {
-				return s, s.startChat()
-			}
-			s.toKey()
-		case "Remove":
-			return s, s.doRemove()
-		default:
-			s.toList()
-		}
-	case psPanel:
-		switch v {
-		case "Open signup page":
+		case "Set up":
 			if s.entry != nil && s.entry.Signup != "" {
 				_ = s.app.be.OpenURL(s.entry.Signup)
 			}
-			s.toKey()
+			s.continueSetup()
 		case "I have a key":
+			s.continueSetup()
+		case "Use now, no key needed", "Test again", "Test connection":
+			return s, s.verifyCmd()
+		case "Add a key (optional)", "Replace key":
 			s.toKey()
+		case "Sign in", "Sign in again":
+			return s, s.startChat()
+		case "Remove":
+			return s, s.doRemove()
+		case "Open sign-up":
+			if s.entry != nil {
+				_ = s.app.be.OpenURL(s.entry.Signup)
+			}
+		case "Open key page":
+			if s.entry != nil {
+				_ = s.app.be.OpenURL(s.entry.KeyURL)
+			}
 		default:
 			s.toList()
 		}
+	case psEnv:
+		if v == "Import" {
+			p, _ := s.rowProvider(s.envProv)
+			s.prov, s.entry, s.account = p, registryEntry(s.envProv), s.envProv
+			if err := s.app.be.ImportEnvKey(s.envProv); err != nil {
+				s.result = VerifyResult{Err: err.Error()}
+				s.menu = s.resultMenu()
+				s.stage = psResult
+				return s, nil
+			}
+			return s, s.verifyCmd()
+		}
+		if s.envSkip == nil {
+			s.envSkip = map[string]bool{}
+		}
+		s.envSkip[s.envProv] = true
+		s.toList()
 	case psResult:
 		switch v {
 		case "Done":
@@ -542,7 +972,7 @@ func (s *providersScreen) inputSubmitted(v string) (tea.Model, tea.Cmd) {
 			return s, nil
 		}
 		s.account = name
-		s.toPanel()
+		s.toKey()
 	case psGWName:
 		s.gwName = strings.TrimSpace(v)
 		if s.gwName == "" {
@@ -575,19 +1005,12 @@ func (s *providersScreen) inputSubmitted(v string) (tea.Model, tea.Cmd) {
 
 func (s *providersScreen) inputCancelled() (tea.Model, tea.Cmd) {
 	switch s.stage {
-	case psAcctID:
-		s.toList()
-	case psGWName:
-		s.toList()
 	case psGWURL:
 		s.stage = psGWName
 		s.in = s.newInput("gateway name", false)
-	case psKey:
-		if s.entry != nil && s.entry.Signup != "" {
-			s.toPanel()
-		} else {
-			s.toList()
-		}
+	case psAcctID, psKey:
+		s.stage = psDetail
+		s.menu = s.detailMenu()
 	default:
 		s.toList()
 	}
@@ -683,22 +1106,453 @@ func (s *providersScreen) runCombo() tea.Cmd {
 
 func (s *providersScreen) title() string { return "Providers" }
 
+func (s *providersScreen) crumbs() []string {
+	c := []string{"Providers"}
+	step := map[int]string{
+		psAcctID: "Account", psKey: "Key", psVerify: "Verify",
+		psResult: "Done", psChat: "Sign in",
+	}
+	switch s.stage {
+	case psDetail:
+		c = append(c, s.display(s.prov))
+	case psEnv:
+		c = append(c, "Import")
+	case psGWName, psGWURL:
+		c = append(c, "Gateway")
+	case psImport:
+		c = append(c, "Import")
+	case psComboAsk, psComboRun, psComboDone:
+		c = append(c, "Free combo")
+	default:
+		if lbl, ok := step[s.stage]; ok {
+			c = append(c, s.display(s.prov), lbl)
+		}
+	}
+	return c
+}
+
 func (s *providersScreen) legend() []string {
 	switch s.stage {
 	case psList:
-		return []string{"type|to search", "↑↓|move", "↵|open", "esc|back"}
+		return []string{"type|to search", "↑↓|move", "←→|filter", "↵|open", "esc|back"}
 	case psAcctID, psGWName, psGWURL, psKey:
 		return []string{"↵|confirm", "esc|back"}
 	case psVerify, psChat, psComboRun:
 		return []string{"esc|cancel"}
 	}
-	return []string{"↑↓|move", "↵|select", "1-9|jump", "esc|back"}
+	return []string{"↑↓|move", "↵|select", "esc|back"}
+}
+
+// railOK reports whether the vertical rail fits; below it the horizontal
+// stepper fallback is used.
+func (s *providersScreen) railOK() bool {
+	return s.app.opts.H >= 16 && s.app.opts.W >= 50
 }
 
 func (s *providersScreen) View() tea.View {
 	if s.stage == psList {
-		return tea.NewView(s.pk.View().Content)
+		return tea.NewView(s.listView())
 	}
+	var lines []string
+	switch s.stage {
+	case psDetail, psEnv:
+		lines = s.cardView()
+	case psComboAsk, psComboDone, psImport:
+		lines = s.plainView()
+	default:
+		if s.railOK() {
+			lines = s.railView()
+		} else {
+			lines = s.stepperView()
+		}
+	}
+	return tea.NewView(strings.Join(lines, "\n"))
+}
+
+// listView is the search field, the chip row and the list.
+func (s *providersScreen) listView() string {
+	var lines []string
+	switch {
+	case s.pendingErr != nil:
+		lines = append(lines, s.maskedField("key refused")...)
+	case s.pendingKey != "":
+		lines = append(lines, s.maskedField("")...)
+	default:
+		if tui.CardsOK(s.w, s.h) {
+			lines = append(lines, s.search.Boxed(s.w)...)
+		} else {
+			lines = append(lines, s.search.View().Content)
+		}
+	}
+	lines = append(lines, "")
+	s.chipY = len(lines)
+	lines = append(lines, s.chipRow())
+	s.mtop = len(lines)
+	lines = append(lines, s.list.View().Content)
+	return strings.Join(lines, "\n")
+}
+
+// maskedField renders the held key as "<prefix>••••" - the value itself is
+// never drawn.
+func (s *providersScreen) maskedField(note string) []string {
+	bullet, prompt := "*", ">"
+	if s.opts.UTF8 {
+		bullet, prompt = "•", "›"
+	}
+	prefix := s.pendingKey
+	if len(prefix) > 4 {
+		prefix = prefix[:4]
+	}
+	line := s.th.Accent.Render(prompt) + " " + s.th.Text.Render(prefix+strings.Repeat(bullet, 4))
+	if note != "" {
+		line += " " + s.th.Dim.Render(note)
+	}
+	if !tui.CardsOK(s.w, s.h) {
+		return []string{line}
+	}
+	return s.th.FieldBox(line, s.w, s.opts.UTF8)
+}
+
+// chipRow renders "All 312  Free 14  Ready 4  Paid  Local" with the active
+// chip inverted.
+func (s *providersScreen) chipRow() string {
+	counts := []struct {
+		label string
+		n     int
+	}{{label: "All", n: len(s.app.snap.Providers)}}
+	freeN, readyN, paidN, localN := 0, 0, 0, 0
+	for _, p := range s.app.snap.Providers {
+		switch p.Group {
+		case "free":
+			freeN++
+		case "paid":
+			paidN++
+		case "local":
+			localN++
+		}
+		if s.ready(p) {
+			readyN++
+		}
+	}
+	counts = append(counts,
+		struct {
+			label string
+			n     int
+		}{"Free", freeN},
+		struct {
+			label string
+			n     int
+		}{"Ready", readyN},
+		struct {
+			label string
+			n     int
+		}{"Paid", paidN},
+		struct {
+			label string
+			n     int
+		}{"Local", localN},
+	)
+	s.chipX = s.chipX[:0]
+	var parts []string
+	x := 0
+	for i, c := range counts {
+		cell := " " + c.label + " " + itoa(c.n) + " "
+		s.chipX = append(s.chipX, x)
+		x += lipgloss.Width(cell) + 1
+		if i == s.chip {
+			parts = append(parts, s.th.Selected.Render(cell))
+		} else {
+			parts = append(parts, s.th.Dim.Render(cell))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// clickChip maps a click on the chip row to a chip.
+func (s *providersScreen) clickChip(x int) {
+	for i := len(s.chipX) - 1; i >= 0; i-- {
+		if x >= s.chipX[i] {
+			s.chip = i
+			return
+		}
+	}
+}
+
+// cardView draws the detail/import card with its action menu.
+func (s *providersScreen) cardView() []string {
+	var lines []string
+	switch s.stage {
+	case psDetail:
+		title := s.display(s.prov)
+		body := s.detailLines()
+		if tui.CardsOK(s.w, s.h) {
+			lines = append(lines, s.th.Card(title, s.badges(s.prov), body, s.w, s.opts.UTF8)...)
+		} else {
+			lines = append(lines, s.th.Title.Render(title))
+			lines = append(lines, body...)
+		}
+	case psEnv:
+		p, _ := s.rowProvider(s.envProv)
+		title := "Import key"
+		if p.Name != "" {
+			title = s.display(p)
+		}
+		v := ""
+		for _, e := range s.app.be.EnvKeys() {
+			if e.Provider == s.envProv {
+				v = e.Var
+			}
+		}
+		body := []string{"Import the key from $" + v + " into your keychain?"}
+		if tui.CardsOK(s.w, s.h) {
+			lines = append(lines, s.th.Card(title, nil, body, s.w, s.opts.UTF8)...)
+		} else {
+			lines = append(lines, body...)
+		}
+	}
+	lines = append(lines, "")
+	s.menuTop = len(lines)
+	lines = append(lines, s.menu.View().Content)
+	return lines
+}
+
+// detailLines is the metadata under the provider's name: limits, the data
+// label and note, needs, source, then the sign-up/key links. Values wrap
+// under the label gutter; when height is short the signup/key rows go first,
+// then whole rows from the bottom up.
+func (s *providersScreen) detailLines() []string {
+	type kv struct{ label, value string }
+	var rows []kv
+	e := s.entry
+	if e == nil {
+		state := "not set up"
+		if s.ready(s.prov) {
+			state = "ready"
+		}
+		rows = []kv{{"state", state}, {"group", groupTitle(s.prov.Group)}}
+	} else {
+		data := e.Data
+		if e.DataNote != "" {
+			data += " - " + e.DataNote
+		}
+		src := ""
+		if e.Source != "" {
+			src = strings.TrimPrefix(strings.TrimPrefix(e.Source, "https://"), "http://")
+			if i := strings.Index(src, "/"); i > 0 {
+				src = src[:i]
+			}
+			src += "  checked " + e.Checked
+		}
+		rows = []kv{
+			{"limits", e.Limits}, {"data", data}, {"needs", e.Needs},
+			{"source", src}, {"signup", e.Signup}, {"key", e.KeyURL},
+		}
+	}
+	var keep []kv
+	for _, r := range rows {
+		if r.value != "" {
+			keep = append(keep, r)
+		}
+	}
+	budget := max(s.h-8, 1)
+	valueW := max(s.w-12, 8)
+	render := func(rs []kv) []string {
+		var out []string
+		for _, r := range rs {
+			for i, l := range wrapWords(r.value, valueW) {
+				if i == 0 {
+					out = append(out, s.th.Dim.Render(fmt.Sprintf("%-8s", r.label))+s.th.Text.Render(l))
+				} else {
+					out = append(out, "        "+s.th.Text.Render(l))
+				}
+			}
+		}
+		return out
+	}
+	// signup/key rows drop first; whole rows drop from the bottom up, never
+	// mid-row
+	for len(keep) > 0 {
+		lines := render(keep)
+		if len(lines) <= budget {
+			return lines
+		}
+		keep = keep[:len(keep)-1]
+	}
+	return nil
+}
+
+// wrapWords splits s into lines of at most w cells on word boundaries; a
+// word longer than w is hard-wrapped.
+func wrapWords(s string, w int) []string {
+	if w < 1 {
+		w = 1
+	}
+	var lines []string
+	var cur strings.Builder
+	cw := 0
+	flush := func() {
+		if cw > 0 {
+			lines = append(lines, cur.String())
+			cur.Reset()
+			cw = 0
+		}
+	}
+	for _, word := range strings.Fields(s) {
+		for tui.WidthOf(word) > w {
+			flush()
+			piece := cutCells(word, w)
+			lines = append(lines, piece)
+			word = word[len(piece):]
+		}
+		if word == "" {
+			continue
+		}
+		ww := tui.WidthOf(word)
+		if cw > 0 && cw+1+ww > w {
+			flush()
+		}
+		if cw > 0 {
+			cur.WriteByte(' ')
+			cw++
+		}
+		cur.WriteString(word)
+		cw += ww
+	}
+	flush()
+	return lines
+}
+
+// cutCells returns the longest prefix of s at most w cells wide.
+func cutCells(s string, w int) string {
+	var b strings.Builder
+	n := 0
+	for _, r := range s {
+		rw := tui.WidthOf(string(r))
+		if n+rw > w {
+			break
+		}
+		b.WriteRune(r)
+		n += rw
+	}
+	return b.String()
+}
+
+// plainView is the non-flow screens: one line plus the menu.
+func (s *providersScreen) plainView() []string {
+	var lines []string
+	switch s.stage {
+	case psComboAsk:
+		if s.ti < len(s.trains) {
+			lines = append(lines, s.th.Warn.Render(s.trains[s.ti]+" may train on your prompts"))
+		}
+	case psComboDone:
+		lines = append(lines, s.th.Text.Render("free/auto targets"))
+		for i, t := range s.targets {
+			if i >= max(s.h-8, 1) {
+				lines = append(lines, s.th.Dim.Render("+"+itoa(len(s.targets)-i)+" more"))
+				break
+			}
+			lines = append(lines, "  "+truncate(t, s.w-3))
+		}
+	case psImport:
+		lines = append(lines, s.th.Text.Render(truncate(s.import_, s.w-1)))
+	}
+	lines = append(lines, "")
+	s.menuTop = len(lines)
+	lines = append(lines, s.menu.View().Content)
+	return lines
+}
+
+// railTitle names the flow at the top of the rail.
+func (s *providersScreen) railTitle() string {
+	switch s.stage {
+	case psGWName, psGWURL:
+		return "Add a gateway"
+	case psImport:
+		return "Import from opencode"
+	}
+	if s.prov.Group == "plan" {
+		return "Sign in " + s.display(s.prov)
+	}
+	return "Set up " + s.display(s.prov)
+}
+
+// railSteps adds the dim result notes to the flow's step list.
+func (s *providersScreen) railSteps() []tui.RailStep {
+	st := s.steps()
+	cur := s.stepIndex()
+	out := make([]tui.RailStep, len(st))
+	for i, n := range st {
+		out[i].Label = n
+		if i >= cur {
+			continue
+		}
+		switch n {
+		case "Account":
+			out[i].Note = "opened"
+		case "Key":
+			out[i].Note = "saved"
+		case "Sign in":
+			out[i].Note = "ok"
+		case "Verify":
+			if s.result.OK {
+				out[i].Note = "ok " + truncate(s.result.Model, 20) + " " + itoa(int(s.result.Millis)) + "ms"
+			} else if s.result.Err != "" {
+				out[i].Note = "fail"
+			}
+		}
+	}
+	return out
+}
+
+// railBody is the content embedded under the current step.
+func (s *providersScreen) railBody() []string {
+	bw := max(s.w-4, 8)
+	switch s.stage {
+	case psAcctID:
+		return append([]string{s.th.Dim.Render("Cloudflare account id")}, s.in.Boxed(bw)...)
+	case psGWName:
+		return append([]string{s.th.Dim.Render("Gateway name")}, s.in.Boxed(bw)...)
+	case psGWURL:
+		return append([]string{s.th.Dim.Render("Base url")}, s.in.Boxed(bw)...)
+	case psKey:
+		return append([]string{s.th.Dim.Render("paste your key")}, s.in.Boxed(bw)...)
+	case psVerify:
+		return []string{spinnerLine(s.th, s.opts.UTF8, "checking "+s.prov.Name)}
+	case psChat:
+		lines := []string{spinnerLine(s.th, s.opts.UTF8, "signing in with ChatGPT")}
+		if s.chatURL != "" {
+			lines = append(lines, s.th.Text.Render(truncate(s.chatURL, bw)))
+		}
+		return lines
+	case psResult:
+		return []string{s.resultLine(), ""}
+	case psImport:
+		return []string{s.th.Text.Render(truncate(s.import_, bw))}
+	}
+	return nil
+}
+
+// railView draws the flow as a vertical rail when there is room.
+func (s *providersScreen) railView() []string {
+	body := s.railBody()
+	var menu string
+	if s.hasMenu() {
+		menu = s.menu.View().Content
+	}
+	body = append(body, strings.Split(menu, "\n")...)
+	lines := s.th.Rail(s.railTitle(), s.railSteps(), s.stepIndex(), body, s.w, s.opts.UTF8)
+	if menu != "" {
+		s.menuTop = len(lines) - len(strings.Split(menu, "\n"))
+	} else {
+		s.menuTop = len(lines)
+	}
+	return lines
+}
+
+// stepperView is the compact fallback: the one-line stepper, the facts card
+// and the stage content.
+func (s *providersScreen) stepperView() []string {
 	var lines []string
 	if s.hasStepper() {
 		lines = append(lines, tui.Stepper(s.steps(), s.stepIndex(), s.w, s.th, s.opts.UTF8), "")
@@ -725,19 +1579,6 @@ func (s *providersScreen) View() tea.View {
 		content = []string{spinnerLine(s.th, s.opts.UTF8, "building free/auto")}
 	case psResult:
 		content = []string{s.resultLine()}
-	case psComboAsk:
-		if s.ti < len(s.trains) {
-			content = []string{s.th.Warn.Render(s.trains[s.ti] + " may train on your prompts")}
-		}
-	case psComboDone:
-		content = []string{s.th.Text.Render("free/auto targets")}
-		for i, t := range s.targets {
-			if i >= max(s.h-8, 1) {
-				content = append(content, s.th.Dim.Render("+"+itoa(len(s.targets)-i)+" more"))
-				break
-			}
-			content = append(content, "  "+truncate(t, s.w-3))
-		}
 	case psImport:
 		content = []string{s.th.Text.Render(truncate(s.import_, s.w-1))}
 	}
@@ -752,31 +1593,26 @@ func (s *providersScreen) View() tea.View {
 	} else {
 		s.menuTop = len(lines)
 	}
-	return tea.NewView(strings.Join(lines, "\n"))
+	return lines
 }
 
 func (s *providersScreen) hasMenu() bool {
-	switch s.stage {
-	case psDetail, psPanel, psResult, psComboAsk, psComboDone, psImport:
-		return true
-	}
-	return false
+	return s.stage == psResult
 }
 
-// hasStepper reports whether the stepper is shown: for a provider's own
-// flow, not for its detail, the gateway form or the combo questions.
+// hasStepper reports whether the compact layout shows the stepper.
 func (s *providersScreen) hasStepper() bool {
 	switch s.stage {
-	case psPanel, psAcctID, psKey, psVerify, psResult, psChat:
+	case psAcctID, psKey, psVerify, psResult, psChat:
 		return true
 	}
 	return false
 }
 
-// card is the provider's facts above the flow: name and the lines that fit.
+// card is the provider's facts under the compact layout.
 func (s *providersScreen) card() []string {
 	switch s.stage {
-	case psGWName, psGWURL, psComboAsk, psComboRun, psComboDone, psImport:
+	case psGWName, psGWURL, psImport:
 		return nil
 	}
 	name := s.prov.Name
@@ -806,7 +1642,7 @@ func (s *providersScreen) card() []string {
 		add("data  ", e.Data+" - "+e.DataNote, dataStyle)
 		add("needs ", e.Needs, plain)
 		switch s.stage {
-		case psPanel, psAcctID:
+		case psAcctID:
 			add("signup", e.Signup, plain)
 		case psKey:
 			add("key   ", e.KeyURL, plain)
@@ -826,12 +1662,16 @@ func (s *providersScreen) resultLine() string {
 	return s.th.Err.Render("fail") + "  " + truncate(err, s.w-7)
 }
 
-// resultMenu picks the default item: Re-enter key on failure.
+// resultMenu picks the default item: Re-enter key on failure. A keyless
+// provider with no stored key gets no key actions at all.
 func (s *providersScreen) resultMenu() tui.Menu {
-	labels := []string{"Done", "Retry", "Re-enter key", "Remove key"}
+	labels := []string{"Done", "Retry"}
+	if !(s.prov.Keyless && len(s.prov.Accounts) == 0) {
+		labels = append(labels, "Re-enter key", "Remove key")
+	}
 	initial := 0
 	if !s.result.OK {
-		initial = 2
+		initial = len(labels) - 2
 	}
 	items := make([]tui.Item, len(labels))
 	for i, l := range labels {

@@ -19,6 +19,7 @@ import (
 	"github.com/silent9669/tsunagi/internal/claudeguard"
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/events"
+	"github.com/silent9669/tsunagi/internal/free"
 	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/tui"
 	"github.com/silent9669/tsunagi/internal/tui/dash"
@@ -159,6 +160,15 @@ func newRouter(cfg config.Config, host, token string) *router.Router {
 	rt.Combos = routerCombos(cfg.Combos)
 	rt.Caps = catalogCaps
 	rt.Price = catalogPrice
+	for _, e := range free.Registry() {
+		if e.Access != free.Keyless {
+			continue
+		}
+		if p, ok := rt.Providers[e.ID]; ok {
+			p.OptionalKey = true
+			rt.Providers[e.ID] = p
+		}
+	}
 	return rt
 }
 

@@ -30,15 +30,15 @@ func TestMenuHasNewRows(t *testing.T) {
 			t.Fatalf("menu missing %q:\n%s", want, v)
 		}
 	}
-	press(m, "7")
+	esc(m)
 	if m.Action() != Quit {
-		t.Fatalf("7 should be Quit, action = %v", m.Action())
+		t.Fatalf("esc should be Quit, action = %v", m.Action())
 	}
 }
 
 func TestStatusScreen(t *testing.T) {
 	m := newTestApp(t, moreBackend(), false)
-	press(m, "6")
+	choose(m, "status")
 	v := viewText(m)
 	for _, want := range []string{"Status", "ok  claude", "!!  accounts", "no keys yet"} {
 		if !strings.Contains(v, want) {
@@ -54,7 +54,7 @@ func TestStatusScreen(t *testing.T) {
 func TestFreeProbeAndCombo(t *testing.T) {
 	be := moreBackend()
 	m := newTestApp(t, be, false)
-	press(m, "4")
+	choose(m, "free")
 	if !strings.Contains(viewText(m), "Build free/auto") {
 		t.Fatalf("free menu:\n%s", viewText(m))
 	}
@@ -79,7 +79,7 @@ func TestFreeProbeAndCombo(t *testing.T) {
 func TestFreeDataPolicy(t *testing.T) {
 	be := moreBackend()
 	m := newTestApp(t, be, false)
-	press(m, "4")
+	choose(m, "free")
 	press(m, "3") // Data policy
 	v := viewText(m)
 	if !strings.Contains(v, "openrouter") || strings.Contains(v, "groq") {
@@ -99,7 +99,7 @@ func TestFreeDataPolicy(t *testing.T) {
 func TestSettingsRoutingCyclesTier(t *testing.T) {
 	be := moreBackend()
 	m := newTestApp(t, be, false)
-	press(m, "5") // Settings
+	choose(m, "settings")
 	press(m, "1") // Routing
 	if !strings.Contains(viewText(m), "claude") {
 		t.Fatalf("unset tier should read claude:\n%s", viewText(m))
@@ -121,7 +121,7 @@ func TestSettingsRoutingCyclesTier(t *testing.T) {
 func TestSettingsRoutingCyclesScenario(t *testing.T) {
 	be := moreBackend()
 	m := newTestApp(t, be, false)
-	press(m, "5") // Settings
+	choose(m, "settings")
 	press(m, "1") // Routing
 	v := viewText(m)
 	for _, want := range []string{"Thinking", "Long context", "Web search"} {
@@ -150,12 +150,10 @@ func TestSettingsRoutingCyclesScenario(t *testing.T) {
 func TestSettingsTryRoute(t *testing.T) {
 	be := moreBackend()
 	m := newTestApp(t, be, false)
-	press(m, "5")
+	choose(m, "settings")
 	press(m, "1")
 	press(m, "7") // Try a route
-	for _, r := range "free/auto" {
-		press(m, string(r))
-	}
+	typeIn(m, "free/auto")
 	enter(m)
 	if len(be.plans) != 1 || be.plans[0] != "free/auto" {
 		t.Fatalf("plan not requested: %v", be.plans)
@@ -172,7 +170,7 @@ func TestSettingsTryRoute(t *testing.T) {
 func TestSettingsAppearanceAppliesLive(t *testing.T) {
 	be := moreBackend()
 	m := newTestApp(t, be, false)
-	press(m, "5")
+	choose(m, "settings")
 	press(m, "2") // Appearance
 	press(m, "1") // Look: braille -> dither
 	if m.opts.Look != "dither" || be.settings.Look != "dither" {
@@ -194,7 +192,7 @@ func TestSettingsAppearanceAppliesLive(t *testing.T) {
 func TestSettingsAdvanced(t *testing.T) {
 	be := moreBackend()
 	m := newTestApp(t, be, false)
-	press(m, "5")
+	choose(m, "settings")
 	press(m, "3") // Advanced
 	press(m, "1") // Reset appearance
 	if len(be.ui) != 0 {
@@ -211,7 +209,7 @@ func TestSettingsAdvanced(t *testing.T) {
 
 func TestMoreScreensFitSmallTerminals(t *testing.T) {
 	for _, sz := range [][2]int{{100, 30}, {60, 20}, {40, 12}} {
-		for _, key := range []string{"4", "5", "6"} {
+		for _, name := range []string{"free", "settings", "status"} {
 			opts := testOpts
 			opts.W, opts.H = sz[0], sz[1]
 			m, err := New(opts, moreBackend(), false)
@@ -219,10 +217,10 @@ func TestMoreScreensFitSmallTerminals(t *testing.T) {
 				t.Fatal(err)
 			}
 			send(m, tea.WindowSizeMsg{Width: opts.W, Height: opts.H})
-			press(m, key)
+			choose(m, name)
 			for i, line := range strings.Split(viewText(m), "\n") {
 				if n := len([]rune(line)); n > opts.W {
-					t.Fatalf("%dx%d key %s line %d is %d wide: %q", opts.W, opts.H, key, i, n, line)
+					t.Fatalf("%dx%d %s line %d is %d wide: %q", opts.W, opts.H, name, i, n, line)
 				}
 			}
 		}

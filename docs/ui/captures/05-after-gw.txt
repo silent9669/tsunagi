@@ -1,30 +1,30 @@
-                      Providers
+◆ tsunagi dev                                                                              Providers
+  ◆ Providers ─ ○ Skills ─ ○ Ready
 
-                      ⌕ type to search
-                          groq                                         private
-                          google                                        trains
-                          cohere                                        trains
-                          sambanova                                    private
-                          nvidia                                        trains
-                          cloudflare                                   private
-                      Your plans
-                          chatgpt                                         plan
-                      Paid keys
-                          opencode-go
-                          deepseek
-                          moonshot
-                          minimax
-                          qwen
-                          fireworks
-                          openai
-                          xai
-                          together
-                          mistral
-                      Local and own
-                          llamacpp
-                        ✓ ollama
-                          lmstudio
-                          vllm
-                          e2e
-                      ▏ + Add a gateway
-                      type to search   ↑↓ move   ↵ open   esc back
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ › Search 70 providers, or paste a key                                                        │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+
+   All 71   Free 12   Ready 2   Paid 10   Local 5
+    ↑ 24 more
+    ○ e2e                    local
+
+    Paid
+    ○ opencode-go            paid
+    ○ deepseek               paid
+    ○ moonshot               paid
+    ○ minimax                paid
+    ○ qwen                   paid
+    ○ fireworks              paid
+    ○ openai                 paid
+    ○ xai                    paid
+    ○ together               paid
+    ○ mistral                paid
+
+    More
+    ○ cat01
+    ○ cat02
+  ❯ ○ cat03
+    ↓ 11 more
+
+  type to search   ↑↓ move   ←→ filter   ↵ open   esc back

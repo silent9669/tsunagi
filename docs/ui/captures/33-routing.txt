@@ -1,0 +1,30 @@
+◆ tsunagi dev                                                                     Settings › Routing
+
+  ❯ 1 Opus                                                                                  claude
+    2 Sonnet                                                                                claude
+    3 Haiku                                                                                 claude
+    4 Thinking                                                                              claude
+    5 Long context                                                                          claude
+    6 Web search                                                                            claude
+    7 Try a route
+    8 Back
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ move   ↵ change   1-9 jump   esc back

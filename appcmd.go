@@ -39,7 +39,7 @@ func needsWizard(snap app.Snapshot) bool {
 		return false
 	}
 	for _, p := range snap.Providers {
-		if p.Ready && p.Group != "local" {
+		if p.Ready && !p.Keyless && p.Group != "local" {
 			return false
 		}
 	}
@@ -59,6 +59,7 @@ func cmdApp(t *ui.Term, forceWizard bool) int {
 		return fail(t, "%v", err)
 	}
 	be := backend{}
+	app.Version = version
 	first := forceWizard || needsWizard(be.Snapshot())
 	m, err := app.New(opts, be, first)
 	if err != nil {

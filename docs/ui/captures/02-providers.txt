@@ -1,30 +1,30 @@
-                      Providers
+◆ tsunagi dev                                                                              Providers
+  ◆ Providers ─ ○ Skills ─ ○ Ready
 
-                      ⌕ type to search
-                      ▏ → Continue
-                      Free
-                          opencode                                      trains
-                          openrouter                                    trains
-                          zai                                          private
-                          groq                                         private
-                          google                                        trains
-                          cohere                                        trains
-                          sambanova                                    private
-                          nvidia                                        trains
-                          cloudflare                                   private
-                      Your plans
-                          chatgpt                                         plan
-                      Paid keys
-                          opencode-go
-                          deepseek
-                          moonshot
-                          minimax
-                          qwen
-                          fireworks
-                          openai
-                          xai
-                          together
-                          mistral
-                      Local and own
-                          llamacpp
-                      type to search   ↑↓ move   ↵ open   esc back
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ › Search 70 providers, or paste a key                                                        │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+
+   All 70   Free 12   Ready 2   Paid 10   Local 4
+  ❯ ✓ Kilo Gateway           free    trains    keyless   free models only; 200 requests/hour per…
+    ○ OpenCode Zen           free    trains              free models rotate; each is free for a…
+    ○ OpenRouter             free    trains              20 requests/min, 50/day; 1000/day after…
+    ○ Z.ai                   free    private             GLM-4.7-Flash and GLM-4.5-Flash only;…
+    ○ Groq                   free    private             per-model request and token caps, see…
+    ○ Google AI Studio       free    trains              free tier on selected models, flagship…
+    ○ Cohere (trial key)     free    trains              20 requests/min, 1,000 calls/month;…
+    ○ SambaNova Cloud        free    private             20 requests/min, 20/day and 200,000…
+    ○ NVIDIA NIM             free    trains              up to 40 requests/min, prototyping only
+    ○ Cloudflare Workers AI  free    private             10,000 neurons/day; some models need a…
+    ○ Reflection AI (beta)   free    unknown             public beta: free with daily token…
+    ○ Requesty               free    unknown             free models only; new organizations 200…
+
+    Other
+      Add a gateway
+      Import from opencode
+      Continue
+
+
+
+
+  type to search   ↑↓ move   ←→ filter   ↵ open   esc back

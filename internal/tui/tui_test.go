@@ -23,10 +23,10 @@ func testTheme(t *testing.T, name string, prof colorprofile.Profile) Theme {
 
 func TestPalettesExact(t *testing.T) {
 	want := map[string]palette{
-		"amber":     {fg: "#FFB000", dim: "#8A5F00", accent: "#FFD060", ok: "#FFB000", warn: "#FF8C00", err: "#FF5A4D", art: [3]string{"#5A3C00", "#FFB000", "#FFE08A"}},
-		"matrix":    {fg: "#00FF66", dim: "#0B6B34", accent: "#B5FFD0", ok: "#00FF66", warn: "#E6FF4D", err: "#FF4D6D", art: [3]string{"#04361A", "#00D95A", "#CFFFE0"}},
-		"newsprint": {fg: "#D8D4C8", dim: "#8B877C", accent: "#FFFFFF", ok: "#BFD8B0", warn: "#E0C080", err: "#D9534F", art: [3]string{"#4A4840", "#D8D4C8", "#FFFFFF"}},
-		"colour":    {fg: "#EBF5F5", dim: "#7D8791", accent: "#8CFFC8", ok: "#1EAA96", warn: "#FFBE50", err: "#FF6E78", art: [3]string{"#0E5064", "#1EAA96", "#8CFFC8"}},
+		"amber":     {fg: "#FFB000", dim: "#8A5F00", accent: "#FFD060", ok: "#FFB000", warn: "#FF8C00", err: "#FF5A4D", cyan: "#FFD060", badgebg: "#2E2100", art: [3]string{"#5A3C00", "#FFB000", "#FFE08A"}},
+		"matrix":    {fg: "#00FF66", dim: "#0B6B34", accent: "#B5FFD0", ok: "#00FF66", warn: "#E6FF4D", err: "#FF4D6D", cyan: "#7DFCB0", badgebg: "#03200F", art: [3]string{"#04361A", "#00D95A", "#CFFFE0"}},
+		"newsprint": {fg: "#D8D4C8", dim: "#8B877C", accent: "#FFFFFF", ok: "#BFD8B0", warn: "#E0C080", err: "#D9534F", cyan: "#FFFFFF", badgebg: "#33302A", art: [3]string{"#4A4840", "#D8D4C8", "#FFFFFF"}},
+		"colour":    {fg: "#DEE4F0", dim: "#6E7686", accent: "#8FA8E8", ok: "#5FC98F", warn: "#D9A84E", err: "#DD6873", cyan: "#5FC7D9", badgebg: "#1B2333", art: [3]string{"#141C33", "#3A5680", "#8FA8E8"}},
 	}
 	for name, w := range want {
 		got, ok := palettes[name]
@@ -93,10 +93,16 @@ func TestResolvePrecedence(t *testing.T) {
 		return ""
 	}
 	base := DefaultOptions()
-	// nothing set -> defaults
+	// nothing set -> colour on a color terminal, mono without one
 	o, err := Resolve(Request{}, Request{}, Request{}, nil, base)
-	if err != nil || o.Look != art.Braille || o.Theme != "mono" {
+	if err != nil || o.Look != art.Braille || o.Theme != "colour" {
 		t.Fatalf("defaults: %+v err=%v", o, err)
+	}
+	plain := base
+	plain.Color = false
+	o, err = Resolve(Request{}, Request{}, Request{}, nil, plain)
+	if err != nil || o.Theme != "mono" {
+		t.Fatalf("no-color default: %+v err=%v", o, err)
 	}
 	// env beats config
 	anim := true

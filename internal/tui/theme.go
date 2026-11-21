@@ -18,6 +18,7 @@ var ThemeNames = []string{"mono", "amber", "matrix", "newsprint", "colour"}
 
 type palette struct {
 	fg, dim, accent, ok, warn, err string
+	cyan, badgebg                  string    // free/keyless badges and their tint
 	art                            [3]string // gradient stops, tail to head
 	mono                           bool
 }
@@ -27,22 +28,26 @@ var palettes = map[string]palette{
 	"amber": {
 		fg: "#FFB000", dim: "#8A5F00", accent: "#FFD060",
 		ok: "#FFB000", warn: "#FF8C00", err: "#FF5A4D",
+		cyan: "#FFD060", badgebg: "#2E2100",
 		art: [3]string{"#5A3C00", "#FFB000", "#FFE08A"},
 	},
 	"matrix": {
 		fg: "#00FF66", dim: "#0B6B34", accent: "#B5FFD0",
 		ok: "#00FF66", warn: "#E6FF4D", err: "#FF4D6D",
+		cyan: "#7DFCB0", badgebg: "#03200F",
 		art: [3]string{"#04361A", "#00D95A", "#CFFFE0"},
 	},
 	"newsprint": {
 		fg: "#D8D4C8", dim: "#8B877C", accent: "#FFFFFF",
 		ok: "#BFD8B0", warn: "#E0C080", err: "#D9534F",
+		cyan: "#FFFFFF", badgebg: "#33302A",
 		art: [3]string{"#4A4840", "#D8D4C8", "#FFFFFF"},
 	},
 	"colour": {
-		fg: "#EBF5F5", dim: "#7D8791", accent: "#8CFFC8",
-		ok: "#1EAA96", warn: "#FFBE50", err: "#FF6E78",
-		art: [3]string{"#0E5064", "#1EAA96", "#8CFFC8"},
+		fg: "#DEE4F0", dim: "#6E7686", accent: "#8FA8E8",
+		ok: "#5FC98F", warn: "#D9A84E", err: "#DD6873",
+		cyan: "#5FC7D9", badgebg: "#1B2333",
+		art: [3]string{"#141C33", "#3A5680", "#8FA8E8"},
 	},
 }
 
@@ -114,6 +119,39 @@ func NewTheme(name string, prof colorprofile.Profile) (Theme, error) {
 	t.Title = fg(p.accent).Bold(true)
 	t.Border = fg(p.dim)
 	return t, nil
+}
+
+// Plain reports whether the theme carries no color: mono, or any theme on a
+// colorless terminal. Primitives use it to pick bracket/ASCII forms.
+func (t Theme) Plain() bool {
+	return t.pal.mono || t.prof <= colorprofile.ASCII
+}
+
+// Badge renders a short status chip: " free " tinted by meaning in colour
+// themes, "[free]" under mono and colorless terminals. Width stays <= 9.
+func (t Theme) Badge(kind string) string {
+	if t.Plain() {
+		return "[" + kind + "]"
+	}
+	fg := t.pal.dim
+	switch kind {
+	case "private", "ready":
+		fg = t.pal.ok
+	case "trains":
+		fg = t.pal.warn
+	case "free", "keyless":
+		fg = t.pal.cyan
+		if fg == "" {
+			fg = t.pal.accent
+		}
+	case "plan", "next":
+		fg = t.pal.accent
+	}
+	st := lipgloss.NewStyle().Foreground(t.color(fg))
+	if t.pal.badgebg != "" {
+		st = st.Background(t.color(t.pal.badgebg))
+	}
+	return st.Render(" " + kind + " ")
 }
 
 // color converts a palette hex to the profile's color space. It returns nil

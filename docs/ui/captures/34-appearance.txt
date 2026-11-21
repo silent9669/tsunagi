@@ -1,0 +1,30 @@
+◆ tsunagi dev                                                                  Settings › Appearance
+
+  ❯ 1 Look                                                                                  dither
+    2 Theme                                                                                   mono
+    3 Animation                                                                                 on
+    4 Back
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ move   ↵ change   1-9 jump   esc back

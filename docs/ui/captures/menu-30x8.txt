@@ -1,8 +1,0 @@
-  tsunagi
-  ▏ 1 Start Clau claude-stub
-    2 Providers      5 ready
-    3 Skills		 1/2
-    4 Free models          -
-    5 Settings
-    6 Status
-    7 Quit

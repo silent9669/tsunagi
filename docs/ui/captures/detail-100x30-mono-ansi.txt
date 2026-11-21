@@ -1,0 +1,30 @@
+[1m◆ tsunagi[0m [2mdev[0m                                                                       [2mProviders › Groq
+
+[0m  [2m╭─[0m [1mGroq[0m [2m─────────────────────────────────────────────────────────────────────[0m [free] [private] [2m╮[0m
+  [2m│[0m [2mlimits  [0mper-model request and token caps, see the limits page                                [2m│[0m
+  [2m│[0m [2mdata    [0mprivate - inference requests are not retained or used for training by default        [2m│[0m
+  [2m│[0m [2msource  [0mconsole.groq.com checked 2026-11-21                                                  [2m│[0m
+  [2m│[0m [2msignup  [0mhttps://console.groq.com/                                                            [2m│[0m
+  [2m│[0m [2mkey     [0mhttps://console.groq.com/keys                                                        [2m│[0m
+  [2m╰──────────────────────────────────────────────────────────────────────────────────────────────╯[0m
+
+  [7m❯ 1 Set up                                                                                      [0m
+    2 I have a key
+    3 Open sign-up
+    4 Open key page
+    5 Back
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  [1m↑↓[0m [2mmove[0m   [1m↵[0m [2mselect[0m   [1mesc[0m [2mback[0m

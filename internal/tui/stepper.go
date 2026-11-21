@@ -51,7 +51,7 @@ func Legend(th Theme, utf8 bool, width int, pairs ...string) string {
 		if !utf8 {
 			k = ascii.Replace(k)
 		}
-		cell := th.Text.Render(k)
+		cell := th.Accent.Render(k)
 		w := lipgloss.Width(k)
 		if a != "" {
 			cell += " " + th.Dim.Render(a)

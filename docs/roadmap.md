@@ -115,3 +115,12 @@
 - [x] Per-target weights and a quota-aware strategy from OmniRoute and LiteLLM: `weighted` strategy with per-target `weights` (Efraimidis-Spirakis draw; `tsunagi route` shows weight order) and `headroom` (best remaining account quota first, unknown last)
 - [x] Zhipu GLM-Flash and ModelScope as free providers: Z.ai added (the international platform, GLM-4.7-Flash and GLM-4.5-Flash free per its pricing page, models read from the catalogue's zero-priced caps). ModelScope excluded: the free API needs an account bound to a real-name-verified Alibaba Cloud account and is evaluation-only. Zhipu's China platform was not added
 - [ ] Live check of the Z.ai free models (no Z.ai key on the test machine; the builtin `zai` provider uses the Anthropic-dialect endpoint, and `free probe zai` decides whether the free models answer there)
+
+## Phase 9: wider free catalogue and easier setup (v0.6.0)
+
+- [x] Registry widened with Kilo Gateway, Reflection AI (beta) and Requesty (all `FromCatalog`), and exclusions documented for poolside, poe, zenmux, reka, iteracompute, qiniu-ai, orcarouter and llmgateway (`internal/free/registry.go`)
+- [x] Keyless providers: registry `Access: "keyless"`, `OptionalKey` on `provider.Provider` stamped in `newRouter`; a request to a keyless provider goes out with no credential when none is stored and with the stored key when there is one
+- [x] Key-prefix detector (`internal/keyprefix`): suggests the provider for a pasted key, refuses Claude keys with `ErrClaudeKey`
+- [x] Environment key import: `Backend.EnvKeys`/`ImportEnvKey`/`DetectKey` — names only, the value is never returned or logged
+- [x] Interface rework: one always-focused search box over actions and every provider (ordered substring and word-start matching), a smart next-step row, a providers browser with All/Free/Ready/Paid/Local chips, aligned columns, wrapped detail cards, a vertical setup rail, paste-a-key detection, environment import, an ANSI-Shadow wordmark with gradient, and `colour` as the default theme (`NO_COLOR`, `--plain` and an explicit `ui.theme` still win)
+- [ ] Free providers read but not added: LLM7 (free token, 100k tokens/day, data policy unpublished), SEA-LION (10 requests/min trial key), Pollinations (anonymous, one text request per 45 s), OVHcloud (anonymous, 2 requests/min), Amazon Nova API (docs not readable here)

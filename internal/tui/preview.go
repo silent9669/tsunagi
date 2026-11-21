@@ -8,7 +8,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/silent9669/tsunagi/internal/art"
-	"github.com/silent9669/tsunagi/internal/ui"
 )
 
 // Preview is the appearance preview behind `tsunagi look`: the wordmark over
@@ -106,11 +105,10 @@ func PreviewFrame(o Options, th Theme, phase float64) string {
 	var sb strings.Builder
 	reserved := 1 // the status line
 	if !Compact(o.W, o.H) {
-		reserved += 7 // six logo rows plus a blank separator
-	}
-	if !Compact(o.W, o.H) {
-		for _, line := range ui.LogoLines() {
-			sb.WriteString(centerLine(line, o.W, th))
+		lines := Wordmark(o.W, th, o.UTF8)
+		reserved += len(lines) + 1 // wordmark plus a blank separator
+		for _, line := range lines {
+			sb.WriteString(line)
 			sb.WriteByte('\n')
 		}
 		sb.WriteByte('\n')
@@ -139,17 +137,17 @@ func centerLine(line string, w int, th Theme) string {
 	return strings.Repeat(" ", pad) + logoLine(line, th)
 }
 
+// centerLineRaw centers an already-styled line in w cells.
+func centerLineRaw(line string, w, lw int) string {
+	if lw >= w {
+		return line
+	}
+	return strings.Repeat(" ", (w-lw)/2) + line
+}
+
 // logoLine colors each wordmark character along the theme's art gradient.
 func logoLine(line string, th Theme) string {
-	maxW := 0
-	for _, l := range ui.LogoLines() {
-		if w := lipgloss.Width(l); w > maxW {
-			maxW = w
-		}
-	}
-	if maxW < 1 {
-		maxW = 1
-	}
+	maxW := max(lipgloss.Width(line), 1)
 	var sb strings.Builder
 	x := 0
 	for _, r := range line {

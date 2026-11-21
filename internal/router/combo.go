@@ -255,7 +255,7 @@ func (rt *Router) planTargets(combo Combo, need Need) []targetPlan {
 // sign-in. It checks the same account set the request path uses, without
 // spending the round-robin or headroom ordering on a lookup.
 func (rt *Router) hasKey(p provider.Provider, label string) bool {
-	if p.Local {
+	if p.Local || p.OptionalKey {
 		return true
 	}
 	if rt.Key == nil {

@@ -1,34 +1,39 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/silent9669/tsunagi/internal/tui"
-	"github.com/silent9669/tsunagi/internal/ui"
 )
 
-// titled is implemented by screens that replace the wordmark and the sea with
-// a one-row title, leaving the terminal to their list.
+// titled is implemented by screens whose breadcrumb is just their name.
 type titled interface{ title() string }
+
+// crumber is implemented by screens that carry a deeper breadcrumb path.
+type crumber interface{ crumbs() []string }
 
 // legendary is implemented by screens that name their keys on the last row.
 type legendary interface{ legend() []string }
 
-// blockWidth is the width of the one column every screen's body lives in.
-func blockWidth(w int) int { return max(min(w-4, 56), min(w, 20)) }
+// wizStager is implemented by wizard screens that show the progress rail.
+type wizStager interface{ wizStage() (cur int, on bool) }
 
-// frame is how the terminal is divided: header rows (the sea, or a title),
-// the body the screen draws in, and a key legend on the last row. It depends
-// only on the terminal size and the kind of screen, so a screen can be sized
-// once and mouse clicks mapped back to its rows.
+// blockWidth is the width of the one column every screen's body lives in.
+func blockWidth(w int) int { return max(min(w-4, 108), min(w, 20)) }
+
+// frame is how the terminal is divided: the brand bar and optional banner or
+// wizard rail, the body the screen draws in, and a key legend on the last
+// row. It depends only on the terminal size and the kind of screen.
 type frame struct {
 	W, H       int
-	tier       int // 0 wordmark and sea, 1 small sea, 2 one brand line, -1 title row
 	headerRows int
 	seaRows    int
+	banner     int // 0 none, 1 wordmark+sea, 2 sea, 3 small sea
+	wizRail    int // wizard progress step, -1 none
 	footerRows int
 	bodyW      int
 	bodyH      int
@@ -40,31 +45,36 @@ func (a *App) frame(scr tea.Model) frame {
 	if W <= 0 || H <= 0 {
 		W, H = 80, 24
 	}
-	f := frame{W: W, H: H, bodyW: blockWidth(W)}
+	f := frame{W: W, H: H, bodyW: blockWidth(W), wizRail: -1}
 	f.indent = max((W-f.bodyW)/2, 0)
-	if H >= 10 {
-		f.footerRows = 1
+	f.headerRows = 1 // brand bar
+	if w, ok := scr.(wizStager); ok {
+		if cur, on := w.wizStage(); on {
+			f.wizRail = cur
+			f.headerRows++
+		}
 	}
-	_, isTitled := scr.(titled)
-	switch {
-	case isTitled:
-		f.tier = -1
-		f.headerRows = 1
-		if H >= 10 {
-			f.headerRows = 2
+	_, isHome := scr.(*homeScreen)
+	if isHome {
+		wmRows := 6 // ANSI-Shadow wordmark
+		if !a.opts.UTF8 {
+			wmRows = 1 // a single bold "tsunagi" line
 		}
-	case H >= 30 && W >= 60:
-		f.tier, f.seaRows = 0, 8
-		f.headerRows = len(ui.LogoLines()) + 1 + f.seaRows + 1
-	case H >= 20 && W >= 40:
-		f.tier, f.seaRows = 1, 4
-		f.headerRows = 1 + f.seaRows + 1
-	default:
-		f.tier = 2
-		f.headerRows = 1
-		if H >= 10 {
-			f.headerRows = 2
+		switch {
+		case H >= 40 && W >= 62:
+			f.banner, f.seaRows = 1, 5
+			f.headerRows += 1 + wmRows + 1 + f.seaRows
+		case H >= 26 && W >= 40:
+			f.banner, f.seaRows = 2, 5
+			f.headerRows += 1 + f.seaRows
+		case H >= 20 && W >= 40:
+			f.banner, f.seaRows = 3, 3
+			f.headerRows += 1 + f.seaRows
 		}
+	}
+	f.headerRows++ // blank separator
+	if H >= 8 {
+		f.footerRows = 1
 	}
 	f.bodyH = max(H-f.headerRows-f.footerRows, 1)
 	return f
@@ -109,7 +119,78 @@ func (a *App) sea(f frame) []string {
 
 const artStillPhase = 36.0 // art.OceanStaticPhase
 
-// View composes the header, the screen's body and the key legend, always
+// crumbOf is the right side of the brand bar on non-home screens.
+func (a *App) crumbOf(scr tea.Model) string {
+	var parts []string
+	if c, ok := scr.(crumber); ok {
+		parts = c.crumbs()
+	} else if t, ok := scr.(titled); ok {
+		parts = []string{t.title()}
+	}
+	sep := " › "
+	if !a.opts.UTF8 {
+		sep = " > "
+	}
+	return strings.Join(parts, sep)
+}
+
+// homeChips is the right side of the brand bar on the home screen.
+func (a *App) homeChips() string {
+	check, cross, dot := "✓", "✗", "·"
+	if !a.opts.UTF8 {
+		check, cross, dot = "+", "x", "-"
+	}
+	claude := "claude " + check
+	if a.snap.ClaudePath == "" {
+		claude = "claude " + cross
+	}
+	chips := claude
+	ready := 0
+	for _, p := range a.snap.Providers {
+		if p.Ready && p.Group != "local" {
+			ready++
+		}
+	}
+	if ready > 0 {
+		chips += " " + dot + " " + itoa(ready) + " ready"
+	}
+	if n := len(a.snap.FreeTargets); n > 0 {
+		chips += " " + dot + " free/auto " + itoa(n)
+	}
+	return chips
+}
+
+// wizRailLine renders the wizard progress rail and collapses to "◆ n/3"
+// when narrow.
+func (a *App) wizRailLine(cur int, w int) string {
+	steps := []string{"Providers", "Skills", "Ready"}
+	done, now, next, sep := "◇", "◆", "○", " ─ "
+	if !a.opts.UTF8 {
+		done, now, next, sep = "o", "*", ".", " - "
+	}
+	var parts []string
+	plain := 0
+	for i, s := range steps {
+		glyph, st := next, a.theme.Dim
+		switch {
+		case i < cur:
+			glyph, st = done, a.theme.Dim
+		case i == cur:
+			glyph, st = now, a.theme.Accent
+		}
+		parts = append(parts, st.Render(glyph+" "+s))
+		plain += lipgloss.Width(s) + 2
+	}
+	if plain+lipgloss.Width(sep)*(len(steps)-1) <= w {
+		return strings.Join(parts, a.theme.Dim.Render(sep))
+	}
+	if cur < 0 || cur >= len(steps) {
+		cur = 0
+	}
+	return a.theme.Accent.Render(now+" "+steps[cur]) + a.theme.Dim.Render(fmt.Sprintf(" %d/%d", cur+1, len(steps)))
+}
+
+// View composes the brand bar, the screen's body and the key legend, always
 // inside the terminal: no row is wider than W and there are never more than
 // H rows.
 func (a *App) View() tea.View {
@@ -120,19 +201,23 @@ func (a *App) View() tea.View {
 	}
 	indent := strings.Repeat(" ", f.indent)
 
-	var lines []string
-	switch f.tier {
-	case -1:
-		lines = append(lines, indent+a.theme.Title.Render(a.scr.(titled).title()))
-	case 0:
-		lines = append(lines, tui.Wordmark(f.W, a.theme)...)
+	right := a.crumbOf(a.scr)
+	if _, isHome := a.scr.(*homeScreen); isHome {
+		right = a.homeChips()
+	}
+	lines := []string{a.theme.BrandBar(Version, right, f.W, a.opts.UTF8)}
+	if f.wizRail >= 0 {
+		lines = append(lines, indent+a.wizRailLine(f.wizRail, f.bodyW))
+	}
+	switch f.banner {
+	case 1:
+		lines = append(lines, "")
+		lines = append(lines, tui.Wordmark(f.W, a.theme, a.opts.UTF8)...)
 		lines = append(lines, "")
 		lines = append(lines, a.sea(f)...)
-	case 1:
-		lines = append(lines, indent+a.theme.Title.Render("tsunagi"))
+	case 2, 3:
+		lines = append(lines, "")
 		lines = append(lines, a.sea(f)...)
-	default:
-		lines = append(lines, indent+a.theme.Title.Render("tsunagi"))
 	}
 	for len(lines) < f.headerRows {
 		lines = append(lines, "")

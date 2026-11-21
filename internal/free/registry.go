@@ -21,6 +21,10 @@ const (
 	Unknown = "unknown" // not checked
 )
 
+// Access is how the free offer is reached. "" means a key is needed;
+// Keyless means the provider answers with no account and no key.
+const Keyless = "keyless"
+
 // Entry is one provider with a verified free offer. Everything here comes
 // from the provider's own pages on the Checked date; Source is where.
 type Entry struct {
@@ -35,6 +39,8 @@ type Entry struct {
 	DataNote string
 	Source   string // page the Data label and limits come from
 	Checked  string
+	// Access is "" when the offer needs a key, free.Keyless when it does not.
+	Access string
 	// Setup names an extra value the provider needs before it can be added.
 	Setup string
 	// FromCatalog reads the free-model list from the synced catalogue's
@@ -115,6 +121,33 @@ func Registry() []Entry {
 			Source:   "https://docs.z.ai/guides/overview/pricing", Checked: "2026-11-21",
 			FromCatalog: true,
 		},
+		{
+			ID: "kilo", Name: "Kilo Gateway", Mode: ModelsMode,
+			Signup: "https://app.kilo.ai", KeyURL: "https://app.kilo.ai",
+			Limits:   "free models only; 200 requests/hour per IP, with or without an account",
+			Data:     Trains,
+			DataNote: "free models may be routed to providers that log prompts and outputs to improve their services (NVIDIA's free endpoints are named)",
+			Source:   "https://kilo.ai/docs/getting-started/using-kilo-for-free", Checked: "2026-11-21",
+			FromCatalog: true, Access: Keyless,
+		},
+		{
+			ID: "reflection", Name: "Reflection AI (beta)", Mode: ModelsMode,
+			Signup: "https://platform.reflection.ai", KeyURL: "https://developers.reflection.ai/quickstart",
+			Limits:   "public beta: free with daily token allowances that reset daily; Reflection may end the beta at any time",
+			Data:     Unknown,
+			DataNote: "content is kept up to 30 days for safety monitoring; whether it trains models depends on the account terms",
+			Source:   "https://reflection.ai/legal/beta-pricing-information", Checked: "2026-11-21",
+			FromCatalog: true,
+		},
+		{
+			ID: "requesty", Name: "Requesty", Mode: ModelsMode,
+			Signup: "https://www.requesty.ai/free-models", KeyURL: "https://www.requesty.ai/free-models",
+			Limits:   "free models only; new organizations 200 requests/day and 20/min, paying organizations 1,000/day and 60/min",
+			Data:     Unknown,
+			DataNote: "prompts are not stored unless logging is enabled; each free model's upstream provider sets its own terms",
+			Source:   "https://docs.requesty.ai/features/free-models", Checked: "2026-11-21",
+			FromCatalog: true,
+		},
 	}
 }
 
@@ -128,4 +161,12 @@ var Excluded = map[string]string{
 	"ollama-cloud":  "pay as you go, no recurring free credits",
 	"huggingface":   "free accounts no longer get Inference Providers credits",
 	"modelscope":    "needs a ModelScope account bound to a real-name-verified Alibaba Cloud account; evaluation use only (modelscope.cn API-Inference docs)",
+	"poolside":      "hosted inference announced shut down on 2026-10-31 (Poolside's own sites)",
+	"poe":           "free accounts cannot call paid models through the API (creator.poe.com)",
+	"zenmux":        "the Free plan has no API access (zenmux.ai docs)",
+	"reka":          "no current recurring free credit, credits are prepaid (docs.reka.ai/pricing)",
+	"iteracompute":  "free promotion ends 2026-11-24",
+	"qiniu-ai":      "free Conatus activity ends 2026-11-30 and needs mainland-China real-name verification",
+	"orcarouter":    "free tier depends on lifetime spend and has an unpublished prompt-size cap",
+	"llmgateway":    "free models are limited to 5 requests per 10 minutes without purchased credits (docs.llmgateway.io)",
 }

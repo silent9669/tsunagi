@@ -1,0 +1,42 @@
+◆ tsunagi dev                                                                                                  Providers
+
+      ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+      │ › Search 71 providers, or paste a key                                                                    │
+      ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+       All 71   Free 12   Ready 2   Paid 10   Local 5
+      ❯ ✓ Kilo Gateway           free    trains    keyless   free models only; 200 requests/hour per IP, with or…
+        ○ OpenCode Zen           free    trains              free models rotate; each is free for a limited time
+        ○ OpenRouter             free    trains              20 requests/min, 50/day; 1000/day after $10 of…
+        ○ Z.ai                   free    private             GLM-4.7-Flash and GLM-4.5-Flash only; other models…
+        ○ Groq                   free    private             per-model request and token caps, see the limits page
+        ○ Google AI Studio       free    trains              free tier on selected models, flagship models…
+        ○ Cohere (trial key)     free    trains              20 requests/min, 1,000 calls/month; trial keys are…
+        ○ SambaNova Cloud        free    private             20 requests/min, 20/day and 200,000 tokens/day per…
+        ○ NVIDIA NIM             free    trains              up to 40 requests/min, prototyping only
+        ○ Cloudflare Workers AI  free    private             10,000 neurons/day; some models need a paid plan
+        ○ Reflection AI (beta)   free    unknown             public beta: free with daily token allowances that…
+        ○ Requesty               free    unknown             free models only; new organizations 200…
+
+        Other
+          Add a gateway
+          Import from opencode
+          Back to menu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      type to search   ↑↓ move   ←→ filter   ↵ open   esc back

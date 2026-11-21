@@ -1,0 +1,30 @@
+◆ tsunagi dev                                                              Free models › Data policy
+
+  [ ] opencode                                                                            trains
+  [ ] openrouter                                                                          trains
+  [ ] google                                                                              trains
+  [ ] cohere                                                                              trains
+  [ ] nvidia                                                                              trains
+  [ ] kilo                                                                                trains
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ move   space allow   ↵ apply   esc back

@@ -30,12 +30,12 @@ type Request struct {
 	Theme string
 }
 
-// DefaultOptions returns the baseline: braille look, mono theme, color and
+// DefaultOptions returns the baseline: braille look, colour theme, color and
 // animation on, UTF-8 assumed.
 func DefaultOptions() Options {
 	return Options{
 		Look:  art.Braille,
-		Theme: "mono",
+		Theme: "colour",
 		Color: true,
 		Anim:  true,
 		UTF8:  true,
@@ -58,6 +58,14 @@ func Resolve(flag, env, cfg Request, cfgAnim *bool, base Options) (Options, erro
 	theme, err := resolveTheme(flag.Theme, env.Theme, cfg.Theme)
 	if err != nil {
 		return o, err
+	}
+	if theme == "" {
+		// unset everywhere: colour on a color terminal, mono without one
+		// (NO_COLOR, --no-color and --plain all leave base.Color false)
+		theme = "mono"
+		if base.Color {
+			theme = "colour"
+		}
 	}
 	o.Theme = theme
 	if cfgAnim != nil && !*cfgAnim {
@@ -90,7 +98,7 @@ func resolveTheme(vals ...string) (string, error) {
 		}
 		return v, nil
 	}
-	return "mono", nil
+	return "", nil
 }
 
 func lookNames() string {

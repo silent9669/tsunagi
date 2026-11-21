@@ -1,0 +1,30 @@
+◆ tsunagi dev                                                                                 Skills
+  ◇ Providers ─ ◆ Skills ─ ○ Ready
+
+  claude/tsunagi-free  installed
+  claude/tsunagi-handoff  installed
+  claude/tsunagi-models  installed
+  claude/tsunagi-setup  installed
+
+  ❯ 1 Done
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↵ done   esc back

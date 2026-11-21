@@ -1,0 +1,30 @@
+◆ tsunagi dev                                                                                 Status
+
+  ok  claude     <claude> 2.1.311 (Claude Code)
+  ok  keychain   macOS security tool found
+  ok  config     <tmp>
+  ok  catalogue  synced just now
+  !!  accounts   no keys yet: run tsunagi login <provider>
+  ok  router     can listen on 127.0.0.1
+  ok  state      cache directory writable
+  ok  slash      /tsunagi:usage /tsunagi:accounts /tsunagi:providers ...
+  ok  settings   no conflicts, nothing is changed
+
+  ❯ 1 Back
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↵ back   esc back

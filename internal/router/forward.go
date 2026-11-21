@@ -168,18 +168,22 @@ func (rt *Router) withAccounts(rec *recorder, p provider.Provider, label string,
 		if !p.Local {
 			k, err := rt.Key(p, acct)
 			if err != nil || k == "" {
-				if last {
+				if last && p.OptionalKey {
+					// keyless provider: forward with no credential
+				} else if last {
 					rt.healthNote(hk, -2, 0)
 					if soft {
 						return false, -2
 					}
 					writeErr(rec, http.StatusUnauthorized, "authentication_error", keyMessage(acct, err))
 					return true, http.StatusUnauthorized
+				} else {
+					rec.skipped++
+					continue
 				}
-				rec.skipped++
-				continue
+			} else {
+				key = k
 			}
-			key = k
 		}
 		t0 := rt.clock()
 		resp, err := send(key)

@@ -5,7 +5,6 @@ package app
 
 import (
 	"context"
-	"path/filepath"
 	"time"
 
 	"charm.land/bubbletea/v2"
@@ -31,6 +30,15 @@ type ProviderRow struct {
 	Tag       string // data label: private|trains|unknown|plan|""
 	Setup     string // extra setup the provider needs, e.g. "account-id"
 	FreeEntry bool   // Name matches a free.Registry entry
+	Keyless   bool   // answers with no account and no key
+	Limits    string // registry limits text, "" outside the registry
+}
+
+// EnvKey is a routable provider that an environment variable can key. The
+// value itself is never exposed through the interface.
+type EnvKey struct {
+	Provider string
+	Var      string
 }
 
 // StatusRow is one health check line in the Status screen.
@@ -98,6 +106,12 @@ type Backend interface {
 	ResetUI() error
 	Plan(model string) []string
 	ProbeFree(ctx context.Context) ([]ProbeRow, error)
+	// EnvKeys lists unkeyed routable providers an environment variable can
+	// key, names only. ImportEnvKey stores that variable's value for the
+	// provider; DetectKey guesses providers from a pasted key's prefix.
+	EnvKeys() []EnvKey
+	ImportEnvKey(provider string) error
+	DetectKey(key string) ([]string, error)
 }
 
 // Action is what the app asks main to do when it exits.
@@ -109,15 +123,18 @@ const (
 	Quit         // exit without launching
 )
 
+// Version is shown in the brand bar; main stamps it from its own var.
+var Version = "dev"
+
 // App is the root model.
 type App struct {
 	opts    tui.Options
 	theme   tui.Theme
 	be      Backend
 	snap    Snapshot
+	envKeys []EnvKey
 	scr     tea.Model
 	phase   float64
-	intro   *introScreen
 	action  Action
 	wizard  bool
 	locals  map[string]bool
@@ -139,11 +156,8 @@ func New(o tui.Options, be Backend, firstRun bool) (*App, error) {
 	if firstRun {
 		a.wizard = true
 		a.setScreen(newWizardWelcome(a))
-	} else if o.Anim {
-		a.intro = newIntroScreen(o, th, a)
-		a.scr = a.intro
 	} else {
-		a.setScreen(a.menuScreen())
+		a.setScreen(newHomeScreen(a))
 	}
 	return a, nil
 }
@@ -151,7 +165,10 @@ func New(o tui.Options, be Backend, firstRun bool) (*App, error) {
 // Action reports what main should do after Run returns.
 func (a *App) Action() Action { return a.action }
 
-func (a *App) refresh() { a.snap = a.be.Snapshot() }
+func (a *App) refresh() {
+	a.snap = a.be.Snapshot()
+	a.envKeys = a.be.EnvKeys()
+}
 
 // Init starts the animation tick.
 func (a *App) Init() tea.Cmd {
@@ -175,7 +192,6 @@ const artTickDur = 83 * time.Millisecond
 
 type tickMsg struct{}
 type localsMsg map[string]bool
-type introDone struct{}
 type startMsg struct{}
 type quitAppMsg struct{}
 
@@ -202,9 +218,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case localsMsg:
 		a.locals = msg.(localsMsg)
-	case introDone:
-		a.intro = nil
-		return a, a.setScreen(a.menuScreen())
 	case startMsg:
 		a.action = Start
 		return a, tea.Quit
@@ -213,23 +226,44 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Quit
 	case menuPickMsg:
 		return a, a.onMenuPick(v.value)
+	case openProviderMsg:
+		s := newProvidersScreen(a, a.wizard)
+		if v.chip == "free" {
+			s.chip = chipFree
+			s.rebuild()
+		}
+		if v.name != "" {
+			_, _ = s.open(v.name)
+		}
+		return a, a.setScreen(s)
+	case openSettingsMsg:
+		s := newSettingsScreen(a)
+		switch v.sub {
+		case "routing":
+			s.open(ssRouting, 0)
+		case "appearance":
+			s.open(ssAppearance, 0)
+		case "advanced":
+			s.open(ssAdvanced, 0)
+		}
+		return a, a.setScreen(s)
 	case providersDoneMsg:
 		a.refresh()
 		if a.wizard {
 			return a, a.setScreen(newSkillsScreen(a, true))
 		}
-		return a, a.setScreen(a.menuScreen())
+		return a, a.setScreen(newHomeScreen(a))
 	case providersBackMsg:
-		return a, a.setScreen(a.menuScreen())
+		return a, a.setScreen(newHomeScreen(a))
 	case skillsDoneMsg:
 		a.refresh()
 		if a.wizard {
 			return a, a.setScreen(newWizardReady(a))
 		}
-		return a, a.setScreen(a.menuScreen())
+		return a, a.setScreen(newHomeScreen(a))
 	case skillsBackMsg, screenBackMsg:
 		a.refresh()
-		return a, a.setScreen(a.menuScreen())
+		return a, a.setScreen(newHomeScreen(a))
 	case rerunSetupMsg:
 		a.wizard = true
 		return a, a.setScreen(newWizardWelcome(a))
@@ -297,12 +331,12 @@ func (a *App) onWizPick(v string) tea.Cmd {
 	return a.finishWizard() // "skip"
 }
 
-// finishWizard marks onboarding done and lands on the menu.
+// finishWizard marks onboarding done and lands on home.
 func (a *App) finishWizard() tea.Cmd {
 	a.wizard = false
 	_ = a.be.MarkOnboarded()
 	a.refresh()
-	return a.setScreen(a.menuScreen())
+	return a.setScreen(newHomeScreen(a))
 }
 
 // screenModel is implemented by screens that need snapshot/local updates.
@@ -340,59 +374,6 @@ func (a *App) setScreen(s tea.Model) tea.Cmd {
 		a.scr = nm
 	}
 	return a.scr.Init()
-}
-
-// menuScreen builds the main menu.
-func (a *App) menuScreen() *menuScreen {
-	m := newMenuScreen(a.opts, a.theme, a.menuItems(), 0)
-	m.app = a
-	return m
-}
-
-// menuItems builds the main menu rows from the snapshot.
-func (a *App) menuItems() []tui.Item {
-	claude := "not found"
-	if a.snap.ClaudePath != "" {
-		claude = filepath.Base(a.snap.ClaudePath)
-	}
-	ready := 0
-	for _, p := range a.snap.Providers {
-		if p.Ready {
-			ready++
-		}
-	}
-	freeTag := "-"
-	if n := len(a.snap.FreeTargets); n > 0 {
-		freeTag = itoa(n) + " ready"
-	}
-	skillTag := "-"
-	if n := len(a.snap.Skills); n > 0 {
-		full := map[string]int{}
-		for _, s := range a.snap.Skills {
-			if s.State == "installed" {
-				full[s.Target]++
-			}
-		}
-		n := 0
-		for _, c := range full {
-			if c == 4 {
-				n++
-			}
-		}
-		skillTag = itoa(n) + "/2"
-		if n == 0 {
-			skillTag = "-"
-		}
-	}
-	return []tui.Item{
-		{Label: "Start Claude Code", Value: "start", Tag: claude, Disabled: a.snap.ClaudePath == ""},
-		{Label: "Providers", Value: "providers", Tag: itoa(ready) + " ready"},
-		{Label: "Skills", Value: "skills", Tag: skillTag},
-		{Label: "Free models", Value: "free", Tag: freeTag},
-		{Label: "Settings", Value: "settings"},
-		{Label: "Status", Value: "status"},
-		{Label: "Quit", Value: "quit"},
-	}
 }
 
 func itoa(n int) string {

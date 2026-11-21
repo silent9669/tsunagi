@@ -12,7 +12,6 @@ import (
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/opencode"
 	"github.com/silent9669/tsunagi/internal/provider"
-	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
@@ -183,7 +182,7 @@ func cmdModels(t *ui.Term, args []string) int {
 		}
 		key := ""
 		if !p.Local {
-			k, err := keyFor(cfg)(p, router.Account(p.Name, ""))
+			k, err := fetchKey(cfg, p)
 			if err != nil {
 				return fail(t, "no key for %s to ask it. Run: tsunagi login %s", name, name)
 			}

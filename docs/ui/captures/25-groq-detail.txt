@@ -1,0 +1,30 @@
+◆ tsunagi dev                                                                       Providers › Groq
+
+  ╭─ Groq ─────────────────────────────────────────────────────────────────────  free   private  ╮
+  │ limits  per-model request and token caps, see the limits page                                │
+  │ data    private - inference requests are not retained or used for training by default        │
+  │ source  console.groq.com checked 2026-11-21                                                  │
+  │ signup  https://console.groq.com/                                                            │
+  │ key     https://console.groq.com/keys                                                        │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ❯ 1 Set up
+    2 I have a key
+    3 Open sign-up
+    4 Open key page
+    5 Back
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ↑↓ move   ↵ select   esc back

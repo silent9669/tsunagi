@@ -23,10 +23,30 @@ import (
 var hasFreeKey = func(cfg config.Config, name string) bool {
 	for _, p := range cfg.All() {
 		if p.Name == name {
-			return p.Local || ready(p) > 0
+			return p.Local || ready(p) > 0 || keylessProvider(p)
 		}
 	}
 	return false
+}
+
+// keylessProvider reports whether a provider answers with no key: its
+// registry Access is "keyless", or the flag was stamped at router build.
+func keylessProvider(p provider.Provider) bool {
+	if p.OptionalKey {
+		return true
+	}
+	e, ok := registryEntry(p.Name)
+	return ok && e.Access == free.Keyless
+}
+
+// fetchKey gets the account key through keyFor, tolerating a missing key
+// only for keyless providers.
+func fetchKey(cfg config.Config, p provider.Provider) (string, error) {
+	k, err := keyFor(cfg)(p, router.Account(p.Name, ""))
+	if err != nil && !keylessProvider(p) {
+		return "", err
+	}
+	return k, nil
 }
 
 // liveFreeModels asks a tier provider which models it serves. It is a var so
@@ -34,7 +54,7 @@ var hasFreeKey = func(cfg config.Config, name string) bool {
 var liveFreeModels = func(ctx context.Context, cfg config.Config, p provider.Provider) ([]string, error) {
 	key := ""
 	if !p.Local {
-		k, err := keyFor(cfg)(p, router.Account(p.Name, ""))
+		k, err := fetchKey(cfg, p)
 		if err != nil {
 			return nil, err
 		}
@@ -65,6 +85,9 @@ func findFreeProvider(cfg config.Config, name string) (provider.Provider, bool) 
 func keyStatus(cfg config.Config, e free.Entry) string {
 	if e.Setup != "" {
 		return "setup"
+	}
+	if e.Access == free.Keyless {
+		return "no key needed"
 	}
 	return keyStatusName(cfg, e.ID)
 }
@@ -100,6 +123,7 @@ type freeRow struct {
 	Limits   string `json:"limits,omitempty"`
 	Data     string `json:"data"`
 	Key      string `json:"key"`
+	Access   string `json:"access,omitempty"`
 	Note     string `json:"note,omitempty"`
 }
 
@@ -112,7 +136,7 @@ func freeRows(cfg config.Config, snap free.Snapshot, haveSnap bool, showAll bool
 	}
 	var rows []freeRow
 	for _, e := range free.Registry() {
-		r := freeRow{Provider: e.ID, Name: e.Name, Mode: e.Mode, Limits: e.Limits, Data: e.Data, Key: keyStatus(cfg, e)}
+		r := freeRow{Provider: e.ID, Name: e.Name, Mode: e.Mode, Limits: e.Limits, Data: e.Data, Key: keyStatus(cfg, e), Access: e.Access}
 		switch {
 		case e.Mode == free.TierMode:
 			r.Free = "all models"
@@ -288,6 +312,7 @@ func freeDetail(t *ui.Term, cfg config.Config, snap free.Snapshot, name string, 
 			"signup": e.Signup, "key_url": e.KeyURL, "needs": e.Needs,
 			"limits": e.Limits, "data": e.Data, "data_note": e.DataNote,
 			"source": e.Source, "checked": e.Checked, "setup": e.Setup,
+			"access": e.Access,
 			"models": models, "model_error": listErr,
 		}
 		return printJSON(t, out)
@@ -308,6 +333,9 @@ func freeDetail(t *ui.Term, cfg config.Config, snap free.Snapshot, name string, 
 	}
 	t.Printf("  %s %s\n", t.Dim("signup "), e.Signup)
 	t.Printf("  %s %s\n", t.Dim("key    "), e.KeyURL)
+	if e.Access != "" {
+		t.Printf("  %s %s\n", t.Dim("access "), e.Access)
+	}
 	if e.Needs != "" {
 		t.Printf("  %s %s\n", t.Dim("needs  "), e.Needs)
 	}

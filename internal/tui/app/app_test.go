@@ -35,6 +35,11 @@ type fakeBackend struct {
 	resetUI   bool
 	probe     []ProbeRow
 	plans     []string
+	envKeys   []EnvKey
+	imported  []string
+	importErr error
+	detected  []string
+	detectErr error
 }
 
 func (f *fakeBackend) Snapshot() Snapshot { return f.snap }
@@ -152,6 +157,15 @@ func (f *fakeBackend) Plan(model string) []string {
 
 func (f *fakeBackend) ProbeFree(ctx context.Context) ([]ProbeRow, error) { return f.probe, nil }
 
+func (f *fakeBackend) EnvKeys() []EnvKey { return f.envKeys }
+
+func (f *fakeBackend) ImportEnvKey(provider string) error {
+	f.imported = append(f.imported, provider)
+	return f.importErr
+}
+
+func (f *fakeBackend) DetectKey(key string) ([]string, error) { return f.detected, f.detectErr }
+
 func (f *fakeBackend) ProbeLocals(ctx context.Context) <-chan map[string]bool {
 	return nil // no probe in tests
 }
@@ -219,11 +233,17 @@ func press(m *App, text string) {
 
 func enter(m *App) { key(m, tea.KeyEnter, "") }
 
+// typeIn feeds printable text without pumping cmds: typing only rewrites the
+// search/input, and pumping would stall 500ms per key on the cursor-blink cmd.
+func typeIn(m *App, text string) {
+	for _, r := range text {
+		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+}
+
 // choose types a search and opens the first match.
 func choose(m *App, name string) {
-	for _, r := range name {
-		press(m, string(r))
-	}
+	typeIn(m, name)
 	enter(m)
 }
 
@@ -266,9 +286,9 @@ func TestMenuShowsRowsAndValues(t *testing.T) {
 	be := &fakeBackend{snap: snapBase()}
 	m := newTestApp(t, be, false)
 	v := viewText(m)
-	for _, want := range []string{"Start Claude Code", "Providers", "Skills", "Quit", "claude", "ready"} {
+	for _, want := range []string{"tsunagi", "Start Claude Code", "Providers", "Skills", "Quit", "claude", "ready"} {
 		if !strings.Contains(v, want) {
-			t.Fatalf("menu missing %q:\n%s", want, v)
+			t.Fatalf("home missing %q:\n%s", want, v)
 		}
 	}
 }
@@ -286,7 +306,7 @@ func TestClaudeNotFoundDisablesStart(t *testing.T) {
 func TestMenuPickStartQuitsWithStart(t *testing.T) {
 	be := &fakeBackend{snap: snapBase()}
 	m := newTestApp(t, be, false)
-	press(m, "1") // Start Claude Code
+	enter(m) // the cursor starts on Start Claude Code
 	if m.Action() != Start {
 		t.Fatalf("action = %v, want Start", m.Action())
 	}
@@ -304,8 +324,8 @@ func driveToKeyInput(t *testing.T, m *App) {
 		if ps.stage == psKey {
 			return
 		}
-		if ps.stage == psPanel {
-			press(m, "2") // I have a key
+		if ps.stage == psDetail {
+			press(m, "1") // Set up / I have a key
 			continue
 		}
 		enter(m)
@@ -327,17 +347,16 @@ func TestWizardHappyPath(t *testing.T) {
 	}
 	m := newTestApp(t, be, true)
 	enter(m)                // welcome: Continue -> providers
-	choose(m, "openrouter") // search, open the setup flow
+	choose(m, "openrouter") // search, open the detail card
 	driveToKeyInput(t, m)
-	for _, r := range "testkey12345" {
-		press(m, string(r))
-	}
-	enter(m)                // submit -> verify OK -> result menu (Done default)
-	enter(m)                // Done -> back to the list
-	key(m, tea.KeyHome, "") // first row is Continue
-	enter(m)                // Continue -> skills screen
-	enter(m)                // confirm skills -> install rows -> Done
-	enter(m)                // Done -> ready screen
+	typeIn(m, "testkey12345")
+	enter(m)               // submit -> verify OK -> result menu (Done default)
+	enter(m)               // Done -> back to the list
+	esc(m)                 // clear the search
+	key(m, tea.KeyEnd, "") // the last row is Continue
+	enter(m)               // Continue -> skills screen
+	enter(m)               // confirm skills -> install rows -> Done
+	enter(m)               // Done -> ready screen
 	v := viewText(m)
 	if !strings.Contains(v, "Start Claude Code") || !strings.Contains(v, "Back to menu") {
 		t.Fatalf("expected ready screen:\n%s", v)
@@ -347,7 +366,7 @@ func TestWizardHappyPath(t *testing.T) {
 		t.Fatal("MarkOnboarded not called")
 	}
 	if !strings.Contains(viewText(m), "Start Claude Code") {
-		t.Fatalf("expected main menu:\n%s", viewText(m))
+		t.Fatalf("expected home:\n%s", viewText(m))
 	}
 }
 
@@ -369,9 +388,9 @@ func TestWizardSkipAtWelcome(t *testing.T) {
 func TestProvidersScreenGroups(t *testing.T) {
 	be := &fakeBackend{snap: snapBase()}
 	m := newTestApp(t, be, false)
-	press(m, "2") // Providers
+	choose(m, "providers")
 	v := viewText(m)
-	for _, want := range []string{"Free", "Your plans", "Paid keys", "Local and own", "openrouter", "chatgpt", "anthropic", "ollama", "Add a gateway"} {
+	for _, want := range []string{"Ready", "Free", "Plan", "Local", "OpenRouter", "chatgpt", "anthropic", "ollama", "Add a gateway", "All"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("providers screen missing %q:\n%s", want, v)
 		}
@@ -383,16 +402,12 @@ func TestKeyEntryMaskedNeverRendered(t *testing.T) {
 	snap.Providers = []ProviderRow{{Name: "openrouter", Group: "free", Tag: "private"}}
 	be := &fakeBackend{snap: snap}
 	m := newTestApp(t, be, false)
-	press(m, "2")
-	space(m) // select openrouter
-	enter(m)
-	// may be at signup panel or key input; navigate to key stage
+	choose(m, "openrouter")
+	// the detail card offers Set up / I have a key; navigate to the key stage
 	driveToKeyInput(t, m)
 	// type a secret
 	secret := "sk-test-SECRET-12345"
-	for _, r := range secret {
-		press(m, string(r))
-	}
+	typeIn(m, secret)
 	if strings.Contains(viewText(m), secret) {
 		t.Fatalf("secret rendered in view:\n%s", viewText(m))
 	}
@@ -411,12 +426,9 @@ func TestVerifyFailureOffersReenter(t *testing.T) {
 		verify: func(p string) VerifyResult { return VerifyResult{Err: "boom"} },
 	}
 	m := newTestApp(t, be, false)
-	press(m, "2")
 	choose(m, "openrouter")
 	driveToKeyInput(t, m)
-	for _, r := range "testkey12345" {
-		press(m, string(r))
-	}
+	typeIn(m, "testkey12345")
 	enter(m) // submit -> verify fails -> result menu
 	v := viewText(m)
 	if !strings.Contains(v, "Re-enter key") {
@@ -444,12 +456,9 @@ func TestTrainsProviderAskedOnce(t *testing.T) {
 	snap.Providers = append([]ProviderRow{{Name: "sambanova", Group: "free", Tag: "private"}}, snap.Providers...)
 	be := &fakeBackend{snap: snap, combo: []string{"openrouter/auto"}}
 	m := newTestApp(t, be, false)
-	press(m, "2")
 	choose(m, "sambanova")
 	driveToKeyInput(t, m)
-	for _, r := range "testkey12345" {
-		press(m, string(r))
-	}
+	typeIn(m, "testkey12345")
 	enter(m) // submit -> verify OK -> result
 	enter(m) // Done -> list
 	esc(m)   // leave -> finishQueue -> trains ask for groq
@@ -476,7 +485,7 @@ func TestSkillsScreenInstall(t *testing.T) {
 		install: []skills.Result{{Target: "claude", Skill: "tsunagi-free", State: "installed"}},
 	}
 	m := newTestApp(t, be, false)
-	press(m, "3") // Skills
+	choose(m, "skills")
 	v := viewText(m)
 	if !strings.Contains(v, "Claude Code") || !strings.Contains(v, "Codex") {
 		t.Fatalf("skills screen missing targets:\n%s", v)
@@ -497,7 +506,7 @@ func TestSkillsForeignSkippedShown(t *testing.T) {
 		install: []skills.Result{{Target: "claude", Skill: "tsunagi-free", State: "skipped", Reason: "foreign"}},
 	}
 	m := newTestApp(t, be, false)
-	press(m, "3")
+	choose(m, "skills")
 	enter(m)
 	for i := 0; i < 5 && !strings.Contains(viewText(m), "Done"); i++ {
 		enter(m)
@@ -529,7 +538,7 @@ func TestSmallTerminalNoWideLines(t *testing.T) {
 func TestMonoThemeNoColorEscapes(t *testing.T) {
 	be := &fakeBackend{snap: snapBase()}
 	m := newTestApp(t, be, false)
-	press(m, "2")
+	choose(m, "providers")
 	for _, line := range strings.Split(m.View().Content, "\n") {
 		if strings.Contains(line, "\x1b[") {
 			t.Fatalf("color escape in mono theme: %q", line)
@@ -567,13 +576,14 @@ func TestChatGPTCancel(t *testing.T) {
 		},
 	}
 	m := newTestApp(t, be, false)
-	press(m, "2")
-	choose(m, "chatgpt") // opens the sign-in
+	choose(m, "chatgpt") // opens the detail card
+	enter(m)             // Sign in
 	<-started
 	if !strings.Contains(viewText(m), "signing in") {
 		t.Fatalf("expected chat spinner:\n%s", viewText(m))
 	}
-	esc(m) // cancel -> back to list
+	esc(m) // cancel -> back to list (default chip is Free, chatgpt is hidden)
+	key(m, tea.KeyLeft, "")
 	if !strings.Contains(viewText(m), "chatgpt") {
 		t.Fatalf("expected providers list after cancel:\n%s", viewText(m))
 	}
