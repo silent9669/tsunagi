@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/silent9669/tsunagi/internal/catalog"
@@ -29,6 +30,21 @@ type FreeConfig struct {
 	AllowTrains []string `json:"allow_trains,omitempty"`
 }
 
+// UIConfig holds appearance settings for the interactive interface. The
+// valid look and theme names mirror internal/tui.
+type UIConfig struct {
+	Look  string `json:"look,omitempty"`
+	Theme string `json:"theme,omitempty"`
+	Anim  *bool  `json:"anim,omitempty"`
+}
+
+// uiLooks and uiThemes are the accepted values for the ui config keys; they
+// mirror art.Looks and tui.ThemeNames.
+var (
+	uiLooks  = []string{"braille", "dither", "halftone", "bricks", "gradient"}
+	uiThemes = []string{"mono", "amber", "matrix", "newsprint", "colour"}
+)
+
 type Config struct {
 	Default string
 	// Aliases rewrite a model name before routing, e.g. "fast" or the
@@ -40,6 +56,8 @@ type Config struct {
 	Tiers map[string]string
 	// Free holds free-model settings.
 	Free FreeConfig
+	// UI holds appearance settings for the interactive interface.
+	UI UIConfig
 	// Providers are the built-in ones plus the user's own.
 	Providers []provider.Provider
 	// Catalog holds providers from the synced models.dev list that are not in
@@ -59,6 +77,7 @@ type file struct {
 	Combos    map[string]Combo    `json:"combos"`
 	Tiers     map[string]string   `json:"tiers"`
 	Free      FreeConfig          `json:"free"`
+	UI        UIConfig            `json:"ui"`
 }
 
 // Path is ~/.config/tsunagi/config.json.
@@ -252,9 +271,16 @@ func LoadFrom(path string) (Config, error) {
 			return cfg, fmt.Errorf("%s: free.allow_trains entry %q is not a valid provider name", path, name)
 		}
 	}
+	if f.UI.Look != "" && !slices.Contains(uiLooks, f.UI.Look) {
+		return cfg, fmt.Errorf("%s: ui.look must be one of %s", path, strings.Join(uiLooks, ", "))
+	}
+	if f.UI.Theme != "" && !slices.Contains(uiThemes, f.UI.Theme) {
+		return cfg, fmt.Errorf("%s: ui.theme must be one of %s", path, strings.Join(uiThemes, ", "))
+	}
 	cfg.Combos = f.Combos
 	cfg.Tiers = f.Tiers
 	cfg.Free = f.Free
+	cfg.UI = f.UI
 	return cfg, nil
 }
 

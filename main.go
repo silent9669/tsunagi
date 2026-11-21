@@ -44,6 +44,7 @@ func commandList() []command {
 		{"wait", "Sessions", "block until a session finishes a turn", "tsunagi wait [--session <id>] [--timeout 30m]", cmdWait},
 		{"done", "Sessions", "record that this session finished", "tsunagi done <summary>", cmdDone},
 		{"statusline", "Info", "one-line status for Claude Code's status line", "tsunagi statusline   (reads Claude Code's JSON on stdin)", cmdStatusline},
+		{"look", "Info", "preview the interface art style and theme", "tsunagi look [--style <look>] [--theme <theme>] [--static]", cmdLook},
 		{"completion", "Info", "shell completion script", "tsunagi completion zsh|bash|fish", cmdCompletion},
 		{"version", "Info", "print the version", "tsunagi version", func(t *ui.Term, _ []string) int { t.Printf("tsunagi %s\n", version); return 0 }},
 		{"help", "Info", "show help, for one command with: help <command>", "tsunagi help [command]", cmdHelp},
@@ -61,6 +62,17 @@ func globalFlags(t *ui.Term, args []string) []string {
 			t.Color, t.True, t.Anim = false, false, false
 		case "--no-anim":
 			t.Anim = false
+		case "--look", "--theme":
+			if len(args) < 2 {
+				return args[1:]
+			}
+			if args[0] == "--look" {
+				lookFlagLook = args[1]
+			} else {
+				lookFlagTheme = args[1]
+			}
+			args = args[2:]
+			continue
 		default:
 			return args
 		}
