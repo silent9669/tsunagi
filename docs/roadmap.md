@@ -12,7 +12,7 @@
 - [x] Launcher that starts the router and runs Claude Code with the base URL scoped to that process
 - [x] Verified with a real claude.ai login on 2026-11-21: `tsunagi claude -p` answered through the router and every request was logged as provider `claude`, status 200
 - [ ] `/model` switch in a live session: Claude to `openrouter/inclusionai/ling-3.2-flash:free` was accepted and a request reached OpenRouter (200); switching back to Claude and a tool call on the non-Claude model were not checked live
-- [ ] Claude Code saves a `/model` choice as the default in `~/.claude/settings.json`, so a switch to a non-Claude model in a tsunagi session is inherited by later sessions, including Claude Desktop's. Find a way to scope it (or restore the key on exit) without managing the user's Claude settings; until then switch back with `/model` before quitting
+- [x] Claude Code saves a `/model` choice as the default in `~/.claude/settings.json`, which Desktop and other sessions share. `internal/claudeguard` restores the saved value within ~100 ms when a non-Claude model is written there, edits only the `model` member in place, and repairs after a killed tsunagi. Verified with real Claude Code on 2026-11-21: the session kept the OpenRouter model, `settings.json` stayed `sonnet`, byte-identical after exit
 
 ## Phase 2a: catalogue and opencode import
 

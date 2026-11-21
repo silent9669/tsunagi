@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/silent9669/tsunagi/internal/catalog"
+	"github.com/silent9669/tsunagi/internal/claudeguard"
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/events"
 	"github.com/silent9669/tsunagi/internal/router"
@@ -127,6 +128,7 @@ func launch(t *ui.Term, args []string, splash bool) int {
 	if err := cmd.Start(); err != nil {
 		return fail(t, "%v", err)
 	}
+	guard := startModelGuard(cfg)
 	go func() {
 		for s := range sigs {
 			if s != syscall.SIGINT {
@@ -135,6 +137,7 @@ func launch(t *ui.Term, args []string, splash bool) int {
 		}
 	}()
 	err = cmd.Wait()
+	guard.Stop()
 	var ee *exec.ExitError
 	switch {
 	case err == nil:
@@ -193,4 +196,44 @@ func withoutEnv(env []string, name string) []string {
 		}
 	}
 	return out
+}
+
+// startModelGuard keeps `/model` choices made in this session out of the
+// user's Claude Code settings, which Claude Desktop and other sessions share
+// (see internal/claudeguard). It first repairs what a killed tsunagi left.
+func startModelGuard(cfg config.Config) *claudeguard.Guard {
+	if os.Getenv("TSUNAGI_NO_MODEL_GUARD") != "" {
+		return claudeguard.Start("", "", nil)
+	}
+	state, err := events.Dir()
+	if err != nil {
+		state = ""
+	}
+	external := routedAway(cfg)
+	if state != "" {
+		claudeguard.Recover(state, external)
+	}
+	return claudeguard.Start(claudeguard.SettingsPath(), state, external)
+}
+
+// routedAway reports whether a model name saved in Claude's settings is one
+// tsunagi sends to another provider: a provider/model pair, or one of the
+// user's own combo or alias names. Claude's own names never are.
+func routedAway(cfg config.Config) func(string) bool {
+	return func(m string) bool {
+		base := strings.TrimSuffix(m, "[1m]")
+		switch {
+		case strings.HasPrefix(m, "arn:"), strings.HasPrefix(m, "claude-"):
+			return false
+		case strings.Contains(m, "/"):
+			return true
+		}
+		switch base {
+		case "default", "best", "fable", "opus", "sonnet", "haiku", "opusplan":
+			return false
+		}
+		_, alias := cfg.Aliases[m]
+		_, combo := cfg.Combos[m]
+		return alias || combo
+	}
 }

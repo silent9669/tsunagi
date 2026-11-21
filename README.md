@@ -101,7 +101,7 @@ And the model switch:
 
 Claude Code prints a "does not recognize the model" notice for non-Claude names and assumes a 200k context window. The notice is cosmetic.
 
-Claude Code saves `/model` choices as your default in `~/.claude/settings.json`. After switching to a non-Claude model, switch back with `/model` before you quit, or later sessions (Claude Desktop too) will try to use that model.
+Claude Code saves every `/model` choice as your default in `~/.claude/settings.json`, which Claude Desktop and your other sessions share. While a tsunagi session runs, tsunagi puts that one value back whenever a non-Claude model is written there (the running session keeps its model), so your default never ends up pointing at another provider. It edits only the `model` member in place. `TSUNAGI_NO_MODEL_GUARD=1` turns it off.
 
 Display modes: `--plain`, `--no-color` and `--no-anim` before a command; `--json` on `providers`, `accounts`, `usage`, `sessions` and `models`; `tsunagi watch` is a dashboard, `watch --log` prints one line per request (pipeable), `watch --json` streams events. `TSUNAGI_STATUSLINE=1` also puts a one-line tsunagi status in Claude Code's status line (it replaces your own). `tsunagi doctor` checks the setup, `tsunagi look [--style <look>] [--theme <theme>]` previews the art style and color theme (`--static` prints one frame), `tsunagi completion zsh|bash|fish` prints a completion script, `make e2e` runs a real Claude Code against a fake gateway. `TSUNAGI_NO_HOOK=1` and `TSUNAGI_NO_PLUGIN=1` turn off the Stop hook and the slash commands.
 
