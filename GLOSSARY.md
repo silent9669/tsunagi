@@ -51,3 +51,11 @@ _Avoid_: adapter, shim
 **Hand-off**:
 Sending a finished plan from a normal Claude session into a tsunagi Session and getting a completion message back.
 _Avoid_: delegation, relay
+
+**Free offer**:
+A verified way a provider serves models at no cost, either per-model (`models` mode) or as a rate-limited tier covering every model (`tier` mode). Listed by `tsunagi free`.
+_Avoid_: free tier (when ambiguous), trial
+
+**Data policy**:
+What a provider's own documents say it does with free-plan prompts: `private` (not used for training), `trains` (may train; needs `tsunagi free allow`), or `unknown` (never routed into free/auto).
+_Avoid_: privacy label, retention policy

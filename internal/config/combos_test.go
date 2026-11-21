@@ -63,6 +63,29 @@ func TestComboValidation(t *testing.T) {
 	}
 }
 
+func TestFreeConfigAndComboAuto(t *testing.T) {
+	p := writeConfig(t, `{
+		"combos": {"free/auto": {"targets": ["a/b"], "auto": true}},
+		"free": {"allow_trains": ["openrouter", "google"]}
+	}`)
+	cfg, err := LoadFrom(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Combos["free/auto"].Auto {
+		t.Fatal("auto flag not parsed")
+	}
+	if len(cfg.Free.AllowTrains) != 2 || cfg.Free.AllowTrains[0] != "openrouter" {
+		t.Fatalf("allow_trains = %+v", cfg.Free.AllowTrains)
+	}
+
+	// an invalid provider name in allow_trains is rejected
+	p = writeConfig(t, `{"free":{"allow_trains":["Bad Name!"]}}`)
+	if _, err := LoadFrom(p); err == nil || !strings.Contains(err.Error(), "free.allow_trains") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestSetKeyPreservesOtherKeys(t *testing.T) {
 	p := writeConfig(t, `{
 		"default": "opencode",

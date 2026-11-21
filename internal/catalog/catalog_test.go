@@ -32,8 +32,8 @@ func TestParse(t *testing.T) {
 	for _, e := range es {
 		got[e.ID] = e
 	}
-	if len(got) != 4 {
-		t.Fatalf("want acme, kimi, oa, cerebras; got %v", got)
+	if len(got) != 5 {
+		t.Fatalf("want acme, kimi, oa, cerebras and caps-only azure; got %v", got)
 	}
 	if got["acme"].Dialect != "openai-chat" || got["acme"].Models[0] != "a" {
 		t.Fatalf("acme = %+v", got["acme"])
@@ -44,6 +44,11 @@ func TestParse(t *testing.T) {
 	if got["cerebras"].API != "https://api.cerebras.ai/v1" {
 		t.Fatalf("default api: %+v", got["cerebras"])
 	}
+	// an unmapped npm package stays for its capabilities but has no Dialect,
+	// so it can never become a routable provider
+	if got["azure"].Dialect != "" {
+		t.Fatalf("azure dialect = %q", got["azure"].Dialect)
+	}
 }
 
 func TestSyncWritesCacheThatLoads(t *testing.T) {
@@ -52,10 +57,10 @@ func TestSyncWritesCacheThatLoads(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(sample)) }))
 	defer srv.Close()
 	n, err := Sync(srv.Client(), srv.URL)
-	if err != nil || n != 4 {
+	if err != nil || n != 5 {
 		t.Fatalf("n=%d err=%v", n, err)
 	}
-	if len(Load()) != 4 {
+	if len(Load()) != 5 {
 		t.Fatalf("load = %v", Load())
 	}
 	if len(LoadFrom(filepath.Join(t.TempDir(), "none.json"))) != 0 {

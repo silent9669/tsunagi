@@ -324,6 +324,58 @@ func TestComboCircuitOpensThenHalfOpens(t *testing.T) {
 	}
 }
 
+func TestComboAllCircuitsOpenStillTriesSoonest(t *testing.T) {
+	e := setup(t)
+	up, hits := newScript(t, func(hit int32) (int, string) {
+		if hit <= 4 {
+			return 500, `{"error":"boom"}`
+		}
+		return 200, `{"ok":true}`
+	})
+	e.rt.Providers["opencode"] = provider.Provider{Name: "opencode", BaseURL: up.URL, Dialect: provider.Anthropic}
+	e.rt.Key = func(_ provider.Provider, acct string) (string, error) { return "k-" + acct, nil }
+	e.rt.Combos = map[string]Combo{
+		"free/auto": {Targets: []string{"opencode/m1"}},
+	}
+	post := func() *http.Response { return e.post(t, "/v1/messages", `{"model":"free/auto","messages":[]}`, nil) }
+
+	// three failures open the circuit on the sole target
+	for i := 0; i < 3; i++ {
+		resp := post()
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 500 {
+			t.Fatalf("request %d: status %d", i+1, resp.StatusCode)
+		}
+		<-e.events
+	}
+	if !e.rt.circuitOpen("opencode/m1") {
+		t.Fatal("circuit did not open")
+	}
+
+	// still cooling, but the combo is not blacked out: the request reaches the
+	// upstream and gets its real error, not the 400 "no usable target"
+	resp := post()
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 500 || string(b) != `{"error":"boom"}` || hits.Load() != 4 {
+		t.Fatalf("status %d body %q hits %d", resp.StatusCode, b, hits.Load())
+	}
+	<-e.events
+
+	// a forced attempt that succeeds closes the circuit again
+	resp = post()
+	b, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || string(b) != `{"ok":true}` || hits.Load() != 5 {
+		t.Fatalf("status %d body %q hits %d", resp.StatusCode, b, hits.Load())
+	}
+	if e.rt.circuitOpen("opencode/m1") {
+		t.Fatal("circuit still open after a successful forced attempt")
+	}
+	<-e.events
+}
+
 func TestComboFastestOrdersByLatency(t *testing.T) {
 	var mu sync.Mutex
 	cur := time.Now()

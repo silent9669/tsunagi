@@ -17,6 +17,16 @@ import (
 type Combo struct {
 	Targets  []string `json:"targets"`
 	Strategy string   `json:"strategy,omitempty"` // priority (default), fastest, round_robin
+	// Auto marks a combo tsunagi generated (free/auto); only those are ever
+	// regenerated, user-written combos are never touched.
+	Auto bool `json:"auto,omitempty"`
+}
+
+// FreeConfig holds settings for the free-model commands.
+type FreeConfig struct {
+	// AllowTrains names registry providers whose data policy is "trains" that
+	// the user explicitly allows in free/auto.
+	AllowTrains []string `json:"allow_trains,omitempty"`
 }
 
 type Config struct {
@@ -28,6 +38,8 @@ type Config struct {
 	Combos map[string]Combo
 	// Tiers maps a Claude tier (opus, sonnet, haiku) to a model or combo.
 	Tiers map[string]string
+	// Free holds free-model settings.
+	Free FreeConfig
 	// Providers are the built-in ones plus the user's own.
 	Providers []provider.Provider
 	// Catalog holds providers from the synced models.dev list that are not in
@@ -46,6 +58,7 @@ type file struct {
 	Models    map[string]string   `json:"models"`
 	Combos    map[string]Combo    `json:"combos"`
 	Tiers     map[string]string   `json:"tiers"`
+	Free      FreeConfig          `json:"free"`
 }
 
 // Path is ~/.config/tsunagi/config.json.
@@ -68,7 +81,9 @@ func Load() (Config, error) {
 		known[p.Name] = true
 	}
 	for _, e := range catalog.Load() {
-		if !known[e.ID] {
+		// Entries with an empty Dialect are capabilities-only: models.dev
+		// providers tsunagi cannot speak to never become routable providers.
+		if e.Dialect != "" && !known[e.ID] {
 			cfg.Catalog = append(cfg.Catalog, e.Provider())
 		}
 	}
@@ -232,8 +247,14 @@ func LoadFrom(path string) (Config, error) {
 			return cfg, fmt.Errorf("%s: tier %q must be opus, sonnet or haiku", path, tier)
 		}
 	}
+	for _, name := range f.Free.AllowTrains {
+		if !provider.ValidName(name) {
+			return cfg, fmt.Errorf("%s: free.allow_trains entry %q is not a valid provider name", path, name)
+		}
+	}
 	cfg.Combos = f.Combos
 	cfg.Tiers = f.Tiers
+	cfg.Free = f.Free
 	return cfg, nil
 }
 

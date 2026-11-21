@@ -14,7 +14,8 @@ const capsSample = `{
    "plain":{"tool_call":false,"limit":{"context":32000}},
    "bare":{}
  }},
- "oa":{"name":"OA","api":"https://oa.example/v1","npm":"@ai-sdk/openai","models":{"r":{"tool_call":true,"limit":{"context":400000}}}}
+ "oa":{"name":"OA","api":"https://oa.example/v1","npm":"@ai-sdk/openai","models":{"r":{"tool_call":true,"limit":{"context":400000}}}},
+ "goog":{"name":"G","api":"https://g.example/v1","npm":"@ai-sdk/google","models":{"m":{"tool_call":true,"limit":{"context":1000}}}}
 }`
 
 func TestParseCapabilities(t *testing.T) {
@@ -47,6 +48,20 @@ func TestParseCapabilities(t *testing.T) {
 	if len(acme.Models) != 3 {
 		t.Fatalf("models = %v", acme.Models)
 	}
+
+	// a provider whose npm package maps to no Dialect stays caps-only
+	var goog *Entry
+	for i := range es {
+		if es[i].ID == "goog" {
+			goog = &es[i]
+		}
+	}
+	if goog == nil || goog.Dialect != "" {
+		t.Fatalf("goog = %+v", goog)
+	}
+	if mi, ok := goog.Caps["m"]; !ok || !mi.Tools || mi.Context != 1000 {
+		t.Fatalf("goog caps = %+v ok=%v", mi, ok)
+	}
 }
 
 func TestOldCacheWithoutCapsLoads(t *testing.T) {
@@ -76,6 +91,11 @@ func TestCapsLookup(t *testing.T) {
 	}
 	if mi.In == nil || *mi.In != 0.5 {
 		t.Fatalf("cost = %+v", mi)
+	}
+	// an unmapped provider's capabilities still resolve even though it can
+	// never become a routable provider
+	if mi, ok := Caps("goog", "m"); !ok || !mi.Tools || mi.Context != 1000 {
+		t.Fatalf("goog caps = %+v ok=%v", mi, ok)
 	}
 	if _, ok := Caps("acme", "missing"); ok {
 		t.Fatal("unknown model reported caps")

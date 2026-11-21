@@ -84,20 +84,26 @@ func Parse(body []byte) ([]Entry, error) {
 	}
 	var out []Entry
 	for id, p := range raw {
-		d, ok := provider.DialectForPackage(p.NPM)
 		// Claude has its own route. Ids with dots or other odd characters could
 		// imitate "<provider>.<label>" account names, so they are not accepted.
-		if !ok || id == "anthropic" || !provider.ValidName(id) {
+		if id == "anthropic" || !provider.ValidName(id) {
 			continue
 		}
 		api := p.API
 		if api == "" {
 			api = defaultAPI[id]
 		}
-		if !safeEndpoint(api) {
-			continue
+		d, ok := provider.DialectForPackage(p.NPM)
+		e := Entry{ID: id, Name: p.Name, API: api, Env: p.Env}
+		if ok {
+			// Providers whose package has no known Dialect stay in the cache
+			// with an empty one: they can never become a routable Provider, but
+			// their model capabilities still answer catalog.Caps.
+			if !safeEndpoint(api) {
+				continue
+			}
+			e.Dialect = string(d)
 		}
-		e := Entry{ID: id, Name: p.Name, API: api, Dialect: string(d), Env: p.Env}
 		for m, mm := range p.Models {
 			e.Models = append(e.Models, m)
 			mi := ModelInfo{Tools: mm.ToolCall, Context: mm.Limit.Context, Output: mm.Limit.Output, In: mm.Cost.Input, Out: mm.Cost.Output}

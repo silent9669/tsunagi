@@ -54,6 +54,12 @@ tsunagi sessions              # running sessions; `tsunagi handoff` shows how to
 tsunagi usage                 # tokens per account, plus balances where the provider shows them
 tsunagi ping --tool <model>   # one real test request through the router (add --tool to test tool calls)
 tsunagi route <model>         # how a name would route: combo targets, skips, circuit state (--tools --tokens N --json)
+tsunagi free [--all]          # providers with a verified free offer, limits and data policy (--json)
+tsunagi free <provider>       # its free models, then signup/key/source facts
+tsunagi free probe|combo      # probe candidates, then write the free/auto combo (--no-probe --dry-run)
+tsunagi free refresh          # re-read the public free-model lists
+tsunagi free allow|deny <p>   # opt a "trains" provider into free/auto or out
+
 tsunagi watch                 # live traffic from every session: accounts, tokens, failovers, a sparkline; run it in a second tab
 ```
 
@@ -79,7 +85,7 @@ Claude Code prints a "does not recognize the model" notice for non-Claude names 
 
 Display modes: `--plain`, `--no-color` and `--no-anim` before a command; `--json` on `providers`, `accounts`, `usage`, `sessions` and `models`; `tsunagi watch` is a dashboard, `watch --log` prints one line per request (pipeable), `watch --json` streams events. `TSUNAGI_STATUSLINE=1` also puts a one-line tsunagi status in Claude Code's status line (it replaces your own). `tsunagi doctor` checks the setup, `tsunagi completion zsh|bash|fish` prints a completion script, `make e2e` runs a real Claude Code against a fake gateway. `TSUNAGI_NO_HOOK=1` and `TSUNAGI_NO_PLUGIN=1` turn off the Stop hook and the slash commands.
 
-Any key skips the intro animation. Set `TSUNAGI_NO_ANIM=1` to turn animation off, or `NO_COLOR=1` for plain text. Extra providers go in `~/.config/tsunagi/config.json` (`name`, `base_url`, `dialect`). The same file takes `"models": {"claude-haiku-5-5": "opencode/glm-5.3", "fast": "deepseek/deepseek-v4-flash"}` to rewrite a model name before routing, for example to send Claude Code's background haiku calls to a cheaper provider. `"combos"` names a set of `provider/model` targets one model name fans out to — `"free/auto": {"targets": ["opencode/big-pickle", "openrouter/qwen/qwen3-coder:free"], "strategy": "priority"}` with `priority`, `fastest` or `round_robin` — and `"tiers"` maps `opus`, `sonnet` or `haiku` to a model or combo. Combo targets that cannot serve a request (no key, no tool calling, context too small, circuit open) are skipped with a reason; `tsunagi route` shows the plan without sending anything. Any provider in the catalogue works as `/model <provider>/<model>` once it has a key; OAuth logins in opencode cannot be imported.
+Any key skips the intro animation. Set `TSUNAGI_NO_ANIM=1` to turn animation off, or `NO_COLOR=1` for plain text. Extra providers go in `~/.config/tsunagi/config.json` (`name`, `base_url`, `dialect`). The same file takes `"models": {"claude-haiku-5-5": "opencode/glm-5.3", "fast": "deepseek/deepseek-v4-flash"}` to rewrite a model name before routing, for example to send Claude Code's background haiku calls to a cheaper provider. `"combos"` names a set of `provider/model` targets one model name fans out to — `"free/auto": {"targets": ["opencode/big-pickle", "openrouter/qwen/qwen3-coder:free"], "strategy": "priority"}` with `priority`, `fastest` or `round_robin` — and `"tiers"` maps `opus`, `sonnet` or `haiku` to a model or combo. Combo targets that cannot serve a request (no key, no tool calling, context too small, circuit open) are skipped with a reason; `tsunagi route` shows the plan without sending anything. `tsunagi free` lists providers with a verified free offer — see [docs/free.md](docs/free.md) — and `tsunagi free combo` builds `free/auto` from probed candidates; providers whose free tier may train on prompts need `tsunagi free allow <provider>` first. Any provider in the catalogue works as `/model <provider>/<model>` once it has a key; OAuth logins in opencode cannot be imported.
 
 ## Documents
 

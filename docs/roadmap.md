@@ -77,6 +77,15 @@
 - [x] `tsunagi route <model> [--tools] [--tokens N] [--json]` previews the plan with no network
 - [x] Events carry `via`/`why`; `watch --log` shows them
 
+## Phase 6: free models
+
+- [x] Provider registry of verified free offers with data-policy labels, sources and check dates (`internal/free/registry.go`)
+- [x] Public free-model discovery for OpenRouter and OpenCode Zen, cached 6h (`tsunagi free`, `free refresh`)
+- [x] Tier-mode candidates from the live `/models` list intersected with catalogue capabilities; unmapped providers (e.g. google) contribute caps without becoming routable
+- [x] Probe results cache (7-day freshness) and the `free/auto` builder: data-policy gate, probe gate, max 3 per provider
+- [x] `tsunagi free probe|combo|allow|deny`, combo `"auto"` flag, `free.allow_trains` config
+- [ ] Live check of each provider's free path
+
 ## Test checklist
 
 - Claude request through the router is byte-identical to a direct request.

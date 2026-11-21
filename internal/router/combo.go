@@ -349,6 +349,41 @@ func (rt *Router) circuitGate(hk string) (allowed, probe bool) {
 	return true, true
 }
 
+// circuitPassable reports whether the gate would let an attempt through now,
+// without claiming a probe.
+func (rt *Router) circuitPassable(hk string) bool {
+	rt.cstate.mu.Lock()
+	defer rt.cstate.mu.Unlock()
+	s := rt.cstate.health[hk]
+	if s == nil || !s.open {
+		return true
+	}
+	return !rt.clock().Before(s.since.Add(s.backoff)) && !s.probe
+}
+
+// circuitRetryAt is when an open target's cooldown ends; the zero time when
+// the circuit is closed.
+func (rt *Router) circuitRetryAt(hk string) time.Time {
+	rt.cstate.mu.Lock()
+	defer rt.cstate.mu.Unlock()
+	s := rt.cstate.health[hk]
+	if s == nil || !s.open {
+		return time.Time{}
+	}
+	return s.since.Add(s.backoff)
+}
+
+// forceProbe marks an open target's next attempt as its half-open probe,
+// ignoring the cooldown. serveCombo uses it when every target is cooling: a
+// transient failure streak must not black out the combo.
+func (rt *Router) forceProbe(hk string) {
+	rt.cstate.mu.Lock()
+	defer rt.cstate.mu.Unlock()
+	if s := rt.cstate.health[hk]; s != nil && s.open {
+		s.probe = true
+	}
+}
+
 // probeSettle releases a probe marker when an attempt ended without a health
 // note (for example an early local error), so the next request can probe.
 func (rt *Router) probeSettle(hk string) {
@@ -424,16 +459,44 @@ func (rt *Router) serveCombo(rec *recorder, r *http.Request, body []byte, model,
 		}
 	}
 
+	// When every eligible target is cooling, don't black out the combo: force
+	// one attempt on the target whose cooldown ends soonest, delivered as-is.
+	forced := -1
+	passable := false
+	for _, tp := range ordered {
+		if rt.circuitPassable(tp.hk) {
+			passable = true
+			break
+		}
+	}
+	if !passable {
+		var soonest time.Time
+		for i, tp := range ordered {
+			at := rt.circuitRetryAt(tp.hk)
+			if forced == -1 || at.Before(soonest) {
+				forced, soonest = i, at
+			}
+		}
+	}
+
 	var tried []string
 	servedBy := ""
 	for i, tp := range ordered {
-		allowed, probe := rt.circuitGate(tp.hk)
-		if !allowed {
-			reasons[tp.target] = "circuit open"
-			continue
+		probe := false
+		soft := i != lastIdx
+		if i == forced {
+			rt.forceProbe(tp.hk)
+			probe, soft = true, false
+		} else {
+			var allowed bool
+			allowed, probe = rt.circuitGate(tp.hk)
+			if !allowed {
+				reasons[tp.target] = "circuit open"
+				continue
+			}
 		}
 		d := decision{provider: tp.name, label: tp.label, model: tp.model}
-		delivered, status := rt.forwardProvider(rec, r, body, model, d, i != lastIdx, tp.hk)
+		delivered, status := rt.forwardProvider(rec, r, body, model, d, soft, tp.hk)
 		if probe {
 			rt.probeSettle(tp.hk)
 		}

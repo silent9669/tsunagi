@@ -38,54 +38,23 @@ func cmdPing(t *ui.Term, args []string) int {
 	if err != nil {
 		return fail(t, "%v", err)
 	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	host, token, stop, err := probeRouter(cfg)
 	if err != nil {
 		return fail(t, "%v", err)
 	}
-	token, err := randomToken()
-	if err != nil {
-		return fail(t, "%v", err)
-	}
-	host := ln.Addr().String()
-	rt := newRouter(cfg, host, token)
-	if dir, err := events.Dir(); err == nil {
-		if w, err := events.NewWriter(dir); err == nil {
-			defer w.Close()
-			rt.OnEvent = w.Write
-		}
-	}
-	srv := &http.Server{Handler: rt, ReadHeaderTimeout: 10 * time.Second}
-	go srv.Serve(ln)
-	defer srv.Close()
-
-	req := map[string]any{
-		"model": model, "max_tokens": 128, "stream": true,
-		"messages": []any{map[string]any{"role": "user", "content": "Reply with the single word: ok"}},
-	}
-	if withTool {
-		req["messages"] = []any{map[string]any{"role": "user", "content": "Call the echo tool with text set to hi."}}
-		req["tools"] = []any{map[string]any{
-			"name": "echo", "description": "Echo some text",
-			"input_schema": map[string]any{"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}}, "required": []string{"text"}},
-		}}
-	}
-	body, _ := json.Marshal(req)
+	defer stop()
 
 	sp := t.Spin(model)
-	start := time.Now()
 	client := &http.Client{Timeout: 2 * time.Minute}
-	resp, err := client.Post("http://"+host+"/"+token+"/v1/messages", "application/json", bytes.NewReader(body))
-	if err != nil {
-		sp.Stop(false, err.Error())
+	status, res, ms := probeSend(client, host, token, model, withTool)
+	if status == 0 {
+		sp.Stop(false, res.err)
 		return 1
 	}
-	defer resp.Body.Close()
-	res := readReply(resp.Body)
-	ms := time.Since(start).Milliseconds()
-	if resp.StatusCode != 200 || res.err != "" {
+	if status != 200 || res.err != "" {
 		msg := res.err
 		if msg == "" {
-			msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
+			msg = fmt.Sprintf("HTTP %d", status)
 		}
 		sp.Stop(false, fmt.Sprintf("%s (%d ms)", msg, ms))
 		return 1
@@ -99,6 +68,56 @@ func cmdPing(t *ui.Term, args []string) int {
 		t.Printf("  %s %s\n", t.Dim("tool"), c)
 	}
 	return 0
+}
+
+// probeRouter starts cfg's router on a loopback port for one-off probes and
+// returns its host and token plus a cleanup func.
+func probeRouter(cfg config.Config) (host, token string, stop func(), err error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", "", nil, err
+	}
+	token, err = randomToken()
+	if err != nil {
+		ln.Close()
+		return "", "", nil, err
+	}
+	host = ln.Addr().String()
+	rt := newRouter(cfg, host, token)
+	if dir, err := events.Dir(); err == nil {
+		if w, err := events.NewWriter(dir); err == nil {
+			rt.OnEvent = w.Write
+		}
+	}
+	srv := &http.Server{Handler: rt, ReadHeaderTimeout: 10 * time.Second}
+	go srv.Serve(ln)
+	return host, token, func() { srv.Close() }, nil
+}
+
+// probeSend posts one streamed /v1/messages request for model through the
+// router at host/token and returns the status, the parsed reply and the
+// elapsed milliseconds. With withTool the request also offers a tool, the way
+// Claude Code uses models.
+func probeSend(client *http.Client, host, token, model string, withTool bool) (int, reply, int64) {
+	req := map[string]any{
+		"model": model, "max_tokens": 128, "stream": true,
+		"messages": []any{map[string]any{"role": "user", "content": "Reply with the single word: ok"}},
+	}
+	if withTool {
+		req["messages"] = []any{map[string]any{"role": "user", "content": "Call the echo tool with text set to hi."}}
+		req["tools"] = []any{map[string]any{
+			"name": "echo", "description": "Echo some text",
+			"input_schema": map[string]any{"type": "object", "properties": map[string]any{"text": map[string]any{"type": "string"}}, "required": []string{"text"}},
+		}}
+	}
+	body, _ := json.Marshal(req)
+	start := time.Now()
+	resp, err := client.Post("http://"+host+"/"+token+"/v1/messages", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return 0, reply{err: err.Error()}, time.Since(start).Milliseconds()
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode, readReply(resp.Body), time.Since(start).Milliseconds()
 }
 
 type reply struct {
