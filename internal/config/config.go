@@ -17,7 +17,10 @@ import (
 // Combo is an ordered list of provider/model targets tried in turn.
 type Combo struct {
 	Targets  []string `json:"targets"`
-	Strategy string   `json:"strategy,omitempty"` // priority (default), fastest, round_robin
+	Strategy string   `json:"strategy,omitempty"` // priority (default), fastest, round_robin, ...
+	// Weights biases the weighted strategy; keyed by the exact target string,
+	// a missing weight counts as 1. Only valid with strategy "weighted".
+	Weights map[string]int `json:"weights,omitempty"`
 	// Auto marks a combo tsunagi generated (free/auto); only those are ever
 	// regenerated, user-written combos are never touched.
 	Auto bool `json:"auto,omitempty"`
@@ -58,6 +61,13 @@ type Config struct {
 	Tiers map[string]string
 	// ClaudeFallback: see the router; "" means off.
 	ClaudeFallback string
+	// Scenarios reroute a requested claude-* model on what the request asks
+	// for: think, long_context or web_search. Each value is a combo or
+	// provider/model; all off by default.
+	Scenarios map[string]string
+	// ScenarioTokens is the approximate input size over which long_context
+	// triggers; 0 means 60000.
+	ScenarioTokens int
 	// Free holds free-model settings.
 	Free FreeConfig
 	// UI holds appearance settings for the interactive interface.
@@ -82,9 +92,13 @@ type file struct {
 	Tiers     map[string]string   `json:"tiers"`
 	// ClaudeFallback is a combo name or provider/model that takes a chat
 	// request when Anthropic answers it with 429 or 529.
-	ClaudeFallback string     `json:"claude_fallback"`
-	Free           FreeConfig `json:"free"`
-	UI             UIConfig   `json:"ui"`
+	ClaudeFallback string `json:"claude_fallback"`
+	// Scenarios reroute claude-* requests by content; scenario_tokens is the
+	// long_context threshold in approximate tokens (0 means 60000).
+	Scenarios      map[string]string `json:"scenarios"`
+	ScenarioTokens int               `json:"scenario_tokens"`
+	Free           FreeConfig        `json:"free"`
+	UI             UIConfig          `json:"ui"`
 }
 
 // Path is ~/.config/tsunagi/config.json.
@@ -258,9 +272,20 @@ func LoadFrom(path string) (Config, error) {
 			return cfg, fmt.Errorf("%s: combo %q needs at least one target", path, name)
 		}
 		switch c.Strategy {
-		case "", "priority", "fastest", "round_robin", "cheapest", "context", "least_used":
+		case "", "priority", "fastest", "round_robin", "cheapest", "context", "least_used", "weighted", "headroom":
 		default:
-			return cfg, fmt.Errorf("%s: combo %q: strategy must be priority, fastest, round_robin, cheapest, context or least_used", path, name)
+			return cfg, fmt.Errorf("%s: combo %q: strategy must be priority, fastest, round_robin, cheapest, context, least_used, weighted or headroom", path, name)
+		}
+		if len(c.Weights) > 0 && c.Strategy != "weighted" {
+			return cfg, fmt.Errorf("%s: combo %q: weights need strategy weighted", path, name)
+		}
+		for t, w := range c.Weights {
+			if w < 1 {
+				return cfg, fmt.Errorf("%s: combo %q: weight for %q must be at least 1", path, name, t)
+			}
+			if !slices.Contains(c.Targets, t) {
+				return cfg, fmt.Errorf("%s: combo %q: weight for %q which is not a target", path, name, t)
+			}
 		}
 		for _, ts := range c.Targets {
 			if err := checkComboTarget(ts, comboNames); err != nil {
@@ -280,6 +305,22 @@ func LoadFrom(path string) (Config, error) {
 			}
 		}
 	}
+	for sc, v := range f.Scenarios {
+		if sc != "think" && sc != "long_context" && sc != "web_search" {
+			return cfg, fmt.Errorf("%s: scenario %q must be think, long_context or web_search", path, sc)
+		}
+		if v == "" {
+			return cfg, fmt.Errorf("%s: scenario %q needs a target", path, sc)
+		}
+		if _, isCombo := f.Combos[v]; !isCombo {
+			if err := checkComboTarget(v, comboNames); err != nil {
+				return cfg, fmt.Errorf("%s: scenarios.%s: %v", path, sc, err)
+			}
+		}
+	}
+	if f.ScenarioTokens < 0 {
+		return cfg, fmt.Errorf("%s: scenario_tokens must not be negative", path)
+	}
 	for _, name := range f.Free.AllowTrains {
 		if !provider.ValidName(name) {
 			return cfg, fmt.Errorf("%s: free.allow_trains entry %q is not a valid provider name", path, name)
@@ -294,6 +335,8 @@ func LoadFrom(path string) (Config, error) {
 	cfg.Combos = f.Combos
 	cfg.Tiers = f.Tiers
 	cfg.ClaudeFallback = f.ClaudeFallback
+	cfg.Scenarios = f.Scenarios
+	cfg.ScenarioTokens = f.ScenarioTokens
 	cfg.Free = f.Free
 	cfg.UI = f.UI
 	return cfg, nil

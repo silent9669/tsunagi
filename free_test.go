@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/silent9669/tsunagi/internal/catalog"
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/free"
 	"github.com/silent9669/tsunagi/internal/provider"
@@ -115,7 +116,7 @@ func TestFreeTableJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("bad json %q: %v", out, err)
 	}
-	if len(doc.Providers) != 8 {
+	if len(doc.Providers) != 9 {
 		t.Fatalf("providers = %+v", doc.Providers)
 	}
 	var or, cf *struct {
@@ -264,5 +265,49 @@ func TestFreeRefresh(t *testing.T) {
 	snap, ok := free.Load()
 	if !ok || len(snap.Models) != 3 {
 		t.Fatalf("snapshot = %+v ok=%v", snap, ok)
+	}
+}
+
+// TestCatalogFreeCands proves the FromCatalog path: zero-priced catalogue
+// models become candidates, paid or unpriced ones do not.
+func TestCatalogFreeCands(t *testing.T) {
+	zero, price := 0.0, 0.5
+	entries := []catalog.Entry{
+		{ID: "zai", Caps: map[string]catalog.ModelInfo{
+			"glm-4.5-flash": {Tools: true, Context: 131072, In: &zero, Out: &zero},
+			"glm-4.7-flash": {Tools: true, Context: 200000, In: &zero, Out: &zero},
+			"glm-5":         {Tools: true, Context: 204800, In: &price, Out: &price},
+			"unpriced":      {Tools: true, Context: 100},
+			"half":          {In: &zero},
+		}},
+		{ID: "other", Caps: map[string]catalog.ModelInfo{
+			"free-x": {In: &zero, Out: &zero},
+		}},
+	}
+	got := catalogFreeCands(entries, "zai")
+	if len(got) != 2 || got[0].ID != "glm-4.5-flash" || got[1].ID != "glm-4.7-flash" {
+		t.Fatalf("cands = %+v", got)
+	}
+	if got[0].Context != 131072 || got[0].Tools == nil || !*got[0].Tools {
+		t.Fatalf("cand = %+v", got[0])
+	}
+	if n := catalogFreeCands(entries, "other"); len(n) != 1 || n[0].ID != "free-x" {
+		t.Fatalf("other = %+v", n)
+	}
+}
+
+func TestZaiRegistryEntry(t *testing.T) {
+	e, ok := registryEntry("zai")
+	if !ok {
+		t.Fatal("zai missing from the registry")
+	}
+	if e.Mode != free.ModelsMode || !e.FromCatalog || e.Data != free.Private {
+		t.Fatalf("zai entry = %+v", e)
+	}
+	if e.Needs != "" || e.Setup != "" {
+		t.Fatalf("zai entry = %+v", e)
+	}
+	if _, found := free.Excluded["modelscope"]; !found {
+		t.Fatal("modelscope missing from Excluded")
 	}
 }

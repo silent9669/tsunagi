@@ -459,13 +459,16 @@ func (backend) Status() []app.StatusRow {
 
 // Settings returns the routing and appearance values the Settings screen edits.
 func (backend) Settings() app.SettingsView {
-	v := app.SettingsView{Tiers: map[string]string{}, Look: "braille", Theme: "mono", Anim: true}
+	v := app.SettingsView{Tiers: map[string]string{}, Scenarios: map[string]string{}, Look: "braille", Theme: "mono", Anim: true}
 	cfg, err := config.Load()
 	if err != nil {
 		return v
 	}
 	for k, t := range cfg.Tiers {
 		v.Tiers[k] = t
+	}
+	for k, t := range cfg.Scenarios {
+		v.Scenarios[k] = t
 	}
 	for name := range cfg.Combos {
 		v.Combos = append(v.Combos, name)
@@ -502,6 +505,28 @@ func (backend) SetTier(tier, value string) error {
 		return config.SetKey(config.Path(), "tiers", nil)
 	}
 	return config.SetKey(config.Path(), "tiers", tiers)
+}
+
+// SetScenario points a request scenario at a model or combo; an empty value
+// clears it.
+func (backend) SetScenario(name, value string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	sc := map[string]string{}
+	for k, v := range cfg.Scenarios {
+		sc[k] = v
+	}
+	if value == "" {
+		delete(sc, name)
+	} else {
+		sc[name] = value
+	}
+	if len(sc) == 0 {
+		return config.SetKey(config.Path(), "scenarios", nil)
+	}
+	return config.SetKey(config.Path(), "scenarios", sc)
 }
 
 // SetUI saves the look, theme and animation switch.

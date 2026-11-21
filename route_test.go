@@ -67,3 +67,45 @@ func TestRouteCommand(t *testing.T) {
 		t.Fatalf("claude route code %d out %s", code, out)
 	}
 }
+
+func TestRouteScenarioFlags(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	dir := filepath.Join(home, ".config", "tsunagi")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg := `{
+		"scenarios": {"long_context": "ollama/big", "web_search": "ollama/web", "think": "ollama/brain"},
+		"scenario_tokens": 100
+	}`
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// all three scenario signals set: long_context wins the precedence
+	code, out := captureRun(t, "route", "--think", "--web-search", "--tokens", "150", "--json", "claude-sonnet-5-5")
+	if code != 0 {
+		t.Fatalf("code %d out %s", code, out)
+	}
+	if !strings.Contains(out, `"scenario long_context`) || !strings.Contains(out, `"resolved": "ollama/big"`) {
+		t.Fatalf("scenario route out %s", out)
+	}
+
+	// under the token threshold web_search beats think
+	code, out = captureRun(t, "route", "--think", "--web-search", "claude-sonnet-5-5")
+	if code != 0 || !strings.Contains(out, "scenario web_search -> ollama/web") {
+		t.Fatalf("web route code %d out %s", code, out)
+	}
+
+	// think alone fires too; no flags stays on Claude
+	code, out = captureRun(t, "route", "--think", "claude-sonnet-5-5")
+	if code != 0 || !strings.Contains(out, "scenario think -> ollama/brain") {
+		t.Fatalf("think route code %d out %s", code, out)
+	}
+	code, out = captureRun(t, "route", "claude-sonnet-5-5")
+	if code != 0 || strings.Contains(out, "scenario") {
+		t.Fatalf("plain route code %d out %s", code, out)
+	}
+}

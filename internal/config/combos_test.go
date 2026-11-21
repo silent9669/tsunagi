@@ -52,6 +52,14 @@ func TestComboValidation(t *testing.T) {
 		{"claude target", `{"combos":{"c":{"targets":["claude-x/y"]}}}`, `target "claude-x/y" must not start with claude-`},
 		{"nested combo", `{"combos":{"c":{"targets":["d/e"]},"d/e":{"targets":["a/b"]}}}`, `target "d/e" is itself a combo`},
 		{"bad tier", `{"tiers":{"mega":"x"}}`, `tier "mega" must be opus, sonnet or haiku`},
+		{"weights wrong strategy", `{"combos":{"c":{"targets":["a/b"],"weights":{"a/b":2}}}}`, `combo "c": weights need strategy weighted`},
+		{"weight not a target", `{"combos":{"c":{"targets":["a/b"],"strategy":"weighted","weights":{"a/c":2}}}}`, `weight for "a/c" which is not a target`},
+		{"weight too small", `{"combos":{"c":{"targets":["a/b"],"strategy":"weighted","weights":{"a/b":0}}}}`, `weight for "a/b" must be at least 1`},
+		{"bad scenario name", `{"scenarios":{"coding":"a/b"}}`, `scenario "coding" must be think, long_context or web_search`},
+		{"empty scenario", `{"scenarios":{"think":""}}`, `scenario "think" needs a target`},
+		{"claude scenario target", `{"scenarios":{"think":"claude-opus-4-5"}}`, `scenarios.think`},
+		{"bad scenario target", `{"scenarios":{"think":"noslash"}}`, `scenarios.think`},
+		{"negative scenario_tokens", `{"scenario_tokens":-5}`, "scenario_tokens must not be negative"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := writeConfig(t, tc.json)
@@ -60,6 +68,37 @@ func TestComboValidation(t *testing.T) {
 				t.Fatalf("err = %v, want path and %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestScenariosAndWeightsLoad(t *testing.T) {
+	p := writeConfig(t, `{
+		"combos": {
+			"free/auto": {"targets": ["a/b", "c/d"], "strategy": "weighted", "weights": {"a/b": 3}},
+			"big": {"targets": ["e/f"], "strategy": "headroom"}
+		},
+		"scenarios": {"think": "free/auto", "long_context": "e/f", "web_search": "big"},
+		"scenario_tokens": 120000
+	}`)
+	cfg, err := LoadFrom(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := cfg.Combos["free/auto"]
+	if c.Strategy != "weighted" || c.Weights["a/b"] != 3 {
+		t.Fatalf("combo = %+v", c)
+	}
+	if cfg.Combos["big"].Strategy != "headroom" {
+		t.Fatalf("big = %+v", cfg.Combos["big"])
+	}
+	want := map[string]string{"think": "free/auto", "long_context": "e/f", "web_search": "big"}
+	for k, v := range want {
+		if cfg.Scenarios[k] != v {
+			t.Fatalf("scenarios = %+v", cfg.Scenarios)
+		}
+	}
+	if cfg.ScenarioTokens != 120000 {
+		t.Fatalf("scenario_tokens = %d", cfg.ScenarioTokens)
 	}
 }
 

@@ -5,6 +5,7 @@
                       Free
                           opencode                                      trains
                           openrouter                                    trains
+                          zai                                          private
                           groq                                         private
                           google                                        trains
                           cohere                                        trains
@@ -15,7 +16,6 @@
                           chatgpt                                         plan
                       Paid keys
                           opencode-go
-                          zai
                           deepseek
                           moonshot
                           minimax

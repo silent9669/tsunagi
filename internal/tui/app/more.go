@@ -364,6 +364,25 @@ const (
 
 var tierNames = []string{"opus", "sonnet", "haiku"}
 
+// scenarioRows are the request-content reroutes shown below the tiers.
+var scenarioRows = []struct{ label, name string }{
+	{"Thinking", "think"},
+	{"Long context", "long_context"},
+	{"Web search", "web_search"},
+}
+
+// routingTry is the cursor index of "Try a route" in the Routing menu.
+const routingTry = 3 + 3 // tiers + scenario rows
+
+func isScenario(v string) bool {
+	for _, r := range scenarioRows {
+		if v == r.name {
+			return true
+		}
+	}
+	return false
+}
+
 type settingsScreen struct {
 	base
 	stage int
@@ -397,13 +416,20 @@ func (s *settingsScreen) open(stage, cursor int) {
 			{Label: "Back", Value: "back"},
 		}, cursor)
 	case ssRouting:
-		items := make([]tui.Item, 0, 5)
+		items := make([]tui.Item, 0, len(tierNames)+len(scenarioRows)+2)
 		for _, t := range tierNames {
 			v := s.view.Tiers[t]
 			if v == "" {
 				v = "claude"
 			}
 			items = append(items, tui.Item{Label: strings.ToUpper(t[:1]) + t[1:], Value: t, Tag: v})
+		}
+		for _, r := range scenarioRows {
+			v := s.view.Scenarios[r.name]
+			if v == "" {
+				v = "claude"
+			}
+			items = append(items, tui.Item{Label: r.label, Value: r.name, Tag: v})
 		}
 		items = append(items, tui.Item{Label: "Try a route", Value: "try"}, tui.Item{Label: "Back", Value: "back"})
 		s.menu = s.base.menu(items, cursor)
@@ -448,7 +474,7 @@ func (s *settingsScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return s, nil
 		case tui.Cancelled:
-			s.open(ssRouting, 3)
+			s.open(ssRouting, routingTry)
 			return s, nil
 		}
 		return s, cmd
@@ -457,7 +483,7 @@ func (s *settingsScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.menu = nm.(tui.Menu)
 		switch msg.(type) {
 		case tui.Chosen, tui.Quit:
-			s.open(ssRouting, 3)
+			s.open(ssRouting, routingTry)
 			return s, nil
 		}
 		return s, cmd
@@ -511,9 +537,16 @@ func (s *settingsScreen) pick(v string) tea.Cmd {
 			s.in = s.base.input("model name")
 		default:
 			opts := append([]string{""}, s.view.Combos...)
-			next := cycle(opts, s.view.Tiers[v])
-			if err := be.SetTier(v, next); err != nil {
-				s.err = err.Error()
+			if isScenario(v) {
+				next := cycle(opts, s.view.Scenarios[v])
+				if err := be.SetScenario(v, next); err != nil {
+					s.err = err.Error()
+				}
+			} else {
+				next := cycle(opts, s.view.Tiers[v])
+				if err := be.SetTier(v, next); err != nil {
+					s.err = err.Error()
+				}
 			}
 			s.open(ssRouting, cur)
 		}

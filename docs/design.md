@@ -150,17 +150,26 @@ A Tier maps a Claude tier to a model or combo, so Claude Code's own tier names c
 "tiers": {"haiku": "free/auto", "opus": "claude-opus-4-5"}
 ```
 
-Resolution order: an exact `models` alias wins; then, for a `claude-*` name containing `-opus`, `-sonnet` or `-haiku`, the matching tier; then, when the resolved name equals a combo name, combo routing; otherwise the usual Route. A tier value may itself name a Claude model, which rewrites the request's model field on the Claude branch like an alias does.
+Scenarios reroute a requested `claude-*` model on what the request body asks for, each to a combo or `provider/model`:
+
+```json
+"scenarios": {"think": "free/auto", "long_context": "zai/glm-4.7", "web_search": "groq/scout"},
+"scenario_tokens": 60000
+```
+
+`think` matches a `thinking` object whose `type` is not `disabled`, `long_context` an estimated input over `scenario_tokens` (default 60,000, `len(body)/3`), `web_search` a `web_search*` tool. When several match, long context wins, then web search, then thinking; a matching scenario with no configured target falls through. Everything is off by default, an exact alias still wins, and a scenario beats a tier. A request for a non-Claude model is never rerouted.
+
+Resolution order: an exact `models` alias wins; then, for a `claude-*` name, any matching scenario; then a `-opus`, `-sonnet` or `-haiku` tier match; then, when the resolved name equals a combo name, combo routing; otherwise the usual Route. A tier value may itself name a Claude model, which rewrites the request's model field on the Claude branch like an alias does.
 
 A combo target is `provider[@label]/model`. Before a request is sent, each target is checked the same way `tsunagi route` checks it: the provider must exist and be ready, some account must have a usable key or sign-in, and the request must fit the model's capabilities from the catalogue — a request carrying `tools` skips models without tool calling, and an estimated size over the context window skips the target. Unknown capability data is permissive. A target that fails any check is skipped with a reason; when every target is skipped the client gets a 400 listing them all.
 
-Targets are tried in order under the combo's strategy: `priority` keeps the written order, `fastest` sorts by an EWMA of time to response headers (unmeasured targets count as zero so they get measured), `round_robin` rotates the starting target per combo, `cheapest` sorts by the catalogue price per million tokens (input plus output, free models first, unknown prices last), `context` puts the largest context window first and `least_used` the target with the fewest attempts. Circuit-open targets always sort last.
+Targets are tried in order under the combo's strategy: `priority` keeps the written order, `fastest` sorts by an EWMA of time to response headers (unmeasured targets count as zero so they get measured), `round_robin` rotates the starting target per combo, `cheapest` sorts by the catalogue price per million tokens (input plus output, free models first, unknown prices last), `context` puts the largest context window first, `least_used` the target with the fewest attempts, `weighted` draws without replacement per request (key `u^(1/w)` per target, `weights` in the combo config, a missing weight counts as 1; `tsunagi route` shows the weight-descending order), and `headroom` sorts by the best remaining quota among the target's accounts, unknown last. Circuit-open targets always sort last.
 
 Every target but the last deliverable one is tried soft: if its final account attempt ends in a retryable failure — 429, 402, 401 or 403, a timeout, a 5xx or a transport error — nothing has reached the client yet, the reply is drained and the next target is tried. The last deliverable target answers as-is, exactly like a direct route, including its errors. Within a target the per-account failover and `provider@label` pinning work unchanged. A non-retryable 4xx is a request fault and is delivered rather than retried.
 
 Each target's health is tracked by consecutive failures, EWMA latency and a circuit. A failure is a transport error, 408, 429 or 5xx; success is under 400; other 4xx are neutral. Three consecutive failures open the circuit for 30 seconds, doubling on each re-open up to 10 minutes. After the cooldown exactly one probe is let through; a success closes the circuit and resets the backoff, a failure re-opens it doubled. All timing goes through the router's clock so tests can advance it.
 
-Every routed request's event gains `via` (the combo name) and `why` (a compact trace such as `opencode/big-pickle 429 -> openrouter/qwen/qwen3-coder:free ok; skipped groq/x: no tool calling`, or `tier haiku -> free/auto` for a rewrite). `tsunagi route <model> [--tools] [--tokens N] [--json]` prints the plan the router would use without sending anything, and `tsunagi watch --log` shows `via=`/`why=` when present.
+Every routed request's event gains `via` (the combo name) and `why` (a compact trace such as `opencode/big-pickle 429 -> openrouter/qwen/qwen3-coder:free ok; skipped groq/x: no tool calling`, or `tier haiku -> free/auto` for a rewrite). `tsunagi route <model> [--tools] [--think] [--web-search] [--tokens N] [--json]` prints the plan the router would use without sending anything, and `tsunagi watch --log` shows `via=`/`why=` when present.
 
 Claude models are not allowed as combo targets in v1: a combo exists to pick among non-Claude providers, and letting one name a Claude model would blur the credential boundary the router keeps.
 

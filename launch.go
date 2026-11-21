@@ -154,6 +154,8 @@ func newRouter(cfg config.Config, host, token string) *router.Router {
 	rt.Aliases = cfg.Aliases
 	rt.Tiers = cfg.Tiers
 	rt.ClaudeFallback = cfg.ClaudeFallback
+	rt.Scenarios = cfg.Scenarios
+	rt.ScenarioTokens = cfg.ScenarioTokens
 	rt.Combos = routerCombos(cfg.Combos)
 	rt.Caps = catalogCaps
 	rt.Price = catalogPrice
@@ -166,7 +168,7 @@ func routerCombos(in map[string]config.Combo) map[string]router.Combo {
 	}
 	out := make(map[string]router.Combo, len(in))
 	for name, c := range in {
-		out[name] = router.Combo{Targets: c.Targets, Strategy: c.Strategy}
+		out[name] = router.Combo{Targets: c.Targets, Strategy: c.Strategy, Weights: c.Weights}
 	}
 	return out
 }

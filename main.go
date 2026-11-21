@@ -36,7 +36,7 @@ func commandList() []command {
 		{"import", "Providers", "take providers and keys from opencode", "tsunagi import opencode", cmdImport},
 		{"free", "Providers", "free-model offers, probes and the free/auto combo", "tsunagi free [--all] [--json] [provider]\n  tsunagi free refresh | probe [provider] | combo [--no-probe] [--dry-run] | allow|deny <provider>", cmdFree},
 		{"ping", "Check", "send one test request through the router", "tsunagi ping [--tool] <provider/model>", cmdPing},
-		{"route", "Check", "show how a model name would be routed", "tsunagi route [--tools] [--tokens N] [--json] <model>", cmdRoute},
+		{"route", "Check", "show how a model name would be routed", "tsunagi route [--tools] [--think] [--web-search] [--tokens N] [--json] <model>", cmdRoute},
 		{"doctor", "Check", "check that everything is in place", "tsunagi doctor", func(t *ui.Term, _ []string) int { return cmdDoctor(t) }},
 		{"watch", "Sessions", "live traffic from every session", "tsunagi watch [--log | --json]", cmdWatch},
 		{"sessions", "Sessions", "running sessions, and when each last finished", "tsunagi sessions [--json]", cmdSessions},

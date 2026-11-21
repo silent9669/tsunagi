@@ -19,11 +19,14 @@ pages. The machine-readable copy lives in `internal/free/registry.go`.
 | Cohere (trial key) | tier | 20 requests/min, 1,000 calls/month; trial keys are not for production | trains — trial users' inputs and outputs may be used for research and to improve Cohere products | | https://dashboard.cohere.com/welcome/register | https://dashboard.cohere.com/api-keys | https://docs.cohere.com/docs/rate-limits | 2026-11-21 |
 | NVIDIA NIM | tier | up to 40 requests/min, prototyping only | trains — trial terms: prompts and outputs may be collected to improve NVIDIA products | verified phone number | https://build.nvidia.com/ | https://build.nvidia.com/settings/api-keys | https://build.nvidia.com/search | 2026-11-21 |
 | Cloudflare Workers AI | tier | 10,000 neurons/day; some models need a paid plan | private — inputs and outputs are not retained or used for training | account-id | https://dash.cloudflare.com/sign-up | https://dash.cloudflare.com/profile/api-tokens | https://developers.cloudflare.com/workers-ai/platform/data-usage/ | 2026-11-21 |
+| Z.ai | models | GLM-4.7-Flash and GLM-4.5-Flash only; other models are paid | private — content is processed only to provide the API service and is not saved on Z.ai servers; processing is generally in Singapore | | https://z.ai/model-api | https://z.ai/manage-apikey/apikey-list | https://docs.z.ai/guides/overview/pricing | 2026-11-21 |
 
 `models` mode means only some models are priced at zero and the list is read
-live. `tier` mode means every model the provider serves is usable on a
-rate-limited free plan, so candidates come from the provider's live `/models`
-list intersected with the catalogue's capability data.
+live — from the provider's discovery endpoint, or from the synced catalogue's
+zero-priced caps for `FromCatalog` entries (Z.ai). `tier` mode means every
+model the provider serves is usable on a rate-limited free plan, so
+candidates come from the provider's live `/models` list intersected with the
+catalogue's capability data.
 
 Offers that look free but are not are documented in `Excluded` and never
 routed:
@@ -36,6 +39,7 @@ routed:
 | mistral | Free mode has no API access; API keys need billing activation (docs.mistral.ai, 2026-11) |
 | ollama-cloud | pay as you go, no recurring free credits |
 | huggingface | free accounts no longer get Inference Providers credits |
+| modelscope | needs a ModelScope account bound to a real-name-verified Alibaba Cloud account; evaluation use only (modelscope.cn API-Inference docs) |
 
 ## Data policy
 

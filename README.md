@@ -78,7 +78,7 @@ Claude Code prints a "does not recognize the model" notice for non-Claude names 
 
 ## Free models
 
-`tsunagi free` lists providers with a documented, recurring free API tier, with their limits, what they need, and a data label from their own terms: `private` (not used for training) or `trains`. Only labelled providers can enter the `free/auto` combo, and `trains` ones only after `tsunagi free allow <provider>`. The list is checked against the providers' own pages and corrects itself: Mistral, Cerebras, Hugging Face, Ollama Cloud and GitHub Models are documented as not free. Current entries: OpenCode Zen, OpenRouter, Groq, Google AI Studio, SambaNova, Cohere (trial key), NVIDIA NIM, Cloudflare Workers AI. Details and sources: [docs/free.md](docs/free.md).
+`tsunagi free` lists providers with a documented, recurring free API tier, with their limits, what they need, and a data label from their own terms: `private` (not used for training) or `trains`. Only labelled providers can enter the `free/auto` combo, and `trains` ones only after `tsunagi free allow <provider>`. The list is checked against the providers' own pages and corrects itself: Mistral, Cerebras, Hugging Face, Ollama Cloud, GitHub Models and ModelScope are documented as not usable this way. Current entries: OpenCode Zen, OpenRouter, Groq, Google AI Studio, SambaNova, Cohere (trial key), NVIDIA NIM, Cloudflare Workers AI, Z.ai. Details and sources: [docs/free.md](docs/free.md).
 
 ```bash
 tsunagi free                 # the offers, their limits and data labels
@@ -99,11 +99,12 @@ A **combo** is a named list of `provider/model` targets. The router skips target
 }
 ```
 
-- **Strategies**: `priority` (as written), `fastest` (measured latency), `round_robin`, `cheapest` (catalogue price, free first), `context` (largest window first), `least_used`.
+- **Strategies**: `priority` (as written), `fastest` (measured latency), `round_robin`, `cheapest` (catalogue price, free first), `context` (largest window first), `least_used`, `weighted` (a weighted draw per request; `weights` per target, missing counts as 1), `headroom` (most quota left first, unknown last).
 - **Tiers**: `opus`, `sonnet` or `haiku` can point at a model or combo, for example Claude Code's background haiku calls on a free model.
+- **Scenarios**: a `claude-*` request can be rerouted on its content: `"scenarios": {"think": ..., "long_context": ..., "web_search": ...}` each name a combo or `provider/model`. `long_context` triggers when the input tops `scenario_tokens` (default 60,000). Precedence is long context, then web search, then thinking; an exact alias still wins and a scenario beats a tier. Off by default, because it sends the request to another provider.
 - **Claude first, then a fallback**: with `claude_fallback` set, a chat request goes to Anthropic first. Only if Anthropic answers 429 (usage limit) or 529 (overloaded) does the same conversation go to the fallback, and Claude is skipped for the `Retry-After` time. Off by default, because it sends your conversation to another provider.
 - **Health**: a circuit opens after three failures, retries after a cooldown, and the soonest-ready target is probed when every one is cooling.
-- **Explainable**: `tsunagi route <model> [--tools] [--tokens N]` shows the plan without sending anything, and `tsunagi watch` and the event log show why each request went where it did.
+- **Explainable**: `tsunagi route <model> [--tools] [--think] [--web-search] [--tokens N]` shows the plan without sending anything, and `tsunagi watch` and the event log show why each request went where it did.
 
 Settings (in the menu) edits tiers, previews a route, and changes the look and theme live. More in [docs/design.md](docs/design.md).
 

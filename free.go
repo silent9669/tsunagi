@@ -113,9 +113,12 @@ func freeRows(cfg config.Config, snap free.Snapshot, haveSnap bool, showAll bool
 	var rows []freeRow
 	for _, e := range free.Registry() {
 		r := freeRow{Provider: e.ID, Name: e.Name, Mode: e.Mode, Limits: e.Limits, Data: e.Data, Key: keyStatus(cfg, e)}
-		if e.Mode == free.TierMode {
+		switch {
+		case e.Mode == free.TierMode:
 			r.Free = "all models"
-		} else if haveSnap {
+		case e.FromCatalog:
+			r.Free = len(catalogFreeCands(catalog.Load(), e.ID))
+		case haveSnap:
 			r.Free = counts[e.ID]
 		}
 		rows = append(rows, r)
@@ -235,9 +238,15 @@ func freeDetail(t *ui.Term, cfg config.Config, snap free.Snapshot, name string, 
 	var listErr string
 	switch e.Mode {
 	case free.ModelsMode:
-		for _, m := range snap.Models {
-			if m.Provider == e.ID {
-				models = append(models, modelRow{ID: m.ID, Context: m.Context, Tools: toolsMark(m.Tools)})
+		if e.FromCatalog {
+			for _, c := range catalogFreeCands(catalog.Load(), e.ID) {
+				models = append(models, modelRow{ID: c.ID, Context: c.Context, Tools: toolsMark(c.Tools)})
+			}
+		} else {
+			for _, m := range snap.Models {
+				if m.Provider == e.ID {
+					models = append(models, modelRow{ID: m.ID, Context: m.Context, Tools: toolsMark(m.Tools)})
+				}
 			}
 		}
 	case free.TierMode:
@@ -327,9 +336,14 @@ func cmdFreeRefresh(t *ui.Term, args []string) int {
 		counts[m.Provider]++
 	}
 	for _, e := range free.Registry() {
-		if e.Mode == free.ModelsMode {
-			t.Printf("  %s %d free models\n", t.Dim(e.ID), counts[e.ID])
+		if e.Mode != free.ModelsMode {
+			continue
 		}
+		n := counts[e.ID]
+		if e.FromCatalog {
+			n = len(catalogFreeCands(catalog.Load(), e.ID))
+		}
+		t.Printf("  %s %d free models\n", t.Dim(e.ID), n)
 	}
 	t.Printf("  %s cached %s\n", t.Paint(ui.Mint, "[ok]"), free.Path())
 	return 0
@@ -344,6 +358,10 @@ func freeModels(ctx context.Context, cfg config.Config, snap free.Snapshot) map[
 	for _, e := range free.Registry() {
 		switch e.Mode {
 		case free.ModelsMode:
+			if e.FromCatalog {
+				out[e.ID] = catalogFreeCands(catalog.Load(), e.ID)
+				break
+			}
 			for _, m := range snap.Models {
 				if m.Provider == e.ID {
 					out[e.ID] = append(out[e.ID], free.ModelCand{
@@ -372,6 +390,31 @@ func freeModels(ctx context.Context, cfg config.Config, snap free.Snapshot) map[
 				}
 				out[e.ID] = append(out[e.ID], free.ModelCand{ID: id, Context: mi.Context})
 			}
+		}
+	}
+	return out
+}
+
+// catalogFreeCands lists a provider's catalogue models whose input and
+// output prices are both zero, for FromCatalog registry entries.
+func catalogFreeCands(entries []catalog.Entry, id string) []free.ModelCand {
+	var out []free.ModelCand
+	for _, e := range entries {
+		if e.ID != id {
+			continue
+		}
+		ids := make([]string, 0, len(e.Caps))
+		for m := range e.Caps {
+			ids = append(ids, m)
+		}
+		sort.Strings(ids)
+		for _, m := range ids {
+			mi := e.Caps[m]
+			if mi.In == nil || mi.Out == nil || *mi.In != 0 || *mi.Out != 0 {
+				continue
+			}
+			tools := mi.Tools
+			out = append(out, free.ModelCand{ID: m, Context: mi.Context, Tools: &tools})
 		}
 	}
 	return out

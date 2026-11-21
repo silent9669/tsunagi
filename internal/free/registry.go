@@ -37,6 +37,9 @@ type Entry struct {
 	Checked  string
 	// Setup names an extra value the provider needs before it can be added.
 	Setup string
+	// FromCatalog reads the free-model list from the synced catalogue's
+	// zero-priced caps instead of the discovery snapshot.
+	FromCatalog bool
 }
 
 // Registry is the list of providers tsunagi treats as having a free offer.
@@ -103,6 +106,15 @@ func Registry() []Entry {
 			Source: "https://developers.cloudflare.com/workers-ai/platform/data-usage/", Checked: "2026-11-21",
 			Setup: "account-id",
 		},
+		{
+			ID: "zai", Name: "Z.ai", Mode: ModelsMode,
+			Signup: "https://z.ai/model-api", KeyURL: "https://z.ai/manage-apikey/apikey-list",
+			Limits:   "GLM-4.7-Flash and GLM-4.5-Flash only; other models are paid",
+			Data:     Private,
+			DataNote: "content is processed only to provide the API service and is not saved on Z.ai servers; processing is generally in Singapore",
+			Source:   "https://docs.z.ai/guides/overview/pricing", Checked: "2026-11-21",
+			FromCatalog: true,
+		},
 	}
 }
 
@@ -115,4 +127,5 @@ var Excluded = map[string]string{
 	"mistral":       "Free mode has no API access; API keys need billing activation (docs.mistral.ai, 2026-11)",
 	"ollama-cloud":  "pay as you go, no recurring free credits",
 	"huggingface":   "free accounts no longer get Inference Providers credits",
+	"modelscope":    "needs a ModelScope account bound to a real-name-verified Alibaba Cloud account; evaluation use only (modelscope.cn API-Inference docs)",
 }

@@ -30,6 +30,7 @@ type fakeBackend struct {
 	status    []StatusRow
 	settings  SettingsView
 	tiers     []string
+	scens     []string
 	ui        []string
 	resetUI   bool
 	probe     []ProbeRow
@@ -101,6 +102,9 @@ func (f *fakeBackend) Settings() SettingsView {
 	if v.Tiers == nil {
 		v.Tiers = map[string]string{}
 	}
+	if v.Scenarios == nil {
+		v.Scenarios = map[string]string{}
+	}
 	return v
 }
 
@@ -113,6 +117,19 @@ func (f *fakeBackend) SetTier(tier, value string) error {
 		delete(f.settings.Tiers, tier)
 	} else {
 		f.settings.Tiers[tier] = value
+	}
+	return nil
+}
+
+func (f *fakeBackend) SetScenario(name, value string) error {
+	f.scens = append(f.scens, name+"="+value)
+	if f.settings.Scenarios == nil {
+		f.settings.Scenarios = map[string]string{}
+	}
+	if value == "" {
+		delete(f.settings.Scenarios, name)
+	} else {
+		f.settings.Scenarios[name] = value
 	}
 	return nil
 }

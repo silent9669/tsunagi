@@ -111,6 +111,7 @@
 - [x] Survey of other routers (OmniRoute, claude-code-router, LiteLLM) and free-API lists: registry corrected (Mistral free mode has no API; Cerebras, Hugging Face, Ollama Cloud and GitHub Models are not free) and extended (SambaNova, Cohere trial key)
 - [x] Routing: `claude_fallback` (Claude first, then a combo on 429 or 529, with a Retry-After pause), strategies `cheapest`, `context` and `least_used`
 - [x] Claude Code settings read-only (`internal/claudecfg`): conflicts reported by doctor, Status and the launch card; a conflicting base URL is overridden per session through inline `--settings`
-- [ ] Scenario routing from claude-code-router (thinking, long context, web search to a chosen model)
-- [ ] Per-target weights and a quota-aware strategy from OmniRoute and LiteLLM
-- [ ] Zhipu GLM-Flash and ModelScope as free providers (China-hosted, real-name verification; data policy not checked)
+- [x] Scenario routing from claude-code-router (thinking, long context, web search to a chosen model): `scenarios` + `scenario_tokens` in config, detection from the request body, precedence long context > web search > thinking, editable in Settings > Routing
+- [x] Per-target weights and a quota-aware strategy from OmniRoute and LiteLLM: `weighted` strategy with per-target `weights` (Efraimidis-Spirakis draw; `tsunagi route` shows weight order) and `headroom` (best remaining account quota first, unknown last)
+- [x] Zhipu GLM-Flash and ModelScope as free providers: Z.ai added (the international platform, GLM-4.7-Flash and GLM-4.5-Flash free per its pricing page, models read from the catalogue's zero-priced caps). ModelScope excluded: the free API needs an account bound to a real-name-verified Alibaba Cloud account and is evaluation-only. Zhipu's China platform was not added
+- [ ] Live check of the Z.ai free models (no Z.ai key on the test machine; the builtin `zai` provider uses the Anthropic-dialect endpoint, and `free probe zai` decides whether the free models answer there)

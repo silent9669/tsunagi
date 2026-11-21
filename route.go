@@ -21,6 +21,10 @@ func cmdRoute(t *ui.Term, args []string) int {
 			asJSON = true
 		case "--tools":
 			need.Tools = true
+		case "--think":
+			need.Think = true
+		case "--web-search":
+			need.Web = true
 		case "--tokens":
 			if i+1 >= len(args) {
 				return fail(t, "--tokens needs a number")
@@ -31,15 +35,16 @@ func cmdRoute(t *ui.Term, args []string) int {
 				return fail(t, "--tokens needs a non-negative number")
 			}
 			need.Tokens = n
+			need.Input = n
 		default:
 			if model != "" || len(args[i]) == 0 || args[i][0] == '-' {
-				return fail(t, "usage: tsunagi route [--tools] [--tokens N] [--json] <model>")
+				return fail(t, "usage: tsunagi route [--tools] [--think] [--web-search] [--tokens N] [--json] <model>")
 			}
 			model = args[i]
 		}
 	}
 	if model == "" {
-		return fail(t, "usage: tsunagi route [--tools] [--tokens N] [--json] <model>")
+		return fail(t, "usage: tsunagi route [--tools] [--think] [--web-search] [--tokens N] [--json] <model>")
 	}
 	cfg, err := config.Load()
 	if err != nil {

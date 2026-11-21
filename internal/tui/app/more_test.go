@@ -118,12 +118,41 @@ func TestSettingsRoutingCyclesTier(t *testing.T) {
 	}
 }
 
+func TestSettingsRoutingCyclesScenario(t *testing.T) {
+	be := moreBackend()
+	m := newTestApp(t, be, false)
+	press(m, "5") // Settings
+	press(m, "1") // Routing
+	v := viewText(m)
+	for _, want := range []string{"Thinking", "Long context", "Web search"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("routing missing %q:\n%s", want, v)
+		}
+	}
+	press(m, "4") // Thinking
+	if got := be.settings.Scenarios["think"]; got != "free/auto" {
+		t.Fatalf("think = %q, want free/auto (scens %v)", got, be.scens)
+	}
+	if !strings.Contains(viewText(m), "free/auto") {
+		t.Fatalf("scenario value not shown:\n%s", viewText(m))
+	}
+	press(m, "5") // Long context
+	if got := be.settings.Scenarios["long_context"]; got != "free/auto" {
+		t.Fatalf("long_context = %q (scens %v)", got, be.scens)
+	}
+	press(m, "4")
+	press(m, "4") // free/auto -> work -> back to claude
+	if got := be.settings.Scenarios["think"]; got != "" {
+		t.Fatalf("think = %q after a full cycle, want cleared", got)
+	}
+}
+
 func TestSettingsTryRoute(t *testing.T) {
 	be := moreBackend()
 	m := newTestApp(t, be, false)
 	press(m, "5")
 	press(m, "1")
-	press(m, "4") // Try a route
+	press(m, "7") // Try a route
 	for _, r := range "free/auto" {
 		press(m, string(r))
 	}

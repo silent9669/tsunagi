@@ -63,6 +63,12 @@ type Router struct {
 	// request when Anthropic answers it with 429 or 529. Empty means never:
 	// the answer reaches Claude Code unchanged.
 	ClaudeFallback string
+	// Scenarios reroute a requested claude-* model on what the request asks
+	// for: think, long_context (Input > ScenarioTokens, default 60000) or
+	// web_search. Each value is a combo or provider/model; all off by
+	// default. Exact aliases win; a scenario beats a tier mapping.
+	Scenarios      map[string]string
+	ScenarioTokens int
 	// Price reports a model's catalogue price per million tokens (input plus
 	// output; 0 for a free model) for the cheapest strategy.
 	Price func(provider, model string) (float64, bool)
@@ -74,6 +80,8 @@ type Router struct {
 
 	// now is the clock; nil means time.Now. Tests may replace it.
 	now func() time.Time
+	// rand feeds the weighted strategy; nil means math/rand/v2.
+	rand func() float64
 
 	transport http.RoundTripper
 	guarded   http.RoundTripper // for catalogue providers
@@ -138,7 +146,11 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body = b
 	}
 	model := peekModel(body)
-	resolved, why := rt.resolve(model)
+	var need Need
+	if len(rt.Scenarios) > 0 {
+		need = peekNeed(body)
+	}
+	resolved, why := rt.resolveFor(model, need)
 
 	rec := &recorder{ResponseWriter: w, status: http.StatusOK}
 	name, via, evWhy := "", "", why

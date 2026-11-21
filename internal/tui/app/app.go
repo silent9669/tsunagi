@@ -51,11 +51,12 @@ type ProbeRow struct {
 
 // SettingsView is the editable part of the config the Settings screen shows.
 type SettingsView struct {
-	Tiers  map[string]string // opus|sonnet|haiku -> model or combo; absent = Claude
-	Combos []string          // combo names a tier can point at, sorted
-	Look   string
-	Theme  string
-	Anim   bool
+	Tiers     map[string]string // opus|sonnet|haiku -> model or combo; absent = Claude
+	Scenarios map[string]string // think|long_context|web_search -> model or combo
+	Combos    []string          // combo names a tier or scenario can point at, sorted
+	Look      string
+	Theme     string
+	Anim      bool
 }
 
 // Snapshot is the world as the screens see it; Backend.Snapshot builds it.
@@ -92,6 +93,7 @@ type Backend interface {
 	Status() []StatusRow
 	Settings() SettingsView
 	SetTier(tier, value string) error
+	SetScenario(name, value string) error
 	SetUI(look, theme string, anim bool) error
 	ResetUI() error
 	Plan(model string) []string

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"math/rand/v2"
 	"net/http"
 	"sort"
 	"strconv"
@@ -19,9 +20,13 @@ type Combo struct {
 	Targets []string
 	// Strategy orders the eligible targets: priority (default, as written),
 	// fastest (lowest measured latency), round_robin, cheapest (lowest
-	// catalogue price, unknown last), context (largest context window first)
-	// or least_used (fewest attempts so far).
+	// catalogue price, unknown last), context (largest context window first),
+	// least_used (fewest attempts so far), weighted (random draw favouring
+	// higher weights) or headroom (most quota left first).
 	Strategy string
+	// Weights biases the weighted strategy; keyed by the exact target string,
+	// a missing weight counts as 1.
+	Weights map[string]int
 }
 
 // Caps is what the catalogue knows about one model, reduced to what combo
@@ -35,6 +40,11 @@ type Caps struct {
 type Need struct {
 	Tools  bool
 	Tokens int
+	// Think means the request enables extended thinking, Web that it carries
+	// a web_search tool, Input is its approximate prompt size in tokens.
+	Think bool
+	Web   bool
+	Input int
 }
 
 // Step is one target's place in a Plan.
@@ -86,6 +96,14 @@ func (rt *Router) clock() time.Time {
 	return time.Now()
 }
 
+// nextRand draws the weighted strategy's uniform sample; tests set rand.
+func (rt *Router) nextRand() float64 {
+	if rt.rand != nil {
+		return rt.rand()
+	}
+	return rand.Float64()
+}
+
 // resolve applies aliases and then tiers to a requested model name. It
 // returns the resolved name and a short Why for the event, "" when the name
 // is unchanged.
@@ -105,8 +123,37 @@ func (rt *Router) resolve(model string) (string, string) {
 	return model, ""
 }
 
+// resolveFor applies scenarios before the usual alias and tier resolution.
+// A scenario only reroutes a requested claude-* model that no alias claims:
+// long_context first, then web_search, then think, and a matching scenario
+// with no configured target falls through to the next. A scenario always
+// beats a tier mapping.
+func (rt *Router) resolveFor(model string, need Need) (string, string) {
+	if _, aliased := rt.Aliases[model]; !aliased && strings.HasPrefix(model, "claude-") {
+		threshold := rt.ScenarioTokens
+		if threshold <= 0 {
+			threshold = 60000
+		}
+		checks := []struct {
+			name string
+			hit  bool
+		}{
+			{"long_context", need.Input > threshold},
+			{"web_search", need.Web},
+			{"think", need.Think},
+		}
+		for _, c := range checks {
+			if c.hit && rt.Scenarios[c.name] != "" {
+				return rt.Scenarios[c.name], "scenario " + c.name + " -> " + rt.Scenarios[c.name]
+			}
+		}
+	}
+	return rt.resolve(model)
+}
+
 // peekNeed estimates what a request body asks of its target: whether it
-// carries tools and roughly how many tokens it will use.
+// carries tools, enables thinking or web search, and roughly how many
+// tokens it will use.
 func peekNeed(body []byte) Need {
 	body = bytes.TrimSpace(body)
 	if len(body) == 0 || body[0] != '{' {
@@ -114,14 +161,32 @@ func peekNeed(body []byte) Need {
 	}
 	var m struct {
 		Tools     []json.RawMessage `json:"tools"`
+		Thinking  json.RawMessage   `json:"thinking"`
 		MaxTokens json.Number       `json:"max_tokens"`
 	}
 	if json.Unmarshal(body, &m) != nil {
 		return Need{}
 	}
-	n := Need{Tools: len(m.Tools) > 0, Tokens: len(body) / 3}
+	n := Need{Tools: len(m.Tools) > 0, Tokens: len(body) / 3, Input: len(body) / 3}
 	if f, err := m.MaxTokens.Float64(); err == nil {
 		n.Tokens += int(f)
+	}
+	if len(m.Thinking) > 0 && string(m.Thinking) != "null" {
+		var th struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(m.Thinking, &th) == nil && th.Type != "disabled" {
+			n.Think = true
+		}
+	}
+	for _, raw := range m.Tools {
+		var tool struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(raw, &tool) == nil && strings.HasPrefix(tool.Type, "web_search") {
+			n.Web = true
+			break
+		}
 	}
 	return n
 }
@@ -263,6 +328,38 @@ func (rt *Router) orderTargets(comboName string, combo Combo, plans []targetPlan
 		}
 		rt.cstate.mu.Unlock()
 		sort.SliceStable(out, func(i, j int) bool { return used[out[i].hk] < used[out[j].hk] })
+	case "weighted":
+		w := func(tp targetPlan) int {
+			if n, ok := combo.Weights[tp.target]; ok && n > 0 {
+				return n
+			}
+			return 1
+		}
+		if commit {
+			// Efraimidis-Spirakis draw without replacement: key = u^(1/w).
+			keys := make(map[string]float64, len(out))
+			for _, tp := range out {
+				keys[tp.target] = math.Pow(rt.nextRand(), 1.0/float64(w(tp)))
+			}
+			sort.SliceStable(out, func(i, j int) bool { return keys[out[i].target] > keys[out[j].target] })
+		} else {
+			sort.SliceStable(out, func(i, j int) bool { return w(out[i]) > w(out[j]) })
+		}
+	case "headroom":
+		best := func(tp targetPlan) float64 {
+			if rt.Headroom == nil {
+				return -1
+			}
+			p := rt.Providers[tp.name]
+			top := -1.0
+			for _, a := range rt.accountNames(p, tp.label) {
+				if f, ok := rt.Headroom(p, a); ok && f > top {
+					top = f
+				}
+			}
+			return top
+		}
+		sort.SliceStable(out, func(i, j int) bool { return best(out[i]) > best(out[j]) })
 	case "round_robin":
 		if n := len(out); n > 1 {
 			k := rt.rrAt(comboName) % n
@@ -604,7 +701,7 @@ func outcomeText(status int) string {
 // Plan resolves a model name the way ServeHTTP would and lists the targets
 // that would be tried, in order. It never sends a request.
 func (rt *Router) Plan(model string, need Need) Plan {
-	resolved, why := rt.resolve(model)
+	resolved, why := rt.resolveFor(model, need)
 	plan := Plan{Resolved: resolved, Why: why}
 	if combo, ok := rt.Combos[resolved]; ok {
 		plan.Combo = resolved
@@ -621,6 +718,12 @@ func (rt *Router) Plan(model string, need Need) Plan {
 			st := Step{Target: tp.target, Status: "ready"}
 			if rt.circuitOpen(tp.hk) {
 				st.Status, st.Reason = "circuit-open", "circuit open"
+			} else if combo.Strategy == "weighted" {
+				w := combo.Weights[tp.target]
+				if w < 1 {
+					w = 1
+				}
+				st.Reason = "weight " + strconv.Itoa(w)
 			}
 			plan.Steps = append(plan.Steps, st)
 		}
