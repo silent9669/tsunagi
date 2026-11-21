@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/silent9669/tsunagi/internal/catalog"
+	"github.com/silent9669/tsunagi/internal/claudecfg"
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/events"
 	"github.com/silent9669/tsunagi/internal/slash"
@@ -108,6 +109,17 @@ func doctorChecks() []doctorRow {
 	}
 	check(err == nil, "slash", strings.Join(slash.Names()[:3], " ")+" ...", errText(err)+" (set TSUNAGI_NO_PLUGIN=1 to ignore)")
 
+	cwd, _ := os.Getwd()
+	cs := claudecfg.Read(cwd)
+	model, scope := cs.Model()
+	switch conflicts := cs.Conflicts(""); {
+	case len(conflicts) > 0:
+		check(false, "settings", "", conflicts[0].Detail)
+	case model != "":
+		check(true, "settings", "Claude default "+model+" ("+string(scope)+"), read only", "")
+	default:
+		check(true, "settings", "no conflicts, nothing is changed", "")
+	}
 	return rows
 }
 

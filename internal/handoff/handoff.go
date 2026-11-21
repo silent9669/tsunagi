@@ -228,5 +228,30 @@ func Settings(stopCmd, statusCmd string) string {
 	return string(b)
 }
 
+// EnvSettings is a --settings JSON that only sets env values.
+func EnvSettings(env map[string]string) string {
+	b, _ := json.Marshal(map[string]any{"env": env})
+	return string(b)
+}
+
+// MergeEnv adds env values to a --settings JSON document, replacing any the
+// document already sets. ok is false when settings is not a JSON object.
+func MergeEnv(settings string, env map[string]string) (string, bool) {
+	var doc map[string]any
+	if json.Unmarshal([]byte(settings), &doc) != nil || doc == nil {
+		return "", false
+	}
+	merged, _ := doc["env"].(map[string]any)
+	if merged == nil {
+		merged = map[string]any{}
+	}
+	for k, v := range env {
+		merged[k] = v
+	}
+	doc["env"] = merged
+	b, _ := json.Marshal(doc)
+	return string(b), true
+}
+
 // ShellQuote wraps s in single quotes for a shell command line.
 func ShellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

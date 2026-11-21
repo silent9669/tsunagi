@@ -38,6 +38,31 @@ func stopHookArgs(args []string, exe string) []string {
 	return append([]string{"--settings", handoff.Settings(stop, status)}, args...)
 }
 
+// pinArgs makes this session's `--settings` carry env values that must win
+// over a lower-scope settings file (the router address over an env block that
+// points Claude elsewhere). A `--settings` the user passed as a file is left
+// alone: it cannot be merged.
+func pinArgs(args []string, pins map[string]string) []string {
+	if len(pins) == 0 {
+		return args
+	}
+	for i, a := range args {
+		if strings.HasPrefix(a, "--settings=") {
+			return args
+		}
+		if a == "--settings" && i+1 < len(args) {
+			merged, ok := handoff.MergeEnv(args[i+1], pins)
+			if !ok {
+				return args
+			}
+			out := append([]string(nil), args...)
+			out[i+1] = merged
+			return out
+		}
+	}
+	return append([]string{"--settings", handoff.EnvSettings(pins)}, args...)
+}
+
 // registerSession records this launch for `tsunagi sessions` and returns the
 // environment the child needs, plus the cleanup.
 func registerSession() (env []string, cleanup func()) {

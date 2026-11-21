@@ -65,3 +65,35 @@ func TestSessionFlag(t *testing.T) {
 		}
 	}
 }
+
+func TestPinArgs(t *testing.T) {
+	pins := map[string]string{"ANTHROPIC_BASE_URL": "http://127.0.0.1:5/tok"}
+	if got := pinArgs([]string{"-p", "hi"}, nil); len(got) != 2 {
+		t.Fatalf("no pins must change nothing: %v", got)
+	}
+	got := pinArgs([]string{"-p", "hi"}, pins)
+	if len(got) != 4 || got[0] != "--settings" || !strings.Contains(got[1], `"ANTHROPIC_BASE_URL":"http://127.0.0.1:5/tok"`) {
+		t.Fatalf("pin not added as inline settings: %v", got)
+	}
+	// merged into the Stop hook settings tsunagi already adds
+	base := stopHookArgs([]string{"a"}, "/t")
+	merged := pinArgs(base, pins)
+	if len(merged) != len(base) || !strings.Contains(merged[1], `"hooks"`) || !strings.Contains(merged[1], `"env"`) {
+		t.Fatalf("hook settings and pin must share one --settings: %v", merged)
+	}
+	if base[1] == merged[1] {
+		t.Fatal("the original args slice must not be modified")
+	}
+	// a settings file from the user cannot be merged
+	if g := pinArgs([]string{"--settings", "my.json", "x"}, pins); g[1] != "my.json" || len(g) != 3 {
+		t.Fatalf("user settings file must be left alone: %v", g)
+	}
+	if g := pinArgs([]string{"--settings=my.json"}, pins); len(g) != 1 {
+		t.Fatalf("user settings file must be left alone: %v", g)
+	}
+	// a user JSON document gets the pin added and keeps its own keys
+	g := pinArgs([]string{"--settings", `{"model":"haiku"}`}, pins)
+	if !strings.Contains(g[1], `"model":"haiku"`) || !strings.Contains(g[1], "ANTHROPIC_BASE_URL") {
+		t.Fatalf("merge lost a key: %v", g)
+	}
+}

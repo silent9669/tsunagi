@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/silent9669/tsunagi/internal/catalog"
+	"github.com/silent9669/tsunagi/internal/claudecfg"
 	"github.com/silent9669/tsunagi/internal/claudeguard"
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/events"
@@ -114,6 +115,17 @@ func launch(t *ui.Term, args []string, splash bool) int {
 	if exe, err := os.Executable(); err == nil {
 		args = stopHookArgs(args, exe)
 		args = pluginArgs(args, exe)
+	}
+	cwd, _ := os.Getwd()
+	settings := claudecfg.Read(cwd)
+	routerURL := "http://" + host + "/" + token
+	args = pinArgs(args, settings.Pins(routerURL))
+	for _, c := range settings.Conflicts(routerURL) {
+		note := c.Detail
+		if c.Fixable {
+			note += "; this session overrides it"
+		}
+		t.Printf("  %s %s\n", t.Paint(ui.Amber, "[!!]"), note)
 	}
 	cmd := exec.Command(claude, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
