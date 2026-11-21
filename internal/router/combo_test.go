@@ -603,3 +603,45 @@ func TestPlanAgreesWithComboRouting(t *testing.T) {
 		t.Fatalf("provider plan target = %+v", p.Steps[0])
 	}
 }
+
+func TestComboCheapestContextAndLeastUsed(t *testing.T) {
+	e := setup(t)
+	mk := func(name string) string {
+		up, _ := newStub(t, 200, anthropicSSE)
+		e.rt.Providers[name] = provider.Provider{Name: name, BaseURL: up.URL, Dialect: provider.Anthropic}
+		return name + "/m"
+	}
+	a, b, c := mk("pa"), mk("pb"), mk("pc")
+	e.rt.Key = func(_ provider.Provider, acct string) (string, error) { return "k-" + acct, nil }
+	prices := map[string]float64{"pa": 5, "pb": 0, "pc": 2}
+	ctxs := map[string]int{"pa": 32000, "pb": 8000, "pc": 128000}
+	e.rt.Price = func(p, _ string) (float64, bool) { v, ok := prices[p]; return v, ok }
+	e.rt.Caps = func(p, _ string) (Caps, bool) { return Caps{Tools: true, Context: ctxs[p]}, true }
+
+	order := func(strategy string) []string {
+		e.rt.Combos = map[string]Combo{"x": {Targets: []string{a, b, c}, Strategy: strategy}}
+		var out []string
+		for _, s := range e.rt.Plan("x", Need{}).Steps {
+			out = append(out, s.Target)
+		}
+		return out
+	}
+	if got := strings.Join(order("cheapest"), ","); got != b+","+c+","+a {
+		t.Fatalf("cheapest = %s", got)
+	}
+	if got := strings.Join(order("context"), ","); got != c+","+a+","+b {
+		t.Fatalf("context = %s", got)
+	}
+	// unknown prices sort last
+	delete(prices, "pc")
+	if got := strings.Join(order("cheapest"), ","); got != b+","+a+","+c {
+		t.Fatalf("cheapest with an unknown price = %s", got)
+	}
+	// least_used follows the attempts each target has seen
+	e.rt.healthNote("pa/m", 200, 5)
+	e.rt.healthNote("pa/m", 200, 5)
+	e.rt.healthNote("pb/m", 200, 5)
+	if got := strings.Join(order("least_used"), ","); got != c+","+b+","+a {
+		t.Fatalf("least_used = %s", got)
+	}
+}

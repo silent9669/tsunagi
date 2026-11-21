@@ -170,8 +170,10 @@ func newRouter(cfg config.Config, host, token string) *router.Router {
 	rt.Headroom = newHeadroom(cfg).get
 	rt.Aliases = cfg.Aliases
 	rt.Tiers = cfg.Tiers
+	rt.ClaudeFallback = cfg.ClaudeFallback
 	rt.Combos = routerCombos(cfg.Combos)
 	rt.Caps = catalogCaps
+	rt.Price = catalogPrice
 	return rt
 }
 
@@ -184,6 +186,16 @@ func routerCombos(in map[string]config.Combo) map[string]router.Combo {
 		out[name] = router.Combo{Targets: c.Targets, Strategy: c.Strategy}
 	}
 	return out
+}
+
+// catalogPrice is a model's catalogue price per million tokens, input plus
+// output, when the catalogue lists both.
+func catalogPrice(p, m string) (float64, bool) {
+	mi, ok := catalog.Caps(p, m)
+	if !ok || mi.In == nil || mi.Out == nil {
+		return 0, false
+	}
+	return *mi.In + *mi.Out, true
 }
 
 // catalogCaps adapts the catalogue's per-model info to the router's Caps.

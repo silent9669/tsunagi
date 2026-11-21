@@ -3,6 +3,7 @@ package router
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -15,8 +16,12 @@ import (
 
 // Combo is a named set of provider/model targets a model name can resolve to.
 type Combo struct {
-	Targets  []string
-	Strategy string // priority (default), fastest, round_robin
+	Targets []string
+	// Strategy orders the eligible targets: priority (default, as written),
+	// fastest (lowest measured latency), round_robin, cheapest (lowest
+	// catalogue price, unknown last), context (largest context window first)
+	// or least_used (fewest attempts so far).
+	Strategy string
 }
 
 // Caps is what the catalogue knows about one model, reduced to what combo
@@ -71,6 +76,7 @@ type comboState struct {
 	mu     sync.Mutex
 	health map[string]*targetHealth
 	rr     map[string]int
+	used   map[string]int // attempts per target, for least_used
 }
 
 func (rt *Router) clock() time.Time {
@@ -229,6 +235,34 @@ func (rt *Router) orderTargets(comboName string, combo Combo, plans []targetPlan
 		}
 		// Unmeasured targets count as 0, so they sort first and get measured.
 		sort.SliceStable(out, func(i, j int) bool { return lat[out[i].hk] < lat[out[j].hk] })
+	case "cheapest":
+		price := func(tp targetPlan) float64 {
+			if rt.Price != nil {
+				if p, ok := rt.Price(tp.name, tp.model); ok {
+					return p
+				}
+			}
+			return math.MaxFloat64
+		}
+		sort.SliceStable(out, func(i, j int) bool { return price(out[i]) < price(out[j]) })
+	case "context":
+		ctx := func(tp targetPlan) int {
+			if rt.Caps != nil {
+				if c, ok := rt.Caps(tp.name, tp.model); ok {
+					return c.Context
+				}
+			}
+			return 0
+		}
+		sort.SliceStable(out, func(i, j int) bool { return ctx(out[i]) > ctx(out[j]) })
+	case "least_used":
+		rt.cstate.mu.Lock()
+		used := map[string]int{}
+		for _, tp := range out {
+			used[tp.hk] = rt.cstate.used[tp.hk]
+		}
+		rt.cstate.mu.Unlock()
+		sort.SliceStable(out, func(i, j int) bool { return used[out[i].hk] < used[out[j].hk] })
 	case "round_robin":
 		if n := len(out); n > 1 {
 			k := rt.rrAt(comboName) % n
@@ -271,6 +305,12 @@ func (rt *Router) healthNote(hk string, status int, millis float64) {
 		rt.cstate.health[hk] = s
 	}
 	now := rt.clock()
+	if status != -2 {
+		if rt.cstate.used == nil {
+			rt.cstate.used = map[string]int{}
+		}
+		rt.cstate.used[hk]++
+	}
 	if status >= 0 {
 		if !s.sampled {
 			s.ewma, s.sampled = millis, true
@@ -592,6 +632,9 @@ func (rt *Router) Plan(model string, need Need) Plan {
 	d := rt.route(resolved)
 	if d.provider == "" {
 		plan.Steps = []Step{{Target: "claude", Status: "ready"}}
+		if rt.ClaudeFallback != "" {
+			plan.Steps = append(plan.Steps, Step{Target: rt.ClaudeFallback, Status: "ready", Reason: "only if Claude answers 429 or 529"})
+		}
 		return plan
 	}
 	target := d.provider + "/" + d.model

@@ -17,6 +17,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/silent9669/tsunagi/internal/events"
@@ -58,6 +59,13 @@ type Router struct {
 	Combos map[string]Combo
 	// Tiers maps a Claude tier (opus, sonnet, haiku) to a model or combo.
 	Tiers map[string]string
+	// ClaudeFallback names a combo or provider/model that takes a chat
+	// request when Anthropic answers it with 429 or 529. Empty means never:
+	// the answer reaches Claude Code unchanged.
+	ClaudeFallback string
+	// Price reports a model's catalogue price per million tokens (input plus
+	// output; 0 for a free model) for the cheapest strategy.
+	Price func(provider, model string) (float64, bool)
 	// Caps reports what the catalogue knows about a provider's model.
 	Caps    func(provider, model string) (Caps, bool)
 	Key     func(p provider.Provider, account string) (string, error)
@@ -72,6 +80,9 @@ type Router struct {
 
 	pool   pool
 	cstate comboState
+
+	fbMu        sync.Mutex
+	claudeUntil time.Time // Claude is skipped until then after a 429 or 529
 }
 
 // transportFor picks the transport for a provider.
@@ -154,7 +165,11 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				r.Header.Set("Content-Length", strconv.Itoa(len(nb)))
 			}
 			if rec.status == http.StatusOK && !rec.wrote {
-				rt.forwardClaude(rec, r, body)
+				if rt.wantsFallback(r) {
+					name, via, evWhy = rt.forwardClaudeThenFallback(rec, r, body, model, evWhy)
+				} else {
+					rt.forwardClaude(rec, r, body)
+				}
 			}
 		}
 	}

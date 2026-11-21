@@ -56,6 +56,8 @@ type Config struct {
 	Combos map[string]Combo
 	// Tiers maps a Claude tier (opus, sonnet, haiku) to a model or combo.
 	Tiers map[string]string
+	// ClaudeFallback: see the router; "" means off.
+	ClaudeFallback string
 	// Free holds free-model settings.
 	Free FreeConfig
 	// UI holds appearance settings for the interactive interface.
@@ -78,8 +80,11 @@ type file struct {
 	Models    map[string]string   `json:"models"`
 	Combos    map[string]Combo    `json:"combos"`
 	Tiers     map[string]string   `json:"tiers"`
-	Free      FreeConfig          `json:"free"`
-	UI        UIConfig            `json:"ui"`
+	// ClaudeFallback is a combo name or provider/model that takes a chat
+	// request when Anthropic answers it with 429 or 529.
+	ClaudeFallback string     `json:"claude_fallback"`
+	Free           FreeConfig `json:"free"`
+	UI             UIConfig   `json:"ui"`
 }
 
 // Path is ~/.config/tsunagi/config.json.
@@ -253,9 +258,9 @@ func LoadFrom(path string) (Config, error) {
 			return cfg, fmt.Errorf("%s: combo %q needs at least one target", path, name)
 		}
 		switch c.Strategy {
-		case "", "priority", "fastest", "round_robin":
+		case "", "priority", "fastest", "round_robin", "cheapest", "context", "least_used":
 		default:
-			return cfg, fmt.Errorf("%s: combo %q: strategy must be priority, fastest or round_robin", path, name)
+			return cfg, fmt.Errorf("%s: combo %q: strategy must be priority, fastest, round_robin, cheapest, context or least_used", path, name)
 		}
 		for _, ts := range c.Targets {
 			if err := checkComboTarget(ts, comboNames); err != nil {
@@ -266,6 +271,13 @@ func LoadFrom(path string) (Config, error) {
 	for tier := range f.Tiers {
 		if tier != "opus" && tier != "sonnet" && tier != "haiku" {
 			return cfg, fmt.Errorf("%s: tier %q must be opus, sonnet or haiku", path, tier)
+		}
+	}
+	if fb := f.ClaudeFallback; fb != "" {
+		if _, isCombo := f.Combos[fb]; !isCombo {
+			if err := checkComboTarget(fb, comboNames); err != nil {
+				return cfg, fmt.Errorf("%s: claude_fallback: %v", path, err)
+			}
 		}
 	}
 	for _, name := range f.Free.AllowTrains {
@@ -281,6 +293,7 @@ func LoadFrom(path string) (Config, error) {
 	}
 	cfg.Combos = f.Combos
 	cfg.Tiers = f.Tiers
+	cfg.ClaudeFallback = f.ClaudeFallback
 	cfg.Free = f.Free
 	cfg.UI = f.UI
 	return cfg, nil

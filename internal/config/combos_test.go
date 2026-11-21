@@ -45,7 +45,7 @@ func TestComboValidation(t *testing.T) {
 		{"claude name", `{"combos":{"claude-fast":{"targets":["a/b"]}}}`, `combo "claude-fast" must not start with claude-`},
 		{"at name", `{"combos":{"a@b":{"targets":["a/b"]}}}`, `combo "a@b" must not contain @`},
 		{"no targets", `{"combos":{"c":{"targets":[]}}}`, `combo "c" needs at least one target`},
-		{"bad strategy", `{"combos":{"c":{"targets":["a/b"],"strategy":"random"}}}`, `combo "c": strategy must be`},
+		{"bad strategy", `{"combos":{"c":{"targets":["a/b"],"strategy":"shuffle"}}}`, `combo "c": strategy must be`},
 		{"target no slash", `{"combos":{"c":{"targets":["ab"]}}}`, `target "ab" must be provider/model`},
 		{"target empty model", `{"combos":{"c":{"targets":["a/"]}}}`, `target "a/" must be provider/model`},
 		{"target empty provider", `{"combos":{"c":{"targets":["/b"]}}}`, `target "/b" must be provider/model`},
@@ -127,5 +127,30 @@ func TestSetKeyPreservesOtherKeys(t *testing.T) {
 	}
 	if st, _ := os.Stat(p2); st.Mode().Perm() != 0o600 {
 		t.Fatalf("new file mode = %o", st.Mode().Perm())
+	}
+}
+
+func TestClaudeFallbackValidation(t *testing.T) {
+	good := map[string]string{
+		"combo":  `{"combos": {"free/auto": {"targets": ["groq/x"]}}, "claude_fallback": "free/auto"}`,
+		"target": `{"claude_fallback": "groq/llama-3.3-70b"}`,
+		"off":    `{}`,
+	}
+	for name, body := range good {
+		cfg, err := LoadFrom(writeConfig(t, body))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if name == "combo" && cfg.ClaudeFallback != "free/auto" {
+			t.Fatalf("ClaudeFallback = %q", cfg.ClaudeFallback)
+		}
+	}
+	for name, body := range map[string]string{
+		"bare name":    `{"claude_fallback": "free"}`,
+		"claude model": `{"claude_fallback": "claude-haiku-5-5"}`,
+	} {
+		if _, err := LoadFrom(writeConfig(t, body)); err == nil || !strings.Contains(err.Error(), "claude_fallback") {
+			t.Fatalf("%s: err = %v", name, err)
+		}
 	}
 }
