@@ -4,11 +4,12 @@
 set -eu
 cd "$(dirname "$0")/.."
 command -v tmux >/dev/null 2>&1 || { echo "tmux not found: brew install tmux"; exit 1; }
-OUT=/tmp/tsunagi-ui
+OUT=docs/ui/captures
 mkdir -p "$OUT"
 rm -f "$OUT"/*.txt
 
-T=/tmp/tsunagi-e2e-bin
+mkdir -p .build
+T=.build/tsunagi-e2e
 go build -tags e2e -o "$T" .
 
 HOME=$(mktemp -d)
@@ -100,6 +101,9 @@ for th in colour mono; do
   tmux capture-pane -p -e -t "tsunagi-e2e-$th" > "$OUT/menu-100x30-$th-ansi.txt"
   tmux kill-session -t "tsunagi-e2e-$th"
 done
+
+# captures are committed: drop temp paths and the per-run router address/token
+sed -i '' -E 's#/[^ ]*/claude-stub#<claude-stub>#; s#127\.0\.0\.1:[0-9]+/[0-9a-f]{32}#127.0.0.1:PORT/TOKEN#' "$OUT/10-after-start.txt" "$OUT/11-exit.txt"
 
 # terminal state: stty before/after must match
 diff "$OUT/stty-before.txt" "$OUT/stty-after.txt" >/dev/null \

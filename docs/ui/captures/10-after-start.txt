@@ -1,0 +1,30 @@
+  [ok] router     127.0.0.1:57466
+  [ok] claude     <claude-stub>
+  [ok] providers  no keys yet. Run: tsunagi login opencode
+
+  claude == (tsunagi) ======> anthropic
+
+STUB-CLAUDE-OK http://127.0.0.1:PORT/TOKEN
+APP-EXIT=0
+sh-3.2$
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

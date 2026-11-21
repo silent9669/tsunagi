@@ -1,0 +1,30 @@
+                        Providers
+
+                        Free
+                        [ ] opencode                                trains
+                        [ ] openrouter                              trains
+                        [ ] groq                                   private
+                        [ ] google                                  trains
+                        [ ] mistral                                 trains
+                        [ ] nvidia                                  trains
+                        [ ] cloudflare                             private
+                        Your plans
+                        [ ] chatgpt                                   plan
+                        Paid keys
+                        [ ] opencode-go
+                        [ ] zai
+                        [ ] deepseek
+                        [ ] moonshot
+                        [ ] minimax
+                        [ ] qwen
+                        [ ] fireworks
+                        [ ] openai
+                        [ ] xai
+                        [ ] together
+                        Local and own
+                        [ ] llamacpp
+                        [✓] ollama
+                        [ ] lmstudio
+                        [ ] vllm
+                        [ ] Add a gateway
+
