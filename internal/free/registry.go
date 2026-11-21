@@ -46,20 +46,23 @@ type Entry struct {
 	// FromCatalog reads the free-model list from the synced catalogue's
 	// zero-priced caps instead of the discovery snapshot.
 	FromCatalog bool
+	// CatalogID is the models.dev catalogue entry the free models are read
+	// from when it differs from the provider name ("" means use ID).
+	CatalogID string
+}
+
+// CatID is the catalogue id behind the entry.
+func (e Entry) CatID() string {
+	if e.CatalogID != "" {
+		return e.CatalogID
+	}
+	return e.ID
 }
 
 // Registry is the list of providers tsunagi treats as having a free offer.
 // A provider missing here is never put in a free combo.
 func Registry() []Entry {
 	return []Entry{
-		{
-			ID: "opencode", Name: "OpenCode Zen", Mode: ModelsMode,
-			Signup: "https://opencode.ai/auth", KeyURL: "https://opencode.ai/auth",
-			Limits: "free models rotate; each is free for a limited time",
-			Needs:  "key may need billing details on file; free models cost nothing",
-			Data:   Trains, DataNote: "free models: provider may retain and train on data",
-			Source: "https://opencode.ai/docs/zen/", Checked: "2026-11-21",
-		},
 		{
 			ID: "openrouter", Name: "OpenRouter", Mode: ModelsMode,
 			Signup: "https://openrouter.ai/sign-up", KeyURL: "https://openrouter.ai/keys",
@@ -113,18 +116,18 @@ func Registry() []Entry {
 			Setup: "account-id",
 		},
 		{
-			ID: "zai", Name: "Z.ai", Mode: ModelsMode,
+			ID: "zai-api", Name: "Z.ai API (GLM Flash)", Mode: ModelsMode,
 			Signup: "https://z.ai/model-api", KeyURL: "https://z.ai/manage-apikey/apikey-list",
 			Limits:   "GLM-4.7-Flash and GLM-4.5-Flash only; other models are paid",
 			Data:     Private,
 			DataNote: "content is processed only to provide the API service and is not saved on Z.ai servers; processing is generally in Singapore",
 			Source:   "https://docs.z.ai/guides/overview/pricing", Checked: "2026-11-21",
-			FromCatalog: true,
+			FromCatalog: true, CatalogID: "zai",
 		},
 		{
 			ID: "kilo", Name: "Kilo Gateway", Mode: ModelsMode,
 			Signup: "https://app.kilo.ai", KeyURL: "https://app.kilo.ai",
-			Limits:   "free models only; 200 requests/hour per IP, with or without an account",
+			Limits:   "free models only, best effort: 200 requests/hour per IP, the list rotates and some models are rate limited upstream",
 			Data:     Trains,
 			DataNote: "free models may be routed to providers that log prompts and outputs to improve their services (NVIDIA's free endpoints are named)",
 			Source:   "https://kilo.ai/docs/getting-started/using-kilo-for-free", Checked: "2026-11-21",
@@ -154,6 +157,7 @@ func Registry() []Entry {
 // Excluded lists offers that look free but are not, or that the provider
 // forbids using this way. They are documented, never routed.
 var Excluded = map[string]string{
+	"opencode":      "free models are served only inside OpenCode: other tools get HTTP 403 or FreeUsageLimitError even with a key (OpenCode harness docs and a live check on 2026-11-21); its paid models and the Go plan work in any tool, see plans",
 	"github-models": "retired on 2026-07-30",
 	"cerebras":      "the $5 trial credit needs a payment method and expires in 30 days",
 	"gemini-cli":    "Google forbids third-party use of Gemini CLI and Antigravity sign-in",

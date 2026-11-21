@@ -3,9 +3,9 @@
 
   ┌ Set up e2e
   │
-  ◇ Verify  ok e2e/tiny-model 1ms
+  ◇ Verify  ok e2e/tiny-model 3ms
   ◆ Done
-  │   ok  e2e/tiny-model  1ms
+  │   ok  e2e/tiny-model  3ms
   │
   │   ❯ 1 Done
   │     2 Retry

@@ -1,7 +1,8 @@
 ◆ tsunagi dev                                                                                   Providers › Kilo Gateway
 
       ╭─ Kilo Gateway ────────────────────────────────────────────────────────────────  free   trains   keyless  ╮
-      │ limits  free models only; 200 requests/hour per IP, with or without an account                           │
+      │ limits  free models only, best effort: 200 requests/hour per IP, the list rotates and some models are    │
+      │         rate limited upstream                                                                            │
       │ data    trains - free models may be routed to providers that log prompts and outputs to improve their    │
       │         services (NVIDIA's free endpoints are named)                                                     │
       │ source  kilo.ai checked 2026-11-21                                                                       │
@@ -14,7 +15,6 @@
         3 Open sign-up
         4 Open key page
         5 Back
-
 
 
 

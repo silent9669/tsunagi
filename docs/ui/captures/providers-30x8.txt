@@ -1,8 +1,8 @@
 ◆ tsunagi dev        Providers
 
-  › Search 71 providers, or pa
+  › Search 76 providers, or pa
 
-   All 71   Free 12   Ready 2
-  ❯ ✓ Kilo Gateway
-    ↓ 16 more
+   All 76   Free 11   Plans 8
+  ❯ ○ OpenRouter
+    ↓ 15 more
   type to search   ↑↓ move

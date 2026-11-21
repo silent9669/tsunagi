@@ -1,8 +1,8 @@
-◆ tsunagi dev  claude ✓ · 1 re
+◆ tsunagi dev         claude ✓
 
   › Search actions, provi
 
   ❯   Start Claude Code
-      Add a free provider
+      Add a provider
     ↓ 6 more
   type to search   ↑↓ move

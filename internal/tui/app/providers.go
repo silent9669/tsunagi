@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/silent9669/tsunagi/internal/free"
+	"github.com/silent9669/tsunagi/internal/plans"
 	"github.com/silent9669/tsunagi/internal/tui"
 )
 
@@ -81,6 +82,7 @@ const (
 const (
 	chipAll = iota
 	chipFree
+	chipPlans
 	chipReady
 	chipPaid
 	chipLocal
@@ -91,7 +93,7 @@ func groupTitle(g string) string {
 	case "free":
 		return "Free"
 	case "plan":
-		return "Plan"
+		return "Plans"
 	case "paid":
 		return "Paid"
 	case "local":
@@ -131,6 +133,9 @@ func (s *providersScreen) display(p ProviderRow) string {
 	if e := registryEntry(p.Name); e != nil {
 		return e.Name
 	}
+	if e, ok := plans.Find(p.Name); ok {
+		return e.Name
+	}
 	return p.Name
 }
 
@@ -146,6 +151,8 @@ func (s *providersScreen) chipOK(p ProviderRow) bool {
 	switch s.chip {
 	case chipFree:
 		return p.Group == "free"
+	case chipPlans:
+		return p.Group == "plan"
 	case chipReady:
 		return s.ready(p)
 	case chipPaid:
@@ -178,6 +185,9 @@ func (s *providersScreen) badges(p ProviderRow) []string {
 	if p.Keyless {
 		b = append(b, "keyless")
 	}
+	if p.Plan != nil && !p.Plan.Verified {
+		b = append(b, "unverified")
+	}
 	return b
 }
 
@@ -191,9 +201,19 @@ func (s *providersScreen) provRow(p ProviderRow, keyfor bool) tui.ListRow {
 	if keyfor {
 		value = "keyfor/" + p.Name
 	}
+	note := p.Limits
+	if p.Plan != nil {
+		note = p.Plan.Terms
+		if p.Plan.Verified {
+			note = p.Plan.Price
+			if p.Plan.Quota != "" {
+				note += " · " + p.Plan.Quota
+			}
+		}
+	}
 	return tui.ListRow{
 		Kind: tui.RowItem, Label: s.display(p), Value: value,
-		Glyph: glyph, Badges: s.badges(p), Note: p.Limits, NoteCol: true,
+		Glyph: glyph, Badges: s.badges(p), Note: note, NoteCol: true,
 	}
 }
 
@@ -225,7 +245,13 @@ func (s *providersScreen) flatRows(q string, keyfor bool) []tui.ListRow {
 			other = append(other, p)
 		}
 	}
-	sort.SliceStable(other, func(i, j int) bool { return other[i].Name < other[j].Name })
+	verified := func(p ProviderRow) bool { return p.Plan != nil && p.Plan.Verified }
+	sort.SliceStable(other, func(i, j int) bool {
+		if vi, vj := verified(other[i]), verified(other[j]); vi != vj {
+			return vi
+		}
+		return other[i].Name < other[j].Name
+	})
 	var rows []tui.ListRow
 	for _, g := range [][]ProviderRow{ready, freeRest, other} {
 		for _, p := range g {
@@ -235,8 +261,8 @@ func (s *providersScreen) flatRows(q string, keyfor bool) []tui.ListRow {
 	return rows
 }
 
-// sectionRows is the All-chip, empty-query layout: Ready, Free, Plan, Local,
-// Paid, then a capped More section for catalogue providers.
+// sectionRows is the All-chip, empty-query layout: Ready, Plans, Free,
+// Local, Paid, then a capped More section for catalogue providers.
 func (s *providersScreen) sectionRows() []tui.ListRow {
 	var rows []tui.ListRow
 	head := func(t string) {
@@ -272,8 +298,8 @@ func (s *providersScreen) sectionRows() []tui.ListRow {
 		}
 	}
 	emit("Ready", ready)
+	emit("Plans", plan)
 	emit("Free", freeRest)
-	emit("Plan", plan)
 	emit("Local", local)
 	emit("Paid", paid)
 	if len(catalog) > 0 {
@@ -430,11 +456,13 @@ func (s *providersScreen) steps() []string {
 		return []string{"Name", "URL", "Done"}
 	}
 	switch {
-	case s.prov.Group == "plan":
+	case s.prov.Group == "plan" && s.prov.Plan == nil:
 		return []string{"Sign in", "Verify", "Done"}
 	case s.prov.Group == "local":
 		return []string{"Verify", "Done"}
 	case s.entry != nil && (s.entry.Signup != "" || s.entry.Setup != ""):
+		return []string{"Account", "Key", "Verify", "Done"}
+	case s.prov.Plan != nil && s.prov.Plan.Signup != "":
 		return []string{"Account", "Key", "Verify", "Done"}
 	}
 	return []string{"Key", "Verify", "Done"}
@@ -739,7 +767,7 @@ func (s *providersScreen) detailMenu() tui.Menu {
 	hasKey := p.Ready && len(p.Accounts) > 0
 	var ls []string
 	switch {
-	case p.Group == "plan":
+	case p.Group == "plan" && p.Plan == nil:
 		if p.Ready {
 			ls = []string{"Test again", "Sign in again", "Remove", "Back"}
 		} else {
@@ -751,8 +779,10 @@ func (s *providersScreen) detailMenu() tui.Menu {
 		ls = []string{"Test again", "Replace key", "Remove"}
 	case p.Group == "local":
 		ls = []string{"Test connection", "I have a key"}
+	case p.Plan != nil && !p.Plan.Verified:
+		ls = []string{"I have a key"}
 	default:
-		if s.entry != nil {
+		if s.entry != nil || p.Plan != nil {
 			ls = []string{"Set up", "I have a key"}
 		} else {
 			ls = []string{"I have a key"}
@@ -763,6 +793,14 @@ func (s *providersScreen) detailMenu() tui.Menu {
 			ls = append(ls, "Open sign-up")
 		}
 		if s.entry.KeyURL != "" {
+			ls = append(ls, "Open key page")
+		}
+	}
+	if p.Plan != nil && p.Plan.Verified {
+		if p.Plan.Signup != "" {
+			ls = append(ls, "Open sign-up")
+		}
+		if p.Plan.KeyURL != "" {
 			ls = append(ls, "Open key page")
 		}
 	}
@@ -866,13 +904,26 @@ func (s *providersScreen) updateMenuish(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, cmd
 }
 
+// linkURLs are the sign-up and key pages for the detail card's provider,
+// from the plan or the free registry entry.
+func (s *providersScreen) linkURLs() (signup, keyPage string) {
+	if s.prov.Plan != nil {
+		return s.prov.Plan.Signup, s.prov.Plan.KeyURL
+	}
+	if s.entry != nil {
+		return s.entry.Signup, s.entry.KeyURL
+	}
+	return "", ""
+}
+
 func (s *providersScreen) menuChosen(v string) (tea.Model, tea.Cmd) {
 	switch s.stage {
 	case psDetail:
+		signup, keyPage := s.linkURLs()
 		switch v {
 		case "Set up":
-			if s.entry != nil && s.entry.Signup != "" {
-				_ = s.app.be.OpenURL(s.entry.Signup)
+			if signup != "" {
+				_ = s.app.be.OpenURL(signup)
 			}
 			s.continueSetup()
 		case "I have a key":
@@ -886,12 +937,12 @@ func (s *providersScreen) menuChosen(v string) (tea.Model, tea.Cmd) {
 		case "Remove":
 			return s, s.doRemove()
 		case "Open sign-up":
-			if s.entry != nil {
-				_ = s.app.be.OpenURL(s.entry.Signup)
+			if signup != "" {
+				_ = s.app.be.OpenURL(signup)
 			}
 		case "Open key page":
-			if s.entry != nil {
-				_ = s.app.be.OpenURL(s.entry.KeyURL)
+			if keyPage != "" {
+				_ = s.app.be.OpenURL(keyPage)
 			}
 		default:
 			s.toList()
@@ -1213,18 +1264,20 @@ func (s *providersScreen) maskedField(note string) []string {
 	return s.th.FieldBox(line, s.w, s.opts.UTF8)
 }
 
-// chipRow renders "All 312  Free 14  Ready 4  Paid  Local" with the active
-// chip inverted.
+// chipRow renders "All 76  Free 11  Plans 8  Ready 4  Paid 10  Local 4"
+// with the active chip inverted.
 func (s *providersScreen) chipRow() string {
 	counts := []struct {
 		label string
 		n     int
 	}{{label: "All", n: len(s.app.snap.Providers)}}
-	freeN, readyN, paidN, localN := 0, 0, 0, 0
+	freeN, planN, readyN, paidN, localN := 0, 0, 0, 0, 0
 	for _, p := range s.app.snap.Providers {
 		switch p.Group {
 		case "free":
 			freeN++
+		case "plan":
+			planN++
 		case "paid":
 			paidN++
 		case "local":
@@ -1239,6 +1292,10 @@ func (s *providersScreen) chipRow() string {
 			label string
 			n     int
 		}{"Free", freeN},
+		struct {
+			label string
+			n     int
+		}{"Plans", planN},
 		struct {
 			label string
 			n     int
@@ -1324,7 +1381,23 @@ func (s *providersScreen) detailLines() []string {
 	type kv struct{ label, value string }
 	var rows []kv
 	e := s.entry
-	if e == nil {
+	if pl := s.prov.Plan; pl != nil {
+		src := ""
+		if pl.Source != "" {
+			src = strings.TrimPrefix(strings.TrimPrefix(pl.Source, "https://"), "http://")
+			if i := strings.Index(src, "/"); i > 0 {
+				src = src[:i]
+			}
+			src += "  checked " + pl.Checked
+		}
+		rows = []kv{
+			{"price", pl.Price}, {"quota", pl.Quota}, {"models", pl.Models},
+			{"needs", pl.Needs}, {"terms", pl.Terms}, {"source", src},
+		}
+		if pl.KeyHint != "" {
+			rows = append(rows[:5], append([]kv{{"key", "starts with " + pl.KeyHint}}, rows[5:]...)...)
+		}
+	} else if e == nil {
 		state := "not set up"
 		if s.ready(s.prov) {
 			state = "ready"

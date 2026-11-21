@@ -1,0 +1,24 @@
+◆ tsunagi dev                                                          Providers
+
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ › Search 76 providers, or paste a key                                    │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+   All 76   Free 11   Plans 8   Ready 1   Paid 9   Local 5
+  ❯ ○ Alibaba Cloud Coding Plan    plan    $50/mo (Pro) · 6,000 requests per…
+    ○ Kimi Code                    plan    included in Kimi membership · by…
+    ○ MiniMax M Plan (Token Plan)  plan    subscription, see the plan page ·…
+    ○ Ollama Cloud                 plan    pay as you go; Pro $20/mo with…
+    ○ OpenCode Go                  plan    $10/mo Go, $40/mo Go Plus ·…
+    ○ Volcengine Ark Coding Plan   plan    Lite and Pro tiers · per-period…
+    ○ Z.ai GLM Coding Plan         plan    from $18/mo (Lite, Pro, Max) ·…
+    ○ chatgpt                      plan
+
+    Other
+      Add a gateway
+      Import from opencode
+      Back to menu
+
+
+
+  type to search   ↑↓ move   ←→ filter   ↵ open   esc back

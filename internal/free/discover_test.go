@@ -28,18 +28,6 @@ const orFixture = `{"data":[
 	 "pricing":{"prompt":"0","completion":"0"}}
 ]}`
 
-const zenFixture = `{"data":[
-	{"id":"big-pickle","limit":{"context":200000},
-	 "capabilities":{"tools":{"supported":true},"reasoning":{"supported":true}},
-	 "cost":{"text":{"input":{"price":0},"output":{"price":0}}}},
-	{"id":"gpt-5","limit":{"context":400000},
-	 "capabilities":{"tools":{"supported":true},"reasoning":{"supported":false}},
-	 "cost":{"text":{"input":{"price":0.000005},"output":{"price":0.00003}}}},
-	{"id":"nemotron","limit":{"context":128000},
-	 "capabilities":{"tools":{"supported":false},"reasoning":{"supported":false}},
-	 "cost":{"text":{"input":{"price":0},"output":{"price":0}}}}
-]}`
-
 func TestParseOpenRouter(t *testing.T) {
 	ms, err := parseOpenRouter([]byte(orFixture))
 	if err != nil {
@@ -71,30 +59,6 @@ func TestParseOpenRouter(t *testing.T) {
 	}
 }
 
-func TestParseZen(t *testing.T) {
-	ms, err := parseZen([]byte(zenFixture))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(ms) != 2 {
-		t.Fatalf("models = %+v", ms)
-	}
-	byID := map[string]FreeModel{}
-	for _, m := range ms {
-		byID[m.ID] = m
-	}
-	if m := byID["big-pickle"]; m.Provider != "opencode" || m.Context != 200000 ||
-		m.Tools == nil || !*m.Tools || !m.Reasoning {
-		t.Fatalf("big-pickle = %+v", m)
-	}
-	if m := byID["nemotron"]; m.Tools == nil || *m.Tools {
-		t.Fatalf("nemotron tools = %+v, want known false", m.Tools)
-	}
-	if _, ok := byID["gpt-5"]; ok {
-		t.Fatal("priced model included")
-	}
-}
-
 // cacheHome points the user cache dir at a temp HOME for the test.
 func cacheHome(t *testing.T) string {
 	t.Helper()
@@ -104,38 +68,32 @@ func cacheHome(t *testing.T) string {
 	return home
 }
 
-func fakeLists(t *testing.T, hits *int) (orURL, zenURL string) {
+func fakeList(t *testing.T, hits *int) string {
 	t.Helper()
-	or := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		*hits++
 		w.Write([]byte(orFixture))
 	}))
-	zen := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		*hits++
-		w.Write([]byte(zenFixture))
-	}))
-	t.Cleanup(or.Close)
-	t.Cleanup(zen.Close)
-	return or.URL, zen.URL
+	t.Cleanup(srv.Close)
+	return srv.URL
 }
 
-func useURLs(t *testing.T, orURL, zenURL string) {
+func useURL(t *testing.T, orURL string) {
 	t.Helper()
-	oldOR, oldZen := OpenRouterURL, ZenURL
-	OpenRouterURL, ZenURL = orURL, zenURL
-	t.Cleanup(func() { OpenRouterURL, ZenURL = oldOR, oldZen })
+	old := OpenRouterURL
+	OpenRouterURL = orURL
+	t.Cleanup(func() { OpenRouterURL = old })
 }
 
 func TestRefreshWritesAtomicCache(t *testing.T) {
 	cacheHome(t)
 	var hits int
-	orURL, zenURL := fakeLists(t, &hits)
-	useURLs(t, orURL, zenURL)
+	useURL(t, fakeList(t, &hits))
 
 	if err := Refresh(context.Background(), http.DefaultClient); err != nil {
 		t.Fatal(err)
 	}
-	if hits != 2 {
+	if hits != 1 {
 		t.Fatalf("hits = %d", hits)
 	}
 	path := Path()
@@ -146,20 +104,20 @@ func TestRefreshWritesAtomicCache(t *testing.T) {
 		t.Fatal("temp file left behind; write is not atomic")
 	}
 	snap, ok := Load()
-	if !ok || len(snap.Models) != 5 || snap.FetchedAt.IsZero() {
+	if !ok || len(snap.Models) != 3 || snap.FetchedAt.IsZero() {
 		t.Fatalf("snapshot = %+v ok=%v", snap, ok)
 	}
-	// sorted by provider then id: opencode's two models first, openrouter last
-	if snap.Models[0].Provider != "opencode" || snap.Models[len(snap.Models)-1].Provider != "openrouter" {
-		t.Fatalf("order = %+v", snap.Models)
+	for _, m := range snap.Models {
+		if m.Provider != "openrouter" {
+			t.Fatalf("provider = %+v", m)
+		}
 	}
 }
 
 func TestEnsureUsesFreshCache(t *testing.T) {
 	cacheHome(t)
 	var hits int
-	orURL, zenURL := fakeLists(t, &hits)
-	useURLs(t, orURL, zenURL)
+	useURL(t, fakeList(t, &hits))
 
 	// a fresh cache is used without any fetch
 	path := Path()
@@ -180,8 +138,7 @@ func TestEnsureUsesFreshCache(t *testing.T) {
 func TestEnsureRefreshesStaleAndFallsBackOffline(t *testing.T) {
 	cacheHome(t)
 	var hits int
-	orURL, zenURL := fakeLists(t, &hits)
-	useURLs(t, orURL, zenURL)
+	useURL(t, fakeList(t, &hits))
 
 	path := Path()
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -193,7 +150,7 @@ func TestEnsureRefreshesStaleAndFallsBackOffline(t *testing.T) {
 		t.Fatal(err)
 	}
 	snap, offline := Ensure(context.Background(), http.DefaultClient)
-	if offline || hits != 2 || len(snap.Models) != 5 {
+	if offline || hits != 1 || len(snap.Models) != 3 {
 		t.Fatalf("snap=%+v offline=%v hits=%d", snap, offline, hits)
 	}
 
@@ -204,7 +161,7 @@ func TestEnsureRefreshesStaleAndFallsBackOffline(t *testing.T) {
 	if err := os.WriteFile(path, b, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	useURLs(t, "http://127.0.0.1:1/or", "http://127.0.0.1:1/zen")
+	useURL(t, "http://127.0.0.1:1/or")
 	snap, offline = Ensure(context.Background(), http.DefaultClient)
 	if !offline || len(snap.Models) != 1 || snap.Models[0].ID != "old/model:free" {
 		t.Fatalf("offline snap=%+v offline=%v", snap, offline)
@@ -214,15 +171,14 @@ func TestEnsureRefreshesStaleAndFallsBackOffline(t *testing.T) {
 func TestRefreshForcesFetch(t *testing.T) {
 	cacheHome(t)
 	var hits int
-	orURL, zenURL := fakeLists(t, &hits)
-	useURLs(t, orURL, zenURL)
+	useURL(t, fakeList(t, &hits))
 	if err := Refresh(context.Background(), http.DefaultClient); err != nil {
 		t.Fatal(err)
 	}
 	if err := Refresh(context.Background(), http.DefaultClient); err != nil {
 		t.Fatal(err)
 	}
-	if hits != 4 {
+	if hits != 2 {
 		t.Fatalf("refresh did not force: hits=%d", hits)
 	}
 }

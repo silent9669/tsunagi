@@ -141,7 +141,7 @@ func freeRows(cfg config.Config, snap free.Snapshot, haveSnap bool, showAll bool
 		case e.Mode == free.TierMode:
 			r.Free = "all models"
 		case e.FromCatalog:
-			r.Free = len(catalogFreeCands(catalog.Load(), e.ID))
+			r.Free = len(catalogFreeCands(catalog.Load(), e.CatID()))
 		case haveSnap:
 			r.Free = counts[e.ID]
 		}
@@ -263,7 +263,7 @@ func freeDetail(t *ui.Term, cfg config.Config, snap free.Snapshot, name string, 
 	switch e.Mode {
 	case free.ModelsMode:
 		if e.FromCatalog {
-			for _, c := range catalogFreeCands(catalog.Load(), e.ID) {
+			for _, c := range catalogFreeCands(catalog.Load(), e.CatID()) {
 				models = append(models, modelRow{ID: c.ID, Context: c.Context, Tools: toolsMark(c.Tools)})
 			}
 		} else {
@@ -290,7 +290,7 @@ func freeDetail(t *ui.Term, cfg config.Config, snap free.Snapshot, name string, 
 				sort.Strings(ids)
 				for _, id := range ids {
 					mr := modelRow{ID: id}
-					if mi, ok := catalog.Caps(e.ID, id); ok {
+					if mi, ok := catalog.Caps(e.CatID(), id); ok {
 						mr.Context = mi.Context
 						if mi.Tools {
 							mr.Tools = "yes"
@@ -369,7 +369,7 @@ func cmdFreeRefresh(t *ui.Term, args []string) int {
 		}
 		n := counts[e.ID]
 		if e.FromCatalog {
-			n = len(catalogFreeCands(catalog.Load(), e.ID))
+			n = len(catalogFreeCands(catalog.Load(), e.CatID()))
 		}
 		t.Printf("  %s %d free models\n", t.Dim(e.ID), n)
 	}
@@ -387,7 +387,7 @@ func freeModels(ctx context.Context, cfg config.Config, snap free.Snapshot) map[
 		switch e.Mode {
 		case free.ModelsMode:
 			if e.FromCatalog {
-				out[e.ID] = catalogFreeCands(catalog.Load(), e.ID)
+				out[e.ID] = catalogFreeCands(catalog.Load(), e.CatID())
 				break
 			}
 			for _, m := range snap.Models {
@@ -412,7 +412,7 @@ func freeModels(ctx context.Context, cfg config.Config, snap free.Snapshot) map[
 				if strings.Contains(id, "token-plan") || strings.Contains(id, "coding-plan") {
 					continue
 				}
-				mi, ok := catalog.Caps(e.ID, id)
+				mi, ok := catalog.Caps(e.CatID(), id)
 				if !ok || !mi.Tools {
 					continue
 				}

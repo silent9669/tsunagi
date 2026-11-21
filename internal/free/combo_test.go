@@ -43,20 +43,20 @@ func TestDataPolicyGates(t *testing.T) {
 
 func TestBuildAutoGatesAndOrder(t *testing.T) {
 	models := map[string][]ModelCand{
-		// opencode is Trains: gated out without allow, in with it
-		"opencode": {
+		// nvidia is Trains: gated out without allow, in with it
+		"nvidia": {
 			{ID: "small", Context: 32_000},
 			{ID: "big", Context: 200_000, Reasoning: true},
 			{ID: "mid", Context: 128_000, Reasoning: true},
 			{ID: "fourth", Context: 64_000, Reasoning: true},
 		},
 		// groq is Private: always allowed, registry order puts it after
-		// opencode and openrouter but before google/mistral/nvidia/cloudflare
+		// openrouter but before google/sambanova/nvidia/cloudflare
 		"groq": {{ID: "llama", Context: 128_000}},
 		// openrouter is Trains too
 		"openrouter": {{ID: "qwen/qwen3-coder:free", Context: 262_144, Tools: boolp(true)}},
 	}
-	keyed := map[string]bool{"opencode": true, "groq": true, "openrouter": true, "google": true}
+	keyed := map[string]bool{"nvidia": true, "groq": true, "openrouter": true, "google": true}
 
 	// without allow_trains only the Private provider contributes
 	spec := BuildAuto(autoIn(models, nil, nil, keyed, false))
@@ -67,13 +67,13 @@ func TestBuildAutoGatesAndOrder(t *testing.T) {
 		t.Fatalf("strategy = %q", spec.Strategy)
 	}
 
-	// with allow_trains, registry order is opencode, openrouter, groq;
-	// within opencode reasoning-first then context then id, capped at 3
-	spec = BuildAuto(autoIn(models, nil, []string{"opencode", "openrouter"}, keyed, false))
+	// with allow_trains, registry order is openrouter, groq, nvidia;
+	// within nvidia reasoning-first then context then id, capped at 3
+	spec = BuildAuto(autoIn(models, nil, []string{"nvidia", "openrouter"}, keyed, false))
 	want := []string{
-		"opencode/big", "opencode/mid", "opencode/fourth", // reasoning desc, context desc, capped at 3
 		"openrouter/qwen/qwen3-coder:free",
 		"groq/llama",
+		"nvidia/big", "nvidia/mid", "nvidia/fourth", // reasoning desc, context desc, capped at 3
 	}
 	if len(spec.Targets) != len(want) {
 		t.Fatalf("targets = %v", spec.Targets)
@@ -163,17 +163,17 @@ func TestBuildAutoNoProbeDropsKnownNoTools(t *testing.T) {
 func TestCandidatesPreservesRegistryOrder(t *testing.T) {
 	models := map[string][]ModelCand{
 		"cloudflare": {{ID: "x"}},
-		"opencode":   {{ID: "a"}},
+		"openrouter": {{ID: "a"}},
 		"groq":       {{ID: "b"}},
 	}
-	in := autoIn(models, nil, []string{"opencode"}, map[string]bool{"opencode": true, "groq": true, "cloudflare": true}, false)
+	in := autoIn(models, nil, []string{"openrouter"}, map[string]bool{"openrouter": true, "groq": true, "cloudflare": true}, false)
 	cands := in.Candidates()
-	// registry order: opencode, openrouter, groq, google, mistral, nvidia, cloudflare
+	// registry order: openrouter, groq, google, sambanova, cohere, nvidia, cloudflare
 	var ids []string
 	for _, pc := range cands {
 		ids = append(ids, pc.Entry.ID)
 	}
-	want := []string{"opencode", "groq", "cloudflare"}
+	want := []string{"openrouter", "groq", "cloudflare"}
 	if len(ids) != len(want) {
 		t.Fatalf("providers = %v", ids)
 	}

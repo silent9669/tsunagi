@@ -27,11 +27,21 @@ type ProviderRow struct {
 	Group     string // "free", "plan", "paid" or "local"
 	Ready     bool   // a key or sign-in (or local) is stored
 	Accounts  []string
-	Tag       string // data label: private|trains|unknown|plan|""
-	Setup     string // extra setup the provider needs, e.g. "account-id"
-	FreeEntry bool   // Name matches a free.Registry entry
-	Keyless   bool   // answers with no account and no key
-	Limits    string // registry limits text, "" outside the registry
+	Tag       string    // data label: private|trains|unknown|plan|""
+	Setup     string    // extra setup the provider needs, e.g. "account-id"
+	FreeEntry bool      // Name matches a free.Registry entry
+	Keyless   bool      // answers with no account and no key
+	Limits    string    // registry limits text, "" outside the registry
+	Plan      *PlanInfo // set on Group "plan" rows, nil for chatgpt
+}
+
+// PlanInfo is what the providers screen shows for a coding plan. Verified
+// means the details come from the provider's own docs on Checked; an
+// unverified plan only carries the flat-fee Terms line.
+type PlanInfo struct {
+	Price, Quota, Models, Needs, KeyHint, Terms, Source, Checked string
+	Signup, KeyURL                                               string
+	Verified                                                     bool
 }
 
 // EnvKey is a routable provider that an environment variable can key. The

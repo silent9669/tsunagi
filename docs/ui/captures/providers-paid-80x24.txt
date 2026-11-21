@@ -1,24 +1,24 @@
 ◆ tsunagi dev                                                          Providers
 
   ╭──────────────────────────────────────────────────────────────────────────╮
-  │ › Search 71 providers, or paste a key                                    │
+  │ › Search 76 providers, or paste a key                                    │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
-   All 71   Free 12   Ready 2   Paid 10   Local 5
-    ↑ 19 more
+   All 76   Free 11   Plans 8   Ready 1   Paid 9   Local 5
+    ↑ 23 more
     Local
-    ○ llamacpp               local
-    ✓ ollama                 local
-    ○ lmstudio               local
-    ○ vllm                   local
-    ○ e2e                    local
+    ○ llamacpp                     local
+    ✓ ollama                       local
+    ○ lmstudio                     local
+    ○ vllm                         local
+    ○ e2e                          local
 
     Paid
-    ○ opencode-go            paid
-    ○ deepseek               paid
-    ○ moonshot               paid
-    ○ minimax                paid
-  ❯ ○ qwen                   paid
-    ↓ 21 more
+    ○ opencode                     paid
+    ○ deepseek                     paid
+    ○ moonshot                     paid
+    ○ qwen                         paid
+  ❯ ○ fireworks                    paid
+    ↓ 20 more
 
   type to search   ↑↓ move   ←→ filter   ↵ open   esc back

@@ -15,10 +15,12 @@ func searchSnap() Snapshot {
 	s := snapBase()
 	s.Providers = []ProviderRow{
 		{Name: "groq", Group: "free", Tag: "private", FreeEntry: true},
-		{Name: "opencode", Group: "free", Tag: "trains", FreeEntry: true},
+		{Name: "opencode", Group: "paid"},
+		{Name: "opencode-go", Group: "plan", Tag: "plan", Plan: &PlanInfo{Verified: true}},
 		{Name: "openrouter", Group: "free", Tag: "trains", FreeEntry: true},
-		{Name: "kilo", Group: "free", Tag: "trains", FreeEntry: true, Keyless: true, Ready: true},
-		{Name: "zai", Group: "free", Tag: "private", FreeEntry: true},
+		{Name: "kilo", Group: "free", Tag: "trains", FreeEntry: true, Keyless: true},
+		{Name: "zai", Group: "plan", Tag: "plan", Plan: &PlanInfo{Verified: true}},
+		{Name: "zai-api", Group: "free", Tag: "private", FreeEntry: true},
 		{Name: "google", Group: "free", Tag: "trains", FreeEntry: true},
 		{Name: "together", Group: ""},
 		{Name: "aigrow", Group: ""},
@@ -63,8 +65,9 @@ func TestSearchRealisticCatalogue(t *testing.T) {
 
 	typeIn(m, "o")
 	labels = homeLabels(t, m)
-	if len(labels) < 2 || labels[0] != "Set up OpenCode Zen" || labels[1] != "Set up OpenRouter" {
-		t.Fatalf("o must put OpenCode Zen and OpenRouter first: %v", labels)
+	if len(labels) < 3 || labels[0] != "Set up opencode" || labels[1] != "Set up OpenCode Go" ||
+		labels[2] != "Set up OpenRouter" {
+		t.Fatalf("o must put the opencode rows and OpenRouter first: %v", labels)
 	}
 	for _, l := range labels {
 		if l == "Settings" {
@@ -75,15 +78,16 @@ func TestSearchRealisticCatalogue(t *testing.T) {
 
 	typeIn(m, "kilo")
 	labels = homeLabels(t, m)
-	if len(labels) != 1 || labels[0] != "Kilo Gateway" {
+	if len(labels) != 1 || labels[0] != "Set up Kilo Gateway" {
 		t.Fatalf("kilo must match Kilo Gateway only: %v", labels)
 	}
 	esc(m)
 
 	typeIn(m, "open")
 	labels = homeLabels(t, m)
-	if len(labels) < 2 || labels[0] != "Set up OpenCode Zen" || labels[1] != "Set up OpenRouter" {
-		t.Fatalf("open must give OpenCode Zen, OpenRouter: %v", labels)
+	if len(labels) < 3 || labels[0] != "Set up opencode" || labels[1] != "Set up OpenCode Go" ||
+		labels[2] != "Set up OpenRouter" {
+		t.Fatalf("open must give opencode, OpenCode Go, OpenRouter: %v", labels)
 	}
 	esc(m)
 
@@ -114,7 +118,7 @@ func TestCursorResetsOnQueryAndChip(t *testing.T) {
 	key(m, tea.KeyDown, "") // move off the first result
 	typeIn(m, "p")          // now "op"
 	hs := m.scr.(*homeScreen)
-	if r, _ := hs.list.Selected(); r.Label != "Set up OpenCode Zen" {
+	if r, _ := hs.list.Selected(); r.Label != "Set up opencode" {
 		t.Fatalf("cursor must reset to the first result on query change, got %q", r.Label)
 	}
 	esc(m)

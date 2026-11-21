@@ -1,0 +1,24 @@
+◆ tsunagi dev                              Providers › Alibaba Cloud Coding Plan
+
+  ╭─ Alibaba Cloud Coding Plan ──────────────────────────────────────  plan  ╮
+  │ price   $50/mo (Pro)                                                     │
+  │ quota   6,000 requests per 5 hours, 45,000 per week, 90,000 per month;   │
+  │         slots are limited                                                │
+  │ models  qwen3.7-plus, qwen3.6-plus, kimi-k2.5, glm-5, MiniMax-M2.5       │
+  │ terms   only for interactive coding tools such as Claude Code; direct    │
+  │         API calls are rejected                                           │
+  │ key     starts with sk-sp-                                               │
+  │ source  www.alibabacloud.com checked 2026-11-21                          │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+  ❯ 1 Set up
+    2 I have a key
+    3 Open sign-up
+    4 Open key page
+    5 Back
+
+
+
+
+
+  ↑↓ move   ↵ select   esc back

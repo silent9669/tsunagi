@@ -217,7 +217,7 @@ func (l List) View() tea.View {
 		marker, ell, up, down = "❯ ", "…", "↑", "↓"
 	}
 	w := max(l.w, 8)
-	// the name column is the longest visible name, capped at 24 cells
+	// the name column is the longest visible name, capped at 28 cells
 	nameW := 4
 	slots := 0
 	for _, r := range l.Rows {
@@ -231,7 +231,7 @@ func (l List) View() tea.View {
 			slots = len(r.Badges)
 		}
 	}
-	nameW = min(nameW, 24)
+	nameW = min(nameW, 28)
 	var rows []string
 	h := max(l.h, 1)
 	room := h

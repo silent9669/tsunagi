@@ -114,7 +114,7 @@
 - [x] Scenario routing from claude-code-router (thinking, long context, web search to a chosen model): `scenarios` + `scenario_tokens` in config, detection from the request body, precedence long context > web search > thinking, editable in Settings > Routing
 - [x] Per-target weights and a quota-aware strategy from OmniRoute and LiteLLM: `weighted` strategy with per-target `weights` (Efraimidis-Spirakis draw; `tsunagi route` shows weight order) and `headroom` (best remaining account quota first, unknown last)
 - [x] Zhipu GLM-Flash and ModelScope as free providers: Z.ai added (the international platform, GLM-4.7-Flash and GLM-4.5-Flash free per its pricing page, models read from the catalogue's zero-priced caps). ModelScope excluded: the free API needs an account bound to a real-name-verified Alibaba Cloud account and is evaluation-only. Zhipu's China platform was not added
-- [ ] Live check of the Z.ai free models (no Z.ai key on the test machine; the builtin `zai` provider uses the Anthropic-dialect endpoint, and `free probe zai` decides whether the free models answer there)
+- [ ] Live check of the Z.ai free models (no Z.ai key on the test machine; the free models moved to `zai-api` in v0.7.0, so `free probe zai-api` decides whether they answer on the pay-as-you-go endpoint)
 
 ## Phase 9: wider free catalogue and easier setup (v0.6.0)
 
@@ -124,3 +124,14 @@
 - [x] Environment key import: `Backend.EnvKeys`/`ImportEnvKey`/`DetectKey` — names only, the value is never returned or logged
 - [x] Interface rework: one always-focused search box over actions and every provider (ordered substring and word-start matching), a smart next-step row, a providers browser with All/Free/Ready/Paid/Local chips, aligned columns, wrapped detail cards, a vertical setup rail, paste-a-key detection, environment import, an ANSI-Shadow wordmark with gradient, and `colour` as the default theme (`NO_COLOR`, `--plain` and an explicit `ui.theme` still win)
 - [ ] Free providers read but not added: LLM7 (free token, 100k tokens/day, data policy unpublished), SEA-LION (10 requests/min trial key), Pollinations (anonymous, one text request per 45 s), OVHcloud (anonymous, 2 requests/min), Amazon Nova API (docs not readable here)
+
+## Phase 10: honest free claims and subscription plans (v0.7.0)
+
+- [x] OpenCode Zen removed from the free registry: its free models answer only inside OpenCode (HTTP 403 / FreeUsageLimitError elsewhere), documented in `free.Excluded`; paid Zen keys still work
+- [x] Kilo free limits rewritten honestly (200 requests/hour per IP, rotating list, upstream rate limits); a keyless provider is usable but no longer counts as Ready
+- [x] Z.ai endpoints separated: `zai` is the GLM Coding Plan (Anthropic dialect), `zai-api` the pay-as-you-go endpoint whose free GLM Flash models are read from the catalogue (`Entry.CatalogID`)
+- [x] Plan registry (`internal/plans`): OpenCode Go, Z.ai GLM, MiniMax M, Kimi Code, Alibaba Cloud, Volcengine Ark and Ollama Cloud, each with price, quota, terms and source; catalogue `*-coding-plan`/`*-token-plan`/`*-code-plan` ids not in the registry show as unverified plans
+- [x] New Anthropic-dialect builtins `kimi-code-plan-global`, `alibaba-coding-plan`, `volcengine-coding-plan` and `ollama-cloud`; `opencode-go` gets its own endpoint
+- [x] Plans in the Providers screen: `Plans` chip, a Plans section, plan detail cards with terms and links, sign-up and key-page actions
+- [x] Client headers (User-Agent, session id, anthropic-beta) pass unchanged to Anthropic-dialect providers — required by OpenCode Go and Alibaba plan terms
+- [ ] Live check of each plan with a real plan key (none on the test machine)

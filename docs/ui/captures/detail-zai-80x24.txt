@@ -1,0 +1,24 @@
+◆ tsunagi dev                                   Providers › Z.ai GLM Coding Plan
+
+  ╭─ Z.ai GLM Coding Plan ───────────────────────────────────────────  plan  ╮
+  │ price   from $18/mo (Lite, Pro, Max)                                     │
+  │ quota   5-hour and weekly credit limits                                  │
+  │ models  GLM-5.3, GLM-5.3-Flash only                                      │
+  │ terms   limited to officially supported tools; Claude Code is listed.    │
+  │         The docs do not say whether a local proxy in front of the tool   │
+  │         is allowed                                                       │
+  │ source  docs.z.ai checked 2026-11-21                                     │
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+  ❯ 1 Set up
+    2 I have a key
+    3 Open sign-up
+    4 Open key page
+    5 Back
+
+
+
+
+
+
+  ↑↓ move   ↵ select   esc back

@@ -11,7 +11,6 @@ pages. The machine-readable copy lives in `internal/free/registry.go`.
 
 | Provider | Mode | Limits | Data | Needs | Signup | Key | Source | Checked |
 |---|---|---|---|---|---|---|---|---|
-| OpenCode Zen | models | free models rotate; each is free for a limited time | trains — free models: provider may retain and train on data | key may need billing details on file; free models cost nothing | https://opencode.ai/auth | https://opencode.ai/auth | https://opencode.ai/docs/zen/ | 2026-11-21 |
 | OpenRouter | models | 20 requests/min, 50/day; 1000/day after $10 of credits | trains — free variants can be served by providers that retain and train, see each model page | | https://openrouter.ai/sign-up | https://openrouter.ai/keys | https://openrouter.ai/docs/api_reference/limits | 2026-11-21 |
 | Groq | tier | per-model request and token caps, see the limits page | private — inference requests are not retained or used for training by default | | https://console.groq.com/ | https://console.groq.com/keys | https://console.groq.com/docs/your-data | 2026-11-21 |
 | Google AI Studio | tier | free tier on selected models, flagship models excluded | trains — free tier content is used to improve Google products | | https://aistudio.google.com/ | https://aistudio.google.com/apikey | https://ai.google.dev/gemini-api/docs/pricing | 2026-11-21 |
@@ -19,15 +18,18 @@ pages. The machine-readable copy lives in `internal/free/registry.go`.
 | Cohere (trial key) | tier | 20 requests/min, 1,000 calls/month; trial keys are not for production | trains — trial users' inputs and outputs may be used for research and to improve Cohere products | | https://dashboard.cohere.com/welcome/register | https://dashboard.cohere.com/api-keys | https://docs.cohere.com/docs/rate-limits | 2026-11-21 |
 | NVIDIA NIM | tier | up to 40 requests/min, prototyping only | trains — trial terms: prompts and outputs may be collected to improve NVIDIA products | verified phone number | https://build.nvidia.com/ | https://build.nvidia.com/settings/api-keys | https://build.nvidia.com/search | 2026-11-21 |
 | Cloudflare Workers AI | tier | 10,000 neurons/day; some models need a paid plan | private — inputs and outputs are not retained or used for training | account-id | https://dash.cloudflare.com/sign-up | https://dash.cloudflare.com/profile/api-tokens | https://developers.cloudflare.com/workers-ai/platform/data-usage/ | 2026-11-21 |
-| Z.ai | models | GLM-4.7-Flash and GLM-4.5-Flash only; other models are paid | private — content is processed only to provide the API service and is not saved on Z.ai servers; processing is generally in Singapore | | https://z.ai/model-api | https://z.ai/manage-apikey/apikey-list | https://docs.z.ai/guides/overview/pricing | 2026-11-21 |
-| Kilo Gateway | models | free models only; 200 requests/hour per IP, with or without an account | trains — free models may be routed to providers that log prompts and outputs to improve their services (NVIDIA's free endpoints are named) | | https://app.kilo.ai | keyless — https://app.kilo.ai optional | https://kilo.ai/docs/getting-started/using-kilo-for-free | 2026-11-21 |
+| Z.ai API (GLM Flash) | models | GLM-4.7-Flash and GLM-4.5-Flash only; other models are paid | private — content is processed only to provide the API service and is not saved on Z.ai servers; processing is generally in Singapore | | https://z.ai/model-api | https://z.ai/manage-apikey/apikey-list | https://docs.z.ai/guides/overview/pricing | 2026-11-21 |
+| Kilo Gateway | models | free models only, best effort: 200 requests/hour per IP, the list rotates and some models are rate limited upstream | trains — free models may be routed to providers that log prompts and outputs to improve their services (NVIDIA's free endpoints are named) | | https://app.kilo.ai | keyless — https://app.kilo.ai optional | https://kilo.ai/docs/getting-started/using-kilo-for-free | 2026-11-21 |
 | Reflection AI (beta) | models | public beta: free with daily token allowances that reset daily; Reflection may end the beta at any time | unknown — content is kept up to 30 days for safety monitoring; whether it trains models depends on the account terms | | https://platform.reflection.ai | https://developers.reflection.ai/quickstart | https://reflection.ai/legal/beta-pricing-information | 2026-11-21 |
 | Requesty | models | free models only; new organizations 200 requests/day and 20/min, paying organizations 1,000/day and 60/min | unknown — prompts are not stored unless logging is enabled; each free model's upstream provider sets its own terms | | https://www.requesty.ai/free-models | https://www.requesty.ai/free-models | https://docs.requesty.ai/features/free-models | 2026-11-21 |
 
 `models` mode means only some models are priced at zero and the list is read
 live — from the provider's discovery endpoint, or from the synced catalogue's
-zero-priced caps for `FromCatalog` entries (Z.ai, Kilo Gateway, Reflection
-AI, Requesty). `tier` mode means every model the provider serves is usable on
+zero-priced caps for `FromCatalog` entries (Z.ai API, Kilo Gateway,
+Reflection AI, Requesty). The Z.ai API entry is `zai-api`: it reads the
+catalogue's zero-priced `zai` models but routes to the pay-as-you-go
+endpoint, while the `zai` provider name is the GLM Coding Plan (see
+[plans.md](plans.md)). `tier` mode means every model the provider serves is usable on
 a rate-limited free plan, so candidates come from the provider's live
 `/models` list intersected with the catalogue's capability data.
 
@@ -41,6 +43,7 @@ routed:
 
 | Provider | Why excluded |
 |---|---|
+| opencode | free models are served only inside OpenCode: other tools get HTTP 403 or FreeUsageLimitError even with a key (OpenCode harness docs and a live check on 2026-11-21); its paid models and the Go plan work in any tool, see [plans.md](plans.md) |
 | github-models | retired on 2026-07-30 |
 | cerebras | the $5 trial credit needs a payment method and expires in 30 days |
 | gemini-cli | Google forbids third-party use of Gemini CLI and Antigravity sign-in |
@@ -84,8 +87,8 @@ tsunagi free allow <provider>   # opt a trains provider into free/auto
 tsunagi free deny <provider>    # opt it back out
 ```
 
-The public lists (OpenRouter `/api/v1/models`, OpenCode Zen `/zen/v1/models`)
-are cached in `~/Library/Caches/tsunagi/free.json` for 6 hours; `free` shows
+The public list (OpenRouter `/api/v1/models`) is cached in
+`~/Library/Caches/tsunagi/free.json` for 6 hours; `free` shows
 `offline, cached <age>` when it falls back to the cache. Probe results live
 in `probe.json` next to it and count for 7 days.
 

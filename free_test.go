@@ -28,15 +28,6 @@ const testORFixture = `{"data":[
 	 "supported_parameters":["tools"]}
 ]}`
 
-const testZenFixture = `{"data":[
-	{"id":"big-pickle","limit":{"context":200000},
-	 "capabilities":{"tools":{"supported":true},"reasoning":{"supported":true}},
-	 "cost":{"text":{"input":{"price":0},"output":{"price":0}}}},
-	{"id":"gpt-5","limit":{"context":400000},
-	 "capabilities":{"tools":{"supported":true},"reasoning":{"supported":false}},
-	 "cost":{"text":{"input":{"price":0.000005},"output":{"price":0.00003}}}}
-]}`
-
 // freeEnv points discovery at fake servers, stubs the key lookup, and gives
 // the test a temp HOME with the given config.json body.
 func freeEnv(t *testing.T, cfgBody string) {
@@ -56,14 +47,10 @@ func freeEnv(t *testing.T, cfgBody string) {
 	or := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(testORFixture))
 	}))
-	zen := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(testZenFixture))
-	}))
 	t.Cleanup(or.Close)
-	t.Cleanup(zen.Close)
-	oldOR, oldZen := free.OpenRouterURL, free.ZenURL
-	free.OpenRouterURL, free.ZenURL = or.URL, zen.URL
-	t.Cleanup(func() { free.OpenRouterURL, free.ZenURL = oldOR, oldZen })
+	old := free.OpenRouterURL
+	free.OpenRouterURL = or.URL
+	t.Cleanup(func() { free.OpenRouterURL = old })
 
 	oldKey, oldLive := hasFreeKey, liveFreeModels
 	hasFreeKey = func(config.Config, string) bool { return false }
@@ -88,7 +75,7 @@ func TestFreeTable(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code %d out %s", code, out)
 	}
-	for _, want := range []string{"opencode", "openrouter", "groq", "cloudflare", "all models", "setup", "private", "trains", "kilo", "no key needed"} {
+	for _, want := range []string{"zai-api", "openrouter", "groq", "cloudflare", "all models", "setup", "private", "trains", "kilo", "no key needed"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output lacks %q:\n%s", want, out)
 		}
@@ -118,7 +105,7 @@ func TestFreeTableJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("bad json %q: %v", out, err)
 	}
-	if len(doc.Providers) != 12 {
+	if len(doc.Providers) != 11 {
 		t.Fatalf("providers = %+v", doc.Providers)
 	}
 	var or, cf, kilo *row
@@ -212,7 +199,7 @@ func TestFreeAllowDeny(t *testing.T) {
 }
 
 func TestFreeComboDryRun(t *testing.T) {
-	freeEnv(t, `{"free":{"allow_trains":["opencode","openrouter"]}}`)
+	freeEnv(t, `{"free":{"allow_trains":["openrouter"]}}`)
 
 	// no keys anywhere: nothing can be a candidate
 	code, out := captureRun(t, "free", "combo", "--dry-run", "--no-probe")
@@ -222,21 +209,17 @@ func TestFreeComboDryRun(t *testing.T) {
 
 	// key only the two ModelsMode providers
 	old := hasFreeKey
-	hasFreeKey = func(_ config.Config, name string) bool { return name == "opencode" || name == "openrouter" }
+	hasFreeKey = func(_ config.Config, name string) bool { return name == "openrouter" }
 	defer func() { hasFreeKey = old }()
 
 	code, out = captureRun(t, "free", "combo", "--dry-run", "--no-probe")
 	if code != 0 {
 		t.Fatalf("combo code %d out %s", code, out)
 	}
-	for _, want := range []string{"opencode/big-pickle", "openrouter/qwen/qwen3-coder:free", "openrouter/openrouter/free"} {
+	for _, want := range []string{"openrouter/qwen/qwen3-coder:free", "openrouter/openrouter/free"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("targets lack %q:\n%s", want, out)
 		}
-	}
-	// registry order: opencode before openrouter
-	if strings.Index(out, "opencode/") > strings.Index(out, "openrouter/") {
-		t.Fatalf("order wrong:\n%s", out)
 	}
 	// dry-run must not write the combo
 	if _, err := os.Stat(configPath(t)); err == nil {
@@ -265,7 +248,7 @@ func TestFreeRefresh(t *testing.T) {
 		t.Fatalf("out = %s", out)
 	}
 	snap, ok := free.Load()
-	if !ok || len(snap.Models) != 3 {
+	if !ok || len(snap.Models) != 2 {
 		t.Fatalf("snapshot = %+v ok=%v", snap, ok)
 	}
 }
@@ -299,15 +282,15 @@ func TestCatalogFreeCands(t *testing.T) {
 }
 
 func TestZaiRegistryEntry(t *testing.T) {
-	e, ok := registryEntry("zai")
+	e, ok := registryEntry("zai-api")
 	if !ok {
-		t.Fatal("zai missing from the registry")
+		t.Fatal("zai-api missing from the registry")
 	}
 	if e.Mode != free.ModelsMode || !e.FromCatalog || e.Data != free.Private {
-		t.Fatalf("zai entry = %+v", e)
+		t.Fatalf("zai-api entry = %+v", e)
 	}
-	if e.Needs != "" || e.Setup != "" {
-		t.Fatalf("zai entry = %+v", e)
+	if e.CatID() != "zai" || e.Needs != "" || e.Setup != "" {
+		t.Fatalf("zai-api entry = %+v", e)
 	}
 	if _, found := free.Excluded["modelscope"]; !found {
 		t.Fatal("modelscope missing from Excluded")

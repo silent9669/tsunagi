@@ -15,17 +15,19 @@ func TestEveryScreenFitsEverySize(t *testing.T) {
 	heights := []int{5, 6, 8, 10, 12, 16, 20, 24, 30, 40, 50}
 	// keys are typed into the always-focused search boxes; \r picks the top row
 	screens := map[string][]string{
-		"home":      {},
-		"providers": {"p", "r", "o", "v", "\r"},
-		"detail":    {"p", "r", "o", "v", "\r", "g", "r", "o", "\r"},
-		"rail":      {"p", "r", "o", "v", "\r", "g", "r", "o", "\r", "1"},
-		"envcard":   {"p", "r", "o", "v", "\r", "\r"},
-		"skills":    {"s", "k", "i", "\r"},
-		"free":      {"f", "r", "e", "\r"},
-		"settings":  {"s", "e", "t", "\r"},
-		"routing":   {"s", "e", "t", "\r", "1"},
-		"status":    {"s", "t", "a", "t", "u", "\r"},
-		"scrolled":  {"p", "r", "o", "v", "\r", "END"},
+		"home":       {},
+		"providers":  {"p", "r", "o", "v", "\r"},
+		"detail":     {"p", "r", "o", "v", "\r", "g", "r", "o", "\r"},
+		"rail":       {"p", "r", "o", "v", "\r", "g", "r", "o", "\r", "1"},
+		"envcard":    {"p", "r", "o", "v", "\r", "\r"},
+		"skills":     {"s", "k", "i", "\r"},
+		"free":       {"f", "r", "e", "\r"},
+		"settings":   {"s", "e", "t", "\r"},
+		"routing":    {"s", "e", "t", "\r", "1"},
+		"status":     {"s", "t", "a", "t", "u", "\r"},
+		"scrolled":   {"p", "r", "o", "v", "\r", "END"},
+		"plans":      {"p", "r", "o", "v", "\r", "RIGHT", "RIGHT"},
+		"plandetail": {"p", "r", "o", "v", "\r", "a", "l", "i", "\r"},
 	}
 	for name, keys := range screens {
 		for _, W := range widths {
@@ -41,6 +43,9 @@ func TestEveryScreenFitsEverySize(t *testing.T) {
 						be.snap.Providers = append(be.snap.Providers, ProviderRow{Name: "prov" + itoa(i), Group: "paid"})
 					}
 				}
+				if name == "plans" || name == "plandetail" {
+					be.snap.Providers = planSnap().Providers
+				}
 				m, err := New(opts, be, false)
 				if err != nil {
 					t.Fatal(err)
@@ -52,6 +57,8 @@ func TestEveryScreenFitsEverySize(t *testing.T) {
 						enter(m)
 					case k == "END":
 						key(m, tea.KeyEnd, "")
+					case k == "RIGHT":
+						key(m, tea.KeyRight, "")
 					case k >= "0" && k <= "9":
 						press(m, k)
 					default:

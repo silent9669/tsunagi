@@ -19,12 +19,9 @@ import (
 // Freshness is how long a cached discovery snapshot stays good.
 const Freshness = 6 * time.Hour
 
-// The public model lists discovery reads. They are variables so tests can
-// point them at fake servers; production code never changes them.
-var (
-	OpenRouterURL = "https://openrouter.ai/api/v1/models"
-	ZenURL        = "https://opencode.ai/zen/v1/models"
-)
+// The public model list discovery reads. It is a variable so tests can point
+// it at a fake server; production code never changes it.
+var OpenRouterURL = "https://openrouter.ai/api/v1/models"
 
 // FreeModel is one model a provider offers at no cost.
 type FreeModel struct {
@@ -83,28 +80,18 @@ func store(path string, s Snapshot) error {
 	return os.Rename(tmp, path)
 }
 
-// Refresh fetches both public lists and stores them, ignoring any cache.
+// Refresh fetches the public list and stores it, ignoring any cache.
 func Refresh(ctx context.Context, c *http.Client) error {
 	if c == nil {
 		c = http.DefaultClient
 	}
-	var models []FreeModel
-	for _, src := range []struct {
-		url   string
-		parse func([]byte) ([]FreeModel, error)
-	}{
-		{OpenRouterURL, parseOpenRouter},
-		{ZenURL, parseZen},
-	} {
-		ms, err := fetch(ctx, c, src.url)
-		if err != nil {
-			return err
-		}
-		parsed, err := src.parse(ms)
-		if err != nil {
-			return fmt.Errorf("%s: %v", src.url, err)
-		}
-		models = append(models, parsed...)
+	body, err := fetch(ctx, c, OpenRouterURL)
+	if err != nil {
+		return err
+	}
+	models, err := parseOpenRouter(body)
+	if err != nil {
+		return fmt.Errorf("%s: %v", OpenRouterURL, err)
 	}
 	sort.Slice(models, func(i, j int) bool {
 		if models[i].Provider != models[j].Provider {
@@ -196,58 +183,6 @@ func parseOpenRouter(body []byte) ([]FreeModel, error) {
 func zeroPrice(s string) bool {
 	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return err == nil && f == 0
-}
-
-// parseZen reads GET /zen/v1/models: data[] with id, limit.context,
-// capabilities.{tools,reasoning}.supported and cost.text prices (numbers). A
-// model is free when both prices are zero.
-func parseZen(body []byte) ([]FreeModel, error) {
-	var resp struct {
-		Data []struct {
-			ID    string `json:"id"`
-			Limit struct {
-				Context int `json:"context"`
-			} `json:"limit"`
-			Capabilities struct {
-				Tools struct {
-					Supported bool `json:"supported"`
-				} `json:"tools"`
-				Reasoning struct {
-					Supported bool `json:"supported"`
-				} `json:"reasoning"`
-			} `json:"capabilities"`
-			Cost struct {
-				Text struct {
-					Input struct {
-						Price *float64 `json:"price"`
-					} `json:"input"`
-					Output struct {
-						Price *float64 `json:"price"`
-					} `json:"output"`
-				} `json:"text"`
-			} `json:"cost"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, err
-	}
-	var out []FreeModel
-	for _, m := range resp.Data {
-		// both prices must be present and zero; a missing cost is not "free"
-		if m.Cost.Text.Input.Price == nil || m.Cost.Text.Output.Price == nil ||
-			*m.Cost.Text.Input.Price != 0 || *m.Cost.Text.Output.Price != 0 {
-			continue
-		}
-		tools := m.Capabilities.Tools.Supported
-		out = append(out, FreeModel{
-			Provider:  "opencode",
-			ID:        m.ID,
-			Context:   m.Limit.Context,
-			Tools:     &tools,
-			Reasoning: m.Capabilities.Reasoning.Supported,
-		})
-	}
-	return out, nil
 }
 
 // UnverifiedProvider is a catalogue provider that is not in the registry but

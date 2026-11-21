@@ -63,7 +63,7 @@ Update with `brew upgrade --cask tsunagi`. Remove with `tsunagi uninstall`, then
 
 Run `tsunagi`. The first time it opens a short setup:
 
-1. **Providers**: filter the list (All, Free, Ready, Paid, Local) or type to search about 300 providers, press enter on one and follow its steps (account, key, verify, done). Paste a key anywhere in the search box and tsunagi recognises the provider from its prefix. Keys found in your environment (for example `GROQ_API_KEY`) are offered for import, names only until you agree. Kilo Gateway's free models need no account at all. Free offers show their limits and what the provider does with your prompts. Keys are typed hidden and saved in the macOS keychain.
+1. **Providers**: filter the list (All, Free, Plans, Ready, Paid, Local) or type to search about 300 providers, press enter on one and follow its steps (account, key, verify, done). Paste a key anywhere in the search box and tsunagi recognises the provider from its prefix. Keys found in your environment (for example `GROQ_API_KEY`) are offered for import, names only until you agree. Kilo Gateway's free models need no account at all. Free offers show their limits and what the provider does with your prompts. Keys are typed hidden and saved in the macOS keychain.
 2. **Skills**: optional skills so Claude Code, Codex, Cursor and opencode can hand off plans and manage tsunagi.
 3. **Start Claude Code**.
 
@@ -83,7 +83,7 @@ Claude Code prints a "does not recognize the model" notice for non-Claude names 
 
 ## Free models
 
-`tsunagi free` lists providers with a documented, recurring free API tier, with their limits, what they need, and a data label from their own terms: `private` (not used for training) or `trains`. Only labelled providers can enter the `free/auto` combo, and `trains` ones only after `tsunagi free allow <provider>`. The list is checked against the providers' own pages and corrects itself: Mistral, Cerebras, Hugging Face, Ollama Cloud, GitHub Models and ModelScope are documented as not usable this way. Current entries: OpenCode Zen, OpenRouter, Groq, Google AI Studio, SambaNova, Cohere (trial key), NVIDIA NIM, Cloudflare Workers AI, Z.ai, Kilo Gateway (needs no key), Reflection AI (beta), Requesty. Details and sources: [docs/free.md](docs/free.md).
+`tsunagi free` lists providers with a documented, recurring free API tier, with their limits, what they need, and a data label from their own terms: `private` (not used for training) or `trains`. tsunagi lists an offer only when the provider's own docs document it, and the list corrects itself: Mistral, Cerebras, Hugging Face, Ollama Cloud, GitHub Models, ModelScope — and OpenCode Zen, whose free models answer only inside OpenCode itself — are documented as not usable this way. Current entries: OpenRouter, Groq, Google AI Studio, SambaNova, Cohere (trial key), NVIDIA NIM, Cloudflare Workers AI, Z.ai API (GLM Flash), Kilo Gateway (best effort, needs no key), Reflection AI (beta), Requesty. Details and sources: [docs/free.md](docs/free.md).
 
 ```bash
 tsunagi free                 # the offers, their limits and data labels
@@ -91,6 +91,22 @@ tsunagi free openrouter      # its free models, signup and key links
 tsunagi free probe           # send one tiny real request per candidate model
 tsunagi free combo           # write free/auto from the probed models that pass every gate
 ```
+
+## Plans
+
+Flat-fee subscription plans that include API access for coding agents, listed only when the provider's own docs document it — the Providers screen has a `Plans` chip and each plan shows price, quota and terms.
+
+| Plan | Price | What it gives |
+|---|---|---|
+| OpenCode Go | $10/mo, $40/mo Plus | usage on open coding models, extra from credit |
+| Z.ai GLM Coding Plan | from $18/mo | GLM-5.3 in Claude Code |
+| MiniMax M Plan | subscription | MiniMax M series |
+| Kimi Code | Kimi membership | k3.1-pro, k3, kimi-for-coding by tier |
+| Alibaba Cloud Coding Plan | $50/mo | Qwen, Kimi, GLM and MiniMax models |
+| Volcengine Ark Coding Plan | Lite/Pro tiers | Doubao, GLM, MiniMax, Kimi, DeepSeek |
+| Ollama Cloud | pay as you go, Pro/Max | cloud models such as GLM-5.3-Flash |
+
+Terms and sources per plan: [docs/plans.md](docs/plans.md).
 
 ## Routing
 
@@ -150,6 +166,7 @@ tsunagi never pools or shares Claude credentials, never rewrites Claude Code's i
 
 - [docs/design.md](docs/design.md): architecture, routing, hand-off loop, living next to Claude Code
 - [docs/free.md](docs/free.md): the free registry and its sources
+- [docs/plans.md](docs/plans.md): the subscription coding-plan registry
 - [docs/providers.md](docs/providers.md): which providers speak what
 - [docs/policy.md](docs/policy.md): compliance stance and known risks
 - [docs/roadmap.md](docs/roadmap.md): what is done and what is open

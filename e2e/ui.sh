@@ -182,7 +182,7 @@ tmux kill-session -t $M 2>/dev/null || true
 chk 20-home "Start Claude Code"
 chk 21-home-gro "Groq"
 chk 22-providers-free "Groq"
-chk 23-providers-all "Ready"
+chk 23-providers-all "Plans"
 chk 24-kilo-detail "no key needed"
 chk 25-groq-detail "imits"
 chk 26-rail-key "Verify"
@@ -235,6 +235,21 @@ for sz in "120 42" "110 34" "80 24"; do
   cap "$s" "providers-paid-${w}x${h}"
   key "$s" End 0.4           # bottom: More + actions
   cap "$s" "providers-more-${w}x${h}"
+  if [ "$w" != "120" ]; then
+    key "$s" Right 0.3         # All -> Free
+    key "$s" Right 0.4         # Free -> Plans
+    cap "$s" "providers-plans-${w}x${h}"
+    text "$s" alibaba; key "$s" C-m 0.6
+    cap "$s" "detail-alibaba-${w}x${h}"
+    key "$s" Escape 0.4        # -> list
+    key "$s" Escape 0.3        # clear "alibaba" (still Plans chip)
+    text "$s" zai; key "$s" C-m 0.6   # only zai matches under Plans
+    cap "$s" "detail-zai-${w}x${h}"
+    key "$s" Escape 0.4        # -> list
+    key "$s" Escape 0.3        # clear "zai"
+    key "$s" Left 0.3          # Plans -> Free
+    key "$s" Left 0.3          # Free -> All
+  fi
   key "$s" Home 0.3
   text "$s" kilo; key "$s" C-m 0.6
   cap "$s" "detail-kilo-${w}x${h}"
@@ -249,7 +264,10 @@ done
 chk "home-120x42" "███"                    # wordmark at 120x42
 chk "providers-paid-80x24" "deepseek"      # scrolling reached Paid
 chk "providers-more-80x24" "type to search" # More is capped behind search
-chk "detail-kilo-80x24" "with or without"  # limits wrapped, not truncated
+chk "detail-kilo-80x24" "rate limited"    # limits wrapped, not truncated
+chk "detail-zai-80x24" "Coding Plan"
+chk "detail-zai-80x24" "Open sign-up"
+chk "detail-alibaba-80x24" "sk-sp-"
 chk "rail-key-80x24" "Verify"
 
 # --- compact + theme + ascii captures ----------------------------------------

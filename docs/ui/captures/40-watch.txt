@@ -13,11 +13,11 @@
   5 min ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▁▁▁▁█▄▄
 
   time     account          model                      http ms     tokens      route
-  18:42:53 e2e              e2e/tiny-model             200  1      12/6
-  18:43:14 claude           claude-sonnet-5-5          200  812    1.2k/90
-  18:43:17 openrouter       inclusionai/ling-3.2-flas… 429  90     -           openrouter/x 429 -> groq/y ok
-  18:43:20 groq             gpt-oss-120b               200  320    800/40      free/auto: groq/gpt-oss-120b…
-  18:43:23 claude           claude-haiku-5-5           200  410    300/12
+  19:21:53 e2e              e2e/tiny-model             200  2      12/6
+  19:22:14 claude           claude-sonnet-5-5          200  812    1.2k/90
+  19:22:17 openrouter       inclusionai/ling-3.2-flas… 429  90     -           openrouter/x 429 -> groq/y ok
+  19:22:20 groq             gpt-oss-120b               200  320    800/40      free/auto: groq/gpt-oss-120b…
+  19:22:23 claude           claude-haiku-5-5           200  410    300/12
 
 
 

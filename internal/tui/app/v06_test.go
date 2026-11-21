@@ -62,7 +62,7 @@ func TestHomeNextStepRules(t *testing.T) {
 			be.snap.Providers = []ProviderRow{{Name: "ollama", Group: "local", Ready: true}}
 		}, "next/free"},
 		{"keyless alone does not count", func(be *fakeBackend) {
-			be.snap.Providers = []ProviderRow{{Name: "kilo", Group: "free", Ready: true, Keyless: true}}
+			be.snap.Providers = []ProviderRow{{Name: "kilo", Group: "free", Keyless: true}}
 		}, "next/free"},
 		{"env keys offered", func(be *fakeBackend) {
 			be.snap.Providers = []ProviderRow{{Name: "groq", Group: "free", Ready: true}}
@@ -156,9 +156,9 @@ func TestProvidersSectionsAndStableOrder(t *testing.T) {
 	m := newTestApp(t, &fakeBackend{snap: snapBase()}, false)
 	choose(m, "providers")
 	items := provItems(t, m)
-	// sections: Ready(anthropic) then Free(openrouter, groq) then Plan(chatgpt)
-	// then Local(ollama); action rows last. Registry display order is stable.
-	want := []string{"anthropic", "openrouter", "groq", "chatgpt", "ollama",
+	// sections: Ready(anthropic) then Plans(chatgpt) then Free(openrouter,
+	// groq) then Local(ollama); action rows last.
+	want := []string{"anthropic", "chatgpt", "openrouter", "groq", "ollama",
 		"@add-gateway", "@import", "@back"}
 	if len(items) != len(want) {
 		t.Fatalf("rows = %v, want %v", items, want)
@@ -329,7 +329,7 @@ func TestTypedKeyDetectsAndMasks(t *testing.T) {
 
 func TestKeylessDetailActions(t *testing.T) {
 	snap := snapBase()
-	snap.Providers = []ProviderRow{{Name: "kilo", Group: "free", Tag: "trains", FreeEntry: true, Ready: true, Keyless: true}}
+	snap.Providers = []ProviderRow{{Name: "kilo", Group: "free", Tag: "trains", FreeEntry: true, Keyless: true}}
 	m := newTestApp(t, &fakeBackend{snap: snap}, false)
 	choose(m, "kilo")
 	v := viewText(m)

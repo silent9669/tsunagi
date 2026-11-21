@@ -17,6 +17,7 @@ import (
 	"github.com/silent9669/tsunagi/internal/keychain"
 	"github.com/silent9669/tsunagi/internal/keyprefix"
 	"github.com/silent9669/tsunagi/internal/opencode"
+	"github.com/silent9669/tsunagi/internal/plans"
 	"github.com/silent9669/tsunagi/internal/provider"
 	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/skills"
@@ -58,8 +59,18 @@ func (backend) Snapshot() app.Snapshot {
 			row.Setup = e.Setup
 			row.FreeEntry = true
 			row.Limits = e.Limits
+			// a keyless provider is usable but not "set up": Ready stays
+			// false so chips and counts do not treat it as configured
 			if e.Access == free.Keyless {
-				row.Keyless, row.Ready = true, true
+				row.Keyless = true
+			}
+		} else if pe, ok := plans.Find(p.Name); ok {
+			row.Group = "plan"
+			row.Tag = "plan"
+			row.Plan = &app.PlanInfo{
+				Price: pe.Price, Quota: pe.Quota, Models: pe.Models, Needs: pe.Needs,
+				KeyHint: pe.KeyHint, Terms: pe.Terms, Source: pe.Source, Checked: pe.Checked,
+				Signup: pe.Signup, KeyURL: pe.KeyURL, Verified: true,
 			}
 		} else if p.Auth == "chatgpt" {
 			row.Group = "plan"
@@ -67,6 +78,10 @@ func (backend) Snapshot() app.Snapshot {
 		} else if p.Local {
 			row.Group = "local"
 			row.Ready = true
+		} else if p.Untrusted && plans.LooksLikePlan(p.Name) {
+			row.Group = "plan"
+			row.Tag = "plan"
+			row.Plan = &app.PlanInfo{Terms: "flat-fee plan, details not checked"}
 		} else if p.Untrusted && len(row.Accounts) == 0 && !row.Ready {
 			// unkeyed catalogue providers stay browseable behind search
 		} else {
@@ -80,7 +95,7 @@ func (backend) Snapshot() app.Snapshot {
 		if !seen[e.ID] {
 			snap.Providers = append(snap.Providers, app.ProviderRow{
 				Name: e.ID, Group: "free", Tag: e.Data, Setup: e.Setup, FreeEntry: true,
-				Keyless: e.Access == free.Keyless, Ready: e.Access == free.Keyless, Limits: e.Limits,
+				Keyless: e.Access == free.Keyless, Limits: e.Limits,
 			})
 		}
 	}

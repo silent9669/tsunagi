@@ -8,35 +8,39 @@ import (
 func TestDetect(t *testing.T) {
 	for _, tc := range []struct {
 		key  string
-		want string
+		want []string
 	}{
-		{"sk-or-v1-abc123", "openrouter"},
-		{"gsk_AbC123", "groq"},
-		{"nvapi-xyz", "nvidia"},
-		{"xai-abc", "xai"},
-		{"csk-abc", "cerebras"},
-		{"pplx-abc", "perplexity"},
-		{"fw_abc", "fireworks"},
-		{"hf_abc", "huggingface"},
-		{"sk-proj-abc", "openai"},
-		{"  gsk_padded  ", "groq"},
-		{"", ""},
-		{"sk-", ""},
-		{"sk", ""},
-		{"sk-ant-oat01-secret", ""},
-		{"AIza-too-short", ""},
-		{"gsk", ""},
-		{"something-else-entirely", ""},
+		{"sk-or-v1-abc123", []string{"openrouter"}},
+		{"gsk_AbC123", []string{"groq"}},
+		{"nvapi-xyz", []string{"nvidia"}},
+		{"xai-abc", []string{"xai"}},
+		{"csk-abc", []string{"cerebras"}},
+		{"pplx-abc", []string{"perplexity"}},
+		{"fw_abc", []string{"fireworks"}},
+		{"hf_abc", []string{"huggingface"}},
+		{"sk-proj-abc", []string{"openai"}},
+		{"oc_sk_abc", []string{"opencode-go", "opencode"}},
+		{"sk-sp-abc", []string{"alibaba-coding-plan"}},
+		{"sk-cp-abc", []string{"minimax"}},
+		{"  gsk_padded  ", []string{"groq"}},
+		{"", nil},
+		{"sk-", nil},
+		{"sk", nil},
+		{"sk-ant-oat01-secret", nil},
+		{"AIza-too-short", nil},
+		{"gsk", nil},
+		{"something-else-entirely", nil},
 	} {
 		got := Detect(tc.key)
-		if tc.want == "" {
-			if len(got) != 0 {
-				t.Errorf("Detect(%q) = %v, want none", tc.key, got)
-			}
+		if len(got) != len(tc.want) {
+			t.Errorf("Detect(%q) = %v, want %v", tc.key, got, tc.want)
 			continue
 		}
-		if len(got) != 1 || got[0] != tc.want {
-			t.Errorf("Detect(%q) = %v, want [%s]", tc.key, got, tc.want)
+		for i := range got {
+			if got[i] != tc.want[i] {
+				t.Errorf("Detect(%q) = %v, want %v", tc.key, got, tc.want)
+				break
+			}
 		}
 	}
 }

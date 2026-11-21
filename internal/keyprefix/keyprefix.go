@@ -24,10 +24,16 @@ var prefixes = []struct {
 	{"fw_", "fireworks"},
 	{"hf_", "huggingface"},
 	{"sk-proj-", "openai"},
+	{"oc_sk_", "opencode-go"},
+	{"oc_sk_", "opencode"},
+	{"sk-sp-", "alibaba-coding-plan"},
+	{"sk-cp-", "minimax"},
 }
 
-// Detect returns the provider names a key's prefix unambiguously names.
-// A Claude key (sk-ant-...) and anything unrecognised return none.
+// Detect returns the provider names a key's prefix names, in table order; a
+// prefix can name more than one provider (a plan and the pay-as-you-go
+// endpoint share it). A Claude key (sk-ant-...) and anything unrecognised
+// return none.
 func Detect(key string) []string {
 	key = strings.TrimSpace(key)
 	if key == "" || strings.HasPrefix(key, "sk-ant-") {
@@ -36,12 +42,13 @@ func Detect(key string) []string {
 	if strings.HasPrefix(key, "AIza") && len(key) == 39 {
 		return []string{"google"}
 	}
+	var out []string
 	for _, p := range prefixes {
 		if strings.HasPrefix(key, p.prefix) {
-			return []string{p.name}
+			out = append(out, p.name)
 		}
 	}
-	return nil
+	return out
 }
 
 // Check is Detect with the Claude refusal as an error.

@@ -2,29 +2,29 @@
   ◆ Providers ─ ○ Skills ─ ○ Ready
 
   ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
-  │ › Search 70 providers, or paste a key                                                        │
+  │ › Search 75 providers, or paste a key                                                        │
   ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
 
-   All 71   Free 12   Ready 2   Paid 10   Local 5
-    ↑ 24 more
-    ○ e2e                    local
+   All 76   Free 11   Plans 8   Ready 1   Paid 9   Local 5
+    ↑ 28 more
+    ○ e2e                          local
 
     Paid
-    ○ opencode-go            paid
-    ○ deepseek               paid
-    ○ moonshot               paid
-    ○ minimax                paid
-    ○ qwen                   paid
-    ○ fireworks              paid
-    ○ openai                 paid
-    ○ xai                    paid
-    ○ together               paid
-    ○ mistral                paid
+    ○ opencode                     paid
+    ○ deepseek                     paid
+    ○ moonshot                     paid
+    ○ qwen                         paid
+    ○ fireworks                    paid
+    ○ openai                       paid
+    ○ xai                          paid
+    ○ together                     paid
+    ○ mistral                      paid
 
     More
     ○ cat01
     ○ cat02
-  ❯ ○ cat03
-    ↓ 11 more
+    ○ cat03
+  ❯ ○ cat04
+    ↓ 10 more
 
   type to search   ↑↓ move   ←→ filter   ↵ open   esc back

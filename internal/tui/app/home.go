@@ -7,6 +7,7 @@ import (
 
 	"charm.land/bubbletea/v2"
 
+	"github.com/silent9669/tsunagi/internal/plans"
 	"github.com/silent9669/tsunagi/internal/tui"
 )
 
@@ -130,7 +131,7 @@ func (a *App) nextStep() *homeRow {
 		}
 	}
 	if !ready {
-		return &homeRow{label: "Add a free provider", value: "next/free", note: "next", noteAccent: true}
+		return &homeRow{label: "Add a provider", value: "next/free", note: "next", noteAccent: true}
 	}
 	if n := len(a.envKeys); n > 0 {
 		return &homeRow{label: "Import " + itoa(n) + " keys from your environment", value: "next/env", note: "next", noteAccent: true}
@@ -160,6 +161,8 @@ func (s *homeScreen) providerRows() []homeRow {
 	for _, p := range s.app.snap.Providers {
 		disp := p.Name
 		if e := registryEntry(p.Name); e != nil {
+			disp = e.Name
+		} else if e, ok := plans.Find(p.Name); ok {
 			disp = e.Name
 		}
 		label := disp

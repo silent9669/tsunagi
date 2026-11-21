@@ -1,4 +1,4 @@
-◆ tsunagi dev                                                                               claude ✓ · 1 ready
+◆ tsunagi dev                                                                                         claude ✓
 
                    ⢤⣤⢤⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀⠀        ⣀⢀⣀⢠⣤⢤⣤⢤⣤⢤⣤⢄⣀⢀⣤⢤⣤⢤⣤⢤⣤⢤⣀⢀⣀⢀        ⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀
                    ⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⢟⢟⢟⢟⢟⢿⢟⢟⢟⢟⠟⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⢝⢙⢽⢝⣽⢝⣽⢟⢟⢟⢟⢿⢟⢟⢟⢟⢟⠟⠝⠝⠝⠝⠝⠝⠝⠟⠝⢿⠽
@@ -11,8 +11,8 @@
   ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
   ❯   Start Claude Code                                                                         claude-stub
-      Add a free provider                                                                              next
-      Providers                                                                                     6 ready
+      Add a provider                                                                                   next
+      Providers                                                                                     5 ready
       Free models                                                                                         -
       Skills                                                                                            1/2
       Settings

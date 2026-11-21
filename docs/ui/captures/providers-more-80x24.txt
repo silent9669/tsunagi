@@ -1,11 +1,11 @@
 ◆ tsunagi dev                                                          Providers
 
   ╭──────────────────────────────────────────────────────────────────────────╮
-  │ › Search 71 providers, or paste a key                                    │
+  │ › Search 76 providers, or paste a key                                    │
   ╰──────────────────────────────────────────────────────────────────────────╯
 
-   All 71   Free 12   Ready 2   Paid 10   Local 5
-    ↑ 40 more
+   All 76   Free 11   Plans 8   Ready 1   Paid 9   Local 5
+    ↑ 43 more
     ○ cat02
     ○ cat03
     ○ cat04

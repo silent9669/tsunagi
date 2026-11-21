@@ -1,4 +1,4 @@
-[1m◆ tsunagi[0m [2mdev[0m                                                                     [2mclaude ✓ · 1 ready
+[1m◆ tsunagi[0m [2mdev[0m                                                                               [2mclaude ✓
 
 [0m              ⢤⣤⢤⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀⠀        ⣀⢀⣀⢠⣤⢤⣤⢤⣤⢤⣤⢄⣀⢀⣤⢤⣤⢤⣤⢤⣤⢤⣀⢀⣀⢀        ⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀⢀⣀
               ⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⢟⢟⢟⢟⢟⢿⢟⢟⢟⢟⠟⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⠝⢝⢙⢽⢝⣽⢝⣽⢟⢟⢟⢟⢿⢟⢟⢟⢟⢟⠟⠝⠝⠝⠝⠝⠝⠝⠟⠝⢿⠽
@@ -11,8 +11,8 @@
   [2m╰──────────────────────────────────────────────────────────────────────────────────────────────╯[0m
 
   [1;7m❯ [0m  Start Claude Code                                                               [2mclaude-stub[0m
-      Add a free provider                                                                    [1mnext[0m
-      Providers                                                                           [2m6 ready[0m
+      Add a provider                                                                         [1mnext[0m
+      Providers                                                                           [2m5 ready[0m
       Free models                                                                               [2m-[0m
       Skills                                                                                  [2m1/2[0m
       Settings

@@ -1,20 +1,20 @@
 ◆ tsunagi dev                                      Providers
 
   ╭──────────────────────────────────────────────────────╮
-  │ › Search 71 providers, or paste a key                │
+  │ › Search 76 providers, or paste a key                │
   ╰──────────────────────────────────────────────────────╯
 
-   All 71   Free 12   Ready 2   Paid 10   Local 5
-  ❯ ✓ Kilo Gateway           free    trains    keyless
-    ○ OpenCode Zen           free    trains
-    ○ OpenRouter             free    trains
-    ○ Z.ai                   free    private
+   All 76   Free 11   Plans 8   Ready 1   Paid 9   Local 5
+  ❯ ○ OpenRouter             free    trains
+    ○ Z.ai API (GLM Flash)   free    private
     ○ Groq                   free    private
     ○ Google AI Studio       free    trains
     ○ Cohere (trial key)     free    trains
     ○ SambaNova Cloud        free    private
     ○ NVIDIA NIM             free    trains
     ○ Cloudflare Workers AI  free    private
-    ↓ 7 more
+    ○ Kilo Gateway           free    trains    keyless
+    ○ Reflection AI (beta)   free    unknown
+    ↓ 6 more
 
   type to search   ↑↓ move   ←→ filter   ↵ open   esc back
