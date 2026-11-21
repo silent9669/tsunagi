@@ -197,3 +197,27 @@ func (b *Bitmap) Param(x, y int) float64 {
 	}
 	return b.param[i]
 }
+
+// Cut clears a disc of radius r at (cx,cy) to luminance 0, leaving the mask
+// as it is: used for the eye, gill and mouth.
+func (b *Bitmap) Cut(cx, cy, r float64) {
+	for y := int(math.Floor(cy - r)); y <= int(math.Ceil(cy+r)); y++ {
+		for x := int(math.Floor(cx - r)); x <= int(math.Ceil(cx+r)); x++ {
+			if math.Hypot(float64(x)+0.5-cx, float64(y)+0.5-cy) <= r {
+				if i := b.At(x, y); i >= 0 {
+					b.Lum[i] = 0
+				}
+			}
+		}
+	}
+}
+
+// CutLine clears a thick segment from (x0,y0) to (x1,y1).
+func (b *Bitmap) CutLine(x0, y0, x1, y1, r float64) {
+	l := math.Hypot(x1-x0, y1-y0)
+	steps := int(math.Ceil(l)) + 1
+	for i := 0; i <= steps; i++ {
+		t := float64(i) / float64(steps)
+		b.Cut(x0+(x1-x0)*t, y0+(y1-y0)*t, r)
+	}
+}

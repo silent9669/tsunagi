@@ -2,94 +2,112 @@ package art
 
 import "math"
 
-// Eel draws a lit, tapered eel on a w by h pixel grid. The spine is a
-// sinusoid whose wave travels head to tail as phase grows; the head is at
-// the right (param 1) and the tail at the left (param 0). Bubbles and a
-// faint wave line are low-luminance decorations with Mask false.
+// Eel draws a lit eel on a w by h pixel grid: one continuous body that
+// undulates about one and a half times, a pointed head on the right (param 1)
+// and a thin tail on the left (param 0). The wave travels from head to tail
+// as phase grows. Bubbles and a faint water line are low-luminance
+// decorations with Mask false.
 func Eel(w, h int, phase float64) Bitmap {
 	b := NewBitmap(w, h)
 	if w < 8 || h < 8 {
 		return *b
 	}
-
-	// Spine: s runs 0 (tail, left) to 1 (head, right).
+	fw, fh := float64(w), float64(h)
 	n := w*2 + 1
+	x0, x1 := fw*0.06, fw*0.94
+	cy := fh * 0.54
+	amp := fh * 0.16
+	R := math.Min(fh*0.13, 10)
+
 	pts := make([][2]float64, n)
 	rad := make([]float64, n)
-	fw, fh := float64(w), float64(h)
-	x0, x1 := fw*0.07, fw*0.93
-	cy := fh * 0.56
-	maxR := math.Min(fh*0.10, 8)
-	amp := fh * 0.18
-	for i := 0; i < n; i++ {
+	for i := range pts {
 		s := float64(i) / float64(n-1)
-		x := x0 + (x1-x0)*s
-		// amplitude envelope: steady head, full body wave, thin tail
-		env := 0.3 + 0.7*math.Pow(math.Sin(math.Pi*(1-s)), 0.8)
-		// the wave travels toward the tail (s=0) as phase grows
-		y := cy + amp*env*math.Sin(phase-2*math.Pi*1.7*(1-s))
-		pts[i] = [2]float64{x, y}
-		// radius: rounded head, tapering to a thin tail
-		rad[i] = maxR * (0.12 + 0.88*math.Pow(s, 0.8))
+		env := 0.3 + 0.7*(1-s)
+		pts[i] = [2]float64{x0 + (x1-x0)*s, cy + amp*env*math.Sin(2*math.Pi*1.5*s+phase)}
+		rad[i] = R * eelProfile(s)
 	}
-
-	// tube shading: sqrt(1-d^2), brightest on the spine
-	body := func(d, s float64) float64 { return math.Sqrt(math.Max(0, 1-d*d)) }
-	b.Ribbon(pts, rad, true, body)
-
-	// dorsal fin: a faint ribbon riding the top of the body
-	fpts := make([][2]float64, n)
-	frad := make([]float64, n)
-	for i, p := range pts {
-		// upward normal approx: previous point's direction
-		var nx, ny float64 = 0, -1
-		if i+1 < n {
-			dx, dy := pts[i+1][0]-p[0], pts[i+1][1]-p[1]
-			l := math.Hypot(dx, dy)
-			if l > 0 {
-				nx, ny = -dy/l, dx/l
-			}
-		}
-		// the fin sits on the upper side of the spine
+	// up returns the unit normal at point i that points up the screen.
+	up := func(i int) (float64, float64) {
+		j, k := max(i-1, 0), min(i+1, n-1)
+		dx, dy := pts[k][0]-pts[j][0], pts[k][1]-pts[j][1]
+		l := math.Hypot(dx, dy)
+		nx, ny := dy/l, -dx/l
 		if ny > 0 {
 			nx, ny = -nx, -ny
 		}
-		fpts[i] = [2]float64{p[0] + nx*rad[i]*0.72, p[1] + ny*rad[i]*0.72}
-		frad[i] = math.Max(1.2, rad[i]*0.16)
+		return nx, ny
 	}
-	fin := func(d, s float64) float64 { return 0.38 * math.Sqrt(math.Max(0, 1-d*d)) }
-	b.Ribbon(fpts, frad, true, fin)
 
-	// eye: a dark hole near the head, slightly above the spine
-	if n > 4 {
-		i := int(float64(n-1) * 0.93)
-		ex, ey := pts[i][0], pts[i][1]-rad[i]*0.4
-		b.Disc(ex, ey, math.Max(1.6, rad[i]*0.17), func(float64) float64 { return 0 })
-		// gill slit: a short dark arc behind the eye
-		gx, gy := pts[i-6][0], pts[i-6][1]
-		for k := 0; k <= 8; k++ {
-			t := float64(k) / 8
-			b.Line(gx+6*t, gy-3*t, gx+6*t+1, gy+3*t-1, 0.9, 0.10)
+	// body: a dim tube, then a narrower highlight riding the back
+	b.Ribbon(pts, rad, true, func(d, s float64) float64 { return 0.5 + 0.3*math.Sqrt(math.Max(0, 1-d*d)) })
+	hp := make([][2]float64, n)
+	hr := make([]float64, n)
+	for i, p := range pts {
+		nx, ny := up(i)
+		hp[i] = [2]float64{p[0] + nx*rad[i]*0.35, p[1] + ny*rad[i]*0.35}
+		hr[i] = rad[i] * 0.5
+	}
+	b.Ribbon(hp, hr, true, func(d, s float64) float64 { return math.Sqrt(math.Max(0, 1-d*d)) })
+
+	// dorsal fin: a thin ridge on the back from behind the head into the tail
+	fp := make([][2]float64, 0, n)
+	fr := make([]float64, 0, n)
+	for i, p := range pts {
+		s := float64(i) / float64(n-1)
+		if s > 0.78 {
+			break
 		}
+		nx, ny := up(i)
+		fp = append(fp, [2]float64{p[0] + nx*rad[i]*1.02, p[1] + ny*rad[i]*1.02})
+		fr = append(fr, math.Max(0.5, math.Min(rad[i]*0.14, (0.78-s)*18)))
+	}
+	b.Ribbon(fp, fr, true, func(d, s float64) float64 { return 0.7 })
+
+	// head details: eye, mouth and gill slit cut out of the body
+	at := func(s float64) int { return int(s * float64(n-1)) }
+	ie := at(0.90)
+	nx, ny := up(ie)
+	ex, ey := pts[ie][0]+nx*rad[ie]*0.3, pts[ie][1]+ny*rad[ie]*0.3
+	er := math.Max(1.2, R*0.2)
+	b.Ring(ex, ey, er+1.3, 1.4, 1)
+	b.Cut(ex, ey, er)
+	im := at(0.985)
+	b.CutLine(pts[im][0]-fw*0.07, pts[im][1]+rad[ie]*0.28, pts[im][0], pts[im][1]+rad[ie]*0.18, 0.55)
+	ig := at(0.8)
+	gx, gy := pts[ig][0], pts[ig][1]
+	b.CutLine(gx+rad[ig]*0.1, gy-rad[ig]*0.55, gx-rad[ig]*0.2, gy+rad[ig]*0.55, 0.6)
+
+	// three small bubbles rising from the snout
+	hx, hy := pts[n-1][0], pts[n-1][1]
+	for i := 0; i < 3; i++ {
+		t := frac(phase/(2*math.Pi)*0.6 + float64(i)/3)
+		bx := hx + fw*0.015*float64(i+1) + math.Sin(t*6+float64(i))*1.5
+		by := hy - rad[ie]*0.8 - t*fh*0.4
+		b.Ring(bx, by, 1.2+0.4*float64(i), 0.9, 0.45)
 	}
 
-	// a few rising bubbles: rings at fixed columns, height from phase
-	for i := 0; i < 6; i++ {
-		bx := fw * (0.12 + 0.76*frac(float64(i)*0.618+0.13))
-		rise := (phase*22 + float64(i)*31) - math.Floor((phase*22+float64(i)*31)/(fh*0.5))*(fh*0.5)
-		by := fh*0.18 + fh*0.5 - rise
-		if by < 2 || by > fh-2 || bx < 2 || bx > fw-2 {
-			continue
-		}
-		b.Ring(bx, by, 1.4+float64(i%3)*0.5, 0.9, 0.30)
-	}
-
-	// a faint wave line along the top
+	// a faint water line along the top
 	for x := 1; x < w-1; x++ {
-		y := 2.5 + 1.6*math.Sin(float64(x)*0.11+phase*0.8)
-		b.Line(float64(x), y, float64(x+1), 2.5+1.6*math.Sin(float64(x+1)*0.11+phase*0.8), 0.7, 0.10)
+		y0 := 1.8 + 1.2*math.Sin(float64(x)*0.12+phase)
+		y1 := 1.8 + 1.2*math.Sin(float64(x+1)*0.12+phase)
+		b.Line(float64(x), y0, float64(x+1), y1, 0.6, 0.18)
 	}
 	return *b
+}
+
+// eelProfile is the body radius at arclength s (0 tail, 1 snout) relative
+// to the full radius: a thin tail, an even body, a slightly fuller head and
+// a pointed snout.
+func eelProfile(s float64) float64 {
+	switch {
+	case s < 0.35:
+		return 0.14 + 0.86*math.Pow(s/0.35, 0.8)
+	case s < 0.86:
+		return 1 + 0.12*math.Sin((s-0.35)/0.51*math.Pi/2)
+	}
+	t := (s - 0.86) / 0.14
+	return math.Max(0.2, 1.12*math.Pow(1-t*t, 0.55))
 }
 
 func frac(f float64) float64 { return f - math.Floor(f) }

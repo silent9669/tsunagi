@@ -46,6 +46,8 @@ func commandList() []command {
 		{"statusline", "Info", "one-line status for Claude Code's status line", "tsunagi statusline   (reads Claude Code's JSON on stdin)", cmdStatusline},
 		{"look", "Info", "preview the interface art style and theme", "tsunagi look [--style <look>] [--theme <theme>] [--static]", cmdLook},
 		{"skills", "Info", "install tsunagi's agent skills for other tools", "tsunagi skills [--json]\n  tsunagi skills install|remove [--target claude|agents|all]", cmdSkills},
+		{"setup", "Info", "open the setup wizard", "tsunagi setup", cmdSetup},
+		{"claude", "Info", "launch Claude Code through the router", "tsunagi claude [claude args]", func(t *ui.Term, a []string) int { return launch(t, a, true) }},
 		{"uninstall", "Info", "remove what tsunagi installed", "tsunagi uninstall [--keys] [--config] [--yes]", cmdUninstall},
 		{"completion", "Info", "shell completion script", "tsunagi completion zsh|bash|fish", cmdCompletion},
 		{"version", "Info", "print the version", "tsunagi version", func(t *ui.Term, _ []string) int { t.Printf("tsunagi %s\n", version); return 0 }},
@@ -86,6 +88,11 @@ func globalFlags(t *ui.Term, args []string) []string {
 func run(args []string) int {
 	t := ui.Detect()
 	args = globalFlags(t, args)
+	// bare `tsunagi` on a real terminal opens the app; anything else —
+	// flags, claude args, subcommands — keeps the old behavior.
+	if len(args) == 0 && t.TTY && os.Getenv("TERM") != "dumb" && stdinTTY() {
+		return cmdApp(t, false)
+	}
 	if len(args) > 0 {
 		name := args[0]
 		if name == "-h" || name == "--help" {
@@ -105,7 +112,13 @@ func run(args []string) int {
 			return c.run(t, rest)
 		}
 	}
-	return launch(t, args)
+	return launch(t, args, true)
+}
+
+// stdinTTY reports whether stdin is a terminal (the app needs it for keys).
+func stdinTTY() bool {
+	st, err := os.Stdin.Stat()
+	return err == nil && st.Mode()&os.ModeCharDevice != 0
 }
 
 func cmdHelp(t *ui.Term, args []string) int {

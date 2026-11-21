@@ -40,6 +40,7 @@ func digitIndex(r rune) int {
 type Item struct {
 	Label    string
 	Value    string
+	Tag      string // short right-aligned dim annotation
 	Disabled bool
 }
 
@@ -156,16 +157,27 @@ func (m Menu) View() tea.View {
 			prefix = marker + " "
 		}
 		line := prefix + it.Label
+		tag := ""
+		if it.Tag != "" {
+			pad := m.w - lipgloss.Width(line) - lipgloss.Width(it.Tag) - 1
+			if pad < 1 {
+				pad = 1
+			}
+			tag = strings.Repeat(" ", pad) + m.theme.Dim.Render(it.Tag)
+		}
 		if lipgloss.Width(line) > m.w {
 			line = truncateCells(line, m.w)
 		}
-		if it.Disabled {
-			sb.WriteString(m.theme.Dim.Render(line))
-		} else if i == m.sel {
-			sb.WriteString(m.theme.Selected.Render(line))
-		} else {
-			sb.WriteString(m.theme.Text.Render(line))
+		var styled string
+		switch {
+		case it.Disabled:
+			styled = m.theme.Dim.Render(line)
+		case i == m.sel:
+			styled = m.theme.Selected.Render(line)
+		default:
+			styled = m.theme.Text.Render(line)
 		}
+		sb.WriteString(styled + tag)
 		sb.WriteByte('\n')
 	}
 	return tea.NewView(strings.TrimRight(sb.String(), "\n"))
@@ -296,6 +308,13 @@ func (c Checklist) values() []string {
 func (c Checklist) Init() tea.Cmd { return nil }
 
 func (c Checklist) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	nm, cmd := c.update(msg)
+	cc := nm.(Checklist)
+	cc.reveal()
+	return cc, cmd
+}
+
+func (c Checklist) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
 		c.w, c.h = v.Width, v.Height
@@ -345,10 +364,11 @@ func (c Checklist) glyph(s State) string {
 	return "[ ]"
 }
 
-// View renders sections with heading rows and checkable items; the focused
-// item row is styled Selected. It scrolls when taller than the area.
-func (c Checklist) View() tea.View {
-	// keep the focused item visible
+// reveal scrolls the window so the focused row stays visible.
+func (c *Checklist) reveal() {
+	if c.h < 1 {
+		return
+	}
 	if r := c.rowOfItem(c.sel); r >= 0 {
 		if r < c.top {
 			c.top = r
@@ -356,39 +376,79 @@ func (c Checklist) View() tea.View {
 		if r >= c.top+c.h {
 			c.top = r - c.h + 1
 		}
+		// a section heading directly above the first item stays in view
+		if r > 0 && c.top == r {
+			c.top = r - 1
+		}
+	}
+	if m := c.rowCount() - c.h; c.top > m {
+		c.top = max(m, 0)
+	}
+}
+
+// View renders sections with heading rows and checkable items; the focused
+// item row is styled Selected. It scrolls when taller than the area, marking
+// the hidden side with a dim arrow in the right edge. Every row is padded to
+// the full width so the block stays aligned.
+func (c Checklist) View() tea.View {
+	c.reveal()
+	up, down := "^", "v"
+	if c.utf8 {
+		up, down = "▴", "▾"
 	}
 	maxRow := c.top + c.h
-	var sb strings.Builder
+	var rows []string
 	itemIdx := 0 // flat item index of the row being rendered
 	row := 0
+	pad := func(styled string, plainW int) string {
+		return styled + strings.Repeat(" ", max(0, c.w-1-plainW))
+	}
 	for _, s := range c.Sections {
 		if s.Title != "" {
 			if row >= c.top && row < maxRow {
-				sb.WriteString(c.theme.Title.Render(s.Title))
-				sb.WriteByte('\n')
+				rows = append(rows, pad(c.theme.Title.Render(s.Title), lipgloss.Width(s.Title)))
 			}
 			row++
 		}
 		for _, it := range s.Items {
 			if row >= c.top && row < maxRow {
 				line := c.itemLine(it, itemIdx == c.sel)
-				if lipgloss.Width(line) > c.w {
-					line = truncateCells(line, c.w)
+				if lipgloss.Width(line) > c.w-1 {
+					line = truncateCells(line, c.w-1)
 				}
-				if itemIdx == c.sel {
-					sb.WriteString(c.theme.Selected.Render(line))
-				} else if it.State == Done {
-					sb.WriteString(c.theme.Dim.Render(line))
-				} else {
-					sb.WriteString(c.theme.Text.Render(line))
+				w := lipgloss.Width(line)
+				switch {
+				case itemIdx == c.sel:
+					line = c.theme.Selected.Render(line)
+				case it.State == Done:
+					line = c.theme.Dim.Render(line)
+				default:
+					line = c.theme.Text.Render(line)
 				}
-				sb.WriteByte('\n')
+				rows = append(rows, pad(line, w))
 			}
 			itemIdx++
 			row++
 		}
 	}
-	return tea.NewView(strings.TrimRight(sb.String(), "\n"))
+	mark := func(i int, m string) {
+		if i >= 0 && i < len(rows) {
+			rows[i] += c.theme.Dim.Render(m)
+		}
+	}
+	for i := range rows {
+		if (i == 0 && c.top > 0) || (i == len(rows)-1 && c.top+c.h < c.rowCount()) {
+			continue
+		}
+		rows[i] += " "
+	}
+	if c.top > 0 {
+		mark(0, up)
+	}
+	if c.top+c.h < c.rowCount() {
+		mark(len(rows)-1, down)
+	}
+	return tea.NewView(strings.Join(rows, "\n"))
 }
 
 // itemLine renders one row: glyph, label, right-aligned tag.
@@ -399,7 +459,7 @@ func (c Checklist) itemLine(it CItem, focused bool) string {
 		return label
 	}
 	// right-align the tag inside the available width
-	pad := c.w - lipgloss.Width(label) - lipgloss.Width(it.Tag) - 1
+	pad := c.w - 1 - lipgloss.Width(label) - lipgloss.Width(it.Tag) - 1
 	if pad < 1 {
 		pad = 1
 	}

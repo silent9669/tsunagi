@@ -36,6 +36,8 @@ type UIConfig struct {
 	Look  string `json:"look,omitempty"`
 	Theme string `json:"theme,omitempty"`
 	Anim  *bool  `json:"anim,omitempty"`
+	// Onboarded marks that the first-run wizard has completed.
+	Onboarded *bool `json:"onboarded,omitempty"`
 }
 
 // uiLooks and uiThemes are the accepted values for the ui config keys; they

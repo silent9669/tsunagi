@@ -30,8 +30,8 @@ func pause(t *ui.Term) {
 
 // launch starts the router, then runs claude as a child that alone sees the
 // router's address. While claude runs, this process writes nothing to the
-// terminal.
-func launch(t *ui.Term, args []string) int {
+// terminal. splash=false skips the intro when the app already showed it.
+func launch(t *ui.Term, args []string, splash bool) int {
 	if len(args) > 0 && args[0] == "--" {
 		args = args[1:]
 	}
@@ -39,7 +39,9 @@ func launch(t *ui.Term, args []string) int {
 	if err != nil {
 		return fail(t, "%v", err)
 	}
-	t.Splash()
+	if splash {
+		t.Splash()
+	}
 
 	sp := t.Spin("router")
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -67,7 +69,7 @@ func launch(t *ui.Term, args []string) int {
 	sp.Stop(true, host)
 
 	sp = t.Spin("claude")
-	claude, err := exec.LookPath("claude")
+	claude, err := claudeBin()
 	pause(t)
 	if err != nil {
 		sp.Stop(false, "not found in PATH")

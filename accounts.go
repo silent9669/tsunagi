@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -79,7 +78,7 @@ func chatgptFor(label string) *signin.ChatGPT {
 	}
 	g := signin.New(filepath.Dir(config.Path()))
 	g.Label = label
-	g.Open = func(u string) error { return exec.Command("open", u).Start() }
+	g.Open = func(u string) error { return openBrowser(u) }
 	gpts[label] = g
 	return g
 }

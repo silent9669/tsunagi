@@ -10,7 +10,6 @@ import (
 
 	"github.com/silent9669/tsunagi/internal/catalog"
 	"github.com/silent9669/tsunagi/internal/config"
-	"github.com/silent9669/tsunagi/internal/keychain"
 	"github.com/silent9669/tsunagi/internal/opencode"
 	"github.com/silent9669/tsunagi/internal/provider"
 	"github.com/silent9669/tsunagi/internal/router"
@@ -92,45 +91,9 @@ func cmdImport(t *ui.Term, args []string) int {
 	if err != nil {
 		return fail(t, "%v", err)
 	}
-	ocs, found, err := opencode.ReadConfig(opencode.ConfigPaths())
+	_, _, rows, result, err := runImport(cfg)
 	if err != nil {
 		return fail(t, "%v", err)
-	}
-	auth, err := opencode.ReadAuth(opencode.AuthPath())
-	if err != nil {
-		return fail(t, "%v", err)
-	}
-	if !found && len(auth) == 0 {
-		return fail(t, "no opencode config or logins found")
-	}
-	known := map[string]bool{}
-	for _, p := range cfg.All() {
-		known[p.Name] = true
-	}
-	adds, keys, rows := planImport(known, ocs, auth)
-
-	if len(adds) > 0 {
-		def, user, err := config.User(config.Path())
-		if err != nil {
-			return fail(t, "%v", err)
-		}
-		if err := config.Save(config.Path(), def, append(user, adds...)); err != nil {
-			return fail(t, "%v", err)
-		}
-	}
-	result := map[string]string{}
-	for name, key := range keys {
-		switch {
-		case keychain.Has(name):
-			result[name] = "kept (already stored)"
-		default:
-			if err := keychain.Set(name, key); err != nil {
-				result[name] = "failed: " + err.Error()
-				continue
-			}
-			config.SetKeyed(name, true, pinHostByName(cfg, name))
-			result[name] = "imported"
-		}
 	}
 	table := make([][]string, 0, len(rows))
 	for _, r := range rows {
