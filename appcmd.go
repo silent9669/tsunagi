@@ -68,7 +68,7 @@ func cmdApp(t *ui.Term, forceWizard bool) int {
 		return fail(t, "%v", err)
 	}
 	if m.Action() == app.Start {
-		return launch(t, nil, false)
+		return launch(t, nil)
 	}
 	return 0
 }

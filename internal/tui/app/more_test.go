@@ -168,6 +168,9 @@ func TestSettingsAdvanced(t *testing.T) {
 	press(m, "5")
 	press(m, "3") // Advanced
 	press(m, "1") // Reset appearance
+	if len(be.ui) != 0 {
+		t.Fatalf("reset must clear the saved look, not save the defaults: %v", be.ui)
+	}
 	if !be.resetUI || m.opts.Look != "braille" || m.opts.Theme != "mono" {
 		t.Fatalf("reset: %v look=%q theme=%q", be.resetUI, m.opts.Look, m.opts.Theme)
 	}

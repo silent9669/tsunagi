@@ -542,7 +542,7 @@ func (s *settingsScreen) pick(v string) tea.Cmd {
 		switch v {
 		case "reset":
 			_ = be.ResetUI()
-			cmd := s.a.applyUI(string(art.Braille), "mono", true)
+			cmd := s.a.showUI(string(art.Braille), "mono", true)
 			s.open(ssAdvanced, cur)
 			return cmd
 		case "setup":
@@ -584,6 +584,11 @@ func (s *settingsScreen) View() tea.View {
 // the tick command when animation was just turned on.
 func (a *App) applyUI(look, theme string, anim bool) tea.Cmd {
 	_ = a.be.SetUI(look, theme, anim)
+	return a.showUI(look, theme, anim)
+}
+
+// showUI switches look, theme and animation on screen without saving them.
+func (a *App) showUI(look, theme string, anim bool) tea.Cmd {
 	wasAnim := a.opts.Anim
 	a.opts.Look, a.opts.Theme, a.opts.Anim = art.Look(look), theme, anim
 	if th, err := a.opts.ThemeOr(); err == nil {

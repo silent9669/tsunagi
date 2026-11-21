@@ -20,6 +20,8 @@ import (
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/events"
 	"github.com/silent9669/tsunagi/internal/router"
+	"github.com/silent9669/tsunagi/internal/tui"
+	"github.com/silent9669/tsunagi/internal/tui/dash"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
@@ -32,8 +34,8 @@ func pause(t *ui.Term) {
 
 // launch starts the router, then runs claude as a child that alone sees the
 // router's address. While claude runs, this process writes nothing to the
-// terminal. splash=false skips the intro when the app already showed it.
-func launch(t *ui.Term, args []string, splash bool) int {
+// terminal.
+func launch(t *ui.Term, args []string) int {
 	if len(args) > 0 && args[0] == "--" {
 		args = args[1:]
 	}
@@ -41,21 +43,14 @@ func launch(t *ui.Term, args []string, splash bool) int {
 	if err != nil {
 		return fail(t, "%v", err)
 	}
-	if splash {
-		t.Splash()
-	}
-
-	sp := t.Spin("router")
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		sp.Stop(false, err.Error())
-		return 1
+		return fail(t, "%v", err)
 	}
 	host := ln.Addr().String()
 	token, err := randomToken()
 	if err != nil {
-		sp.Stop(false, err.Error())
-		return 1
+		return fail(t, "%v", err)
 	}
 	rt := newRouter(cfg, host, token)
 	if dir, err := events.Dir(); err == nil {
@@ -67,19 +62,11 @@ func launch(t *ui.Term, args []string, splash bool) int {
 	srv := &http.Server{Handler: rt, ReadHeaderTimeout: 10 * time.Second}
 	go srv.Serve(ln)
 	defer srv.Close()
-	pause(t)
-	sp.Stop(true, host)
 
-	sp = t.Spin("claude")
 	claude, err := claudeBin()
-	pause(t)
 	if err != nil {
-		sp.Stop(false, "not found in PATH")
-		return 127
+		return fail(t, "claude is not in PATH. Install Claude Code first")
 	}
-	sp.Stop(true, claude)
-
-	sp = t.Spin("providers")
 	var names []string
 	for _, p := range cfg.All() {
 		if !p.Ready() || p.Local {
@@ -92,12 +79,6 @@ func launch(t *ui.Term, args []string, splash bool) int {
 			names = append(names, fmt.Sprintf("%s x%d", p.Name, n))
 		}
 	}
-	pause(t)
-	if len(names) == 0 {
-		sp.Stop(true, "no keys yet. Run: tsunagi login "+cfg.Default)
-	} else {
-		sp.Stop(true, strings.Join(names, ", "))
-	}
 	targets := []string{"anthropic"}
 	for _, n := range names {
 		if len(targets) == 6 {
@@ -106,9 +87,9 @@ func launch(t *ui.Term, args []string, splash bool) int {
 		}
 		targets = append(targets, n)
 	}
-	t.Printf("\n")
-	t.Routes(targets)
-	t.Printf("\n")
+	if len(names) == 0 {
+		targets = append(targets, "no keys yet: tsunagi login "+cfg.Default)
+	}
 
 	sessionEnv, unregister := registerSession()
 	defer unregister()
@@ -120,13 +101,15 @@ func launch(t *ui.Term, args []string, splash bool) int {
 	settings := claudecfg.Read(cwd)
 	routerURL := "http://" + host + "/" + token
 	args = pinArgs(args, settings.Pins(routerURL))
+	var notes []string
 	for _, c := range settings.Conflicts(routerURL) {
 		note := c.Detail
 		if c.Fixable {
 			note += "; this session overrides it"
 		}
-		t.Printf("  %s %s\n", t.Paint(ui.Amber, "[!!]"), note)
+		notes = append(notes, note)
 	}
+	showLaunch(t, host, claude, targets, notes)
 	cmd := exec.Command(claude, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	cmd.Env = append(append(withoutEnv(os.Environ(), "ANTHROPIC_BASE_URL"),
@@ -259,5 +242,25 @@ func routedAway(cfg config.Config) func(string) bool {
 		_, alias := cfg.Aliases[m]
 		_, combo := cfg.Combos[m]
 		return alias || combo
+	}
+}
+
+// showLaunch tells what the session is connected to: on an animated terminal
+// the launch card (the sea, then the facts) for about a second, otherwise two
+// plain lines.
+func showLaunch(t *ui.Term, host, claude string, targets, notes []string) {
+	if t.TTY && t.Color && t.Anim {
+		if opts, err := appOptions(t); err == nil {
+			if m, err := dash.NewLaunch(opts, dash.Info{Router: host, Claude: claude, Targets: targets, Notes: notes}); err == nil {
+				if _, err := tui.Run(m, opts); err == nil {
+					return
+				}
+			}
+		}
+	}
+	t.Printf("  %s %s  %s %s\n", t.Dim("router"), host, t.Dim("claude"), claude)
+	t.Printf("  %s %s\n", t.Dim("routes"), strings.Join(targets, "  "))
+	for _, n := range notes {
+		t.Printf("  %s %s\n", t.Paint(ui.Amber, "[!!]"), n)
 	}
 }

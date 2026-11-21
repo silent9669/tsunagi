@@ -47,7 +47,7 @@ func commandList() []command {
 		{"look", "Info", "preview the interface art style and theme", "tsunagi look [--style <look>] [--theme <theme>] [--static]", cmdLook},
 		{"skills", "Info", "install tsunagi's agent skills for other tools", "tsunagi skills [--json]\n  tsunagi skills install|remove [--target claude|agents|all]", cmdSkills},
 		{"setup", "Info", "open the setup wizard", "tsunagi setup", cmdSetup},
-		{"claude", "Info", "launch Claude Code through the router", "tsunagi claude [claude args]", func(t *ui.Term, a []string) int { return launch(t, a, true) }},
+		{"claude", "Info", "launch Claude Code through the router", "tsunagi claude [claude args]", func(t *ui.Term, a []string) int { return launch(t, a) }},
 		{"uninstall", "Info", "remove what tsunagi installed", "tsunagi uninstall [--keys] [--config] [--yes]", cmdUninstall},
 		{"completion", "Info", "shell completion script", "tsunagi completion zsh|bash|fish", cmdCompletion},
 		{"version", "Info", "print the version", "tsunagi version", func(t *ui.Term, _ []string) int { t.Printf("tsunagi %s\n", version); return 0 }},
@@ -112,7 +112,7 @@ func run(args []string) int {
 			return c.run(t, rest)
 		}
 	}
-	return launch(t, args, true)
+	return launch(t, args)
 }
 
 // stdinTTY reports whether stdin is a terminal (the app needs it for keys).

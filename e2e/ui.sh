@@ -3,6 +3,7 @@
 # (file keychain, recorded browser opens, stub claude). Temp HOME only.
 set -eu
 cd "$(dirname "$0")/.."
+export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 command -v tmux >/dev/null 2>&1 || { echo "tmux not found: brew install tmux"; exit 1; }
 OUT=docs/ui/captures
 mkdir -p "$OUT"
@@ -68,8 +69,8 @@ key C-m 1.0   # Done -> ready screen
 cap 09-ready
 key C-m 2.0   # Start Claude Code -> stub prints and exits
 sleep 1
-tmux capture-pane -p -S -100 -t tsunagi-e2e > "$OUT/10-after-start.txt"
-cap 11-exit
+tmux capture-pane -p -J -S -100 -t tsunagi-e2e > "$OUT/10-after-start.txt"
+tmux capture-pane -p -J -t tsunagi-e2e > "$OUT/11-exit.txt"
 
 # assertions
 ok=1
@@ -97,6 +98,11 @@ mkey 5;  mcap 15-settings
 mkey 1;  mcap 16-routing
 mkey Escape
 mkey 2;  mkey 1 0.6; mcap 17-appearance
+grep -q '"look": "dither"' "$HOME/.config/tsunagi/config.json" \
+  || { echo "look not saved to config.json"; ok=0; }
+mkey Escape; mkey 3; mkey 1   # Settings -> Advanced -> Reset appearance
+grep -q '"look"' "$HOME/.config/tsunagi/config.json" \
+  && { echo "reset did not clear the look"; ok=0; }
 mkey Escape; mkey Escape; mkey q 0.6
 tmux kill-session -t "$M" 2>/dev/null || true
 chk 12-status "claude"
@@ -104,11 +110,31 @@ chk 13-free "Build free/auto"
 chk 15-settings "Appearance"
 chk 16-routing "Haiku"
 chk 17-appearance "dither"
-grep -q '"look": "dither"' "$HOME/.config/tsunagi/config.json" \
-  || { echo "look not saved to config.json"; ok=0; }
+# the watch dashboard with a few synthetic requests
+mkdir -p "$HOME/Library/Caches/tsunagi"
+python3 - "$HOME/Library/Caches/tsunagi/events-99999.jsonl" <<'PY'
+import datetime, json, sys, time
+rows = [("claude", "claude-sonnet-5-5", 200, 812, "", 0, "", 1200, 90),
+        ("openrouter", "inclusionai/ling-3.2-flash:free", 429, 90, "openrouter", 1, "openrouter/x 429 -> groq/y ok", 0, 0),
+        ("groq", "gpt-oss-120b", 200, 320, "groq", 0, "free/auto: groq/gpt-oss-120b ok", 800, 40),
+        ("claude", "claude-haiku-5-5", 200, 410, "", 0, "", 300, 12)]
+now = time.time()
+with open(sys.argv[1], "w") as f:
+    for i, (p, m, st, ms, a, sk, why, i_, o) in enumerate(rows):
+        t = datetime.datetime.fromtimestamp(now - 3 * (len(rows) - i)).astimezone().isoformat()
+        f.write(json.dumps({"t": t, "provider": p, "model": m, "path": "/v1/messages", "status": st, "ms": ms,
+                            "account": a, "in": i_, "out": o, "skipped": sk, "why": why}) + "\n")
+PY
+tmux new-session -d -s tsunagi-e2e-watch -x 110 -y 34 \
+  "env HOME='$HOME' TSUNAGI_E2E_DIR='$E2E' TSUNAGI_NO_ANIM=1 '$T' watch"
+sleep 2
+tmux capture-pane -p -t tsunagi-e2e-watch > "$OUT/18-watch.txt"
+tmux kill-session -t tsunagi-e2e-watch
+chk 18-watch "ling-3.2"
+rm -f "$HOME/Library/Caches/tsunagi/events-99999.jsonl"
 
 # menu-only captures at the other sizes (same HOME: onboarded -> menu)
-for sz in "100 30" "60 20" "40 12"; do
+for sz in "100 30" "60 20" "40 12" "30 8"; do
   set -- $sz; W=$1; H=$2
   tmux new-session -d -s "tsunagi-e2e-$W" -x "$W" -y "$H" \
     "env HOME='$HOME' TSUNAGI_E2E_DIR='$E2E' TSUNAGI_E2E_CLAUDE='$E2E/claude-stub' TSUNAGI_NO_ANIM=1 '$T'"
@@ -127,7 +153,7 @@ for th in colour mono; do
 done
 
 # captures are committed: drop temp paths and the per-run router address/token
-sed -i '' -E 's#/[^ ]*/claude-stub#<claude-stub>#; s#127\.0\.0\.1:[0-9]+/[0-9a-f]{32}#127.0.0.1:PORT/TOKEN#' "$OUT/10-after-start.txt" "$OUT/11-exit.txt"
+sed -i '' -E 's#/[^ ]*/claude-stub#<claude-stub>#; s#127\.0\.0\.1:[0-9]+/[0-9a-f]{32}#127.0.0.1:PORT/TOKEN#; s#127\.0\.0\.1:[0-9]+#127.0.0.1:PORT#g' "$OUT/10-after-start.txt" "$OUT/11-exit.txt"
 
 sed -i '' -E 's#/var/folders/[^ ]*#<tmp>#; s#/[^ ]*/bin/claude#<claude>#' "$OUT/12-status.txt"
 

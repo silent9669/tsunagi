@@ -102,4 +102,15 @@
 - [x] `tsunagi skills` status/install/remove for the `claude` (`~/.claude/skills`) and `agents` (`~/.agents/skills`) targets, manifest-tracked at `~/.config/tsunagi/skills.json`
 - [x] `tsunagi uninstall [--keys] [--config] [--yes]` removes skills, the tsunagi cache subdir, optionally keychain entries/ChatGPT sign-ins and the config dir; dry-run exits 2 on non-TTY
 - [x] Interface remake: Charm v2 app (`internal/tui/app`), intro, main menu (Start Claude Code, Providers, Skills, Free models, Settings, Status), first-run wizard (`tsunagi setup` reopens it), Settings (tier routing incl. Haiku to free/auto, route preview, look/theme/animation applied live, reset, rerun setup); real tmux pass in `make e2e-ui`, captures in `docs/ui/captures`
-- [ ] Watch dashboard, launch card and the plain commands still use the old `internal/ui` look; restyle and drop the old splash
+- [x] Watch dashboard and launch card redrawn on the shared sea scene (`internal/tui/dash`); the old `internal/ui` look remains only for plain command output
+
+## Phase 8: interface v2, routing and free survey (2026-11-21)
+
+- [x] Layout engine: header (wordmark and animated sea with a swimming eel, a small sea, or one line) by terminal size, a body block, a key legend row; every screen is swept at 9 widths by 11 heights (20 to 140 columns, 5 to 50 rows) so nothing overflows
+- [x] Providers: type-to-search over the whole catalogue, a stepper per provider (Account, Key, Verify, Done), mouse clicks and wheel, visible hotkey digits
+- [x] Survey of other routers (OmniRoute, claude-code-router, LiteLLM) and free-API lists: registry corrected (Mistral free mode has no API; Cerebras, Hugging Face, Ollama Cloud and GitHub Models are not free) and extended (SambaNova, Cohere trial key)
+- [x] Routing: `claude_fallback` (Claude first, then a combo on 429 or 529, with a Retry-After pause), strategies `cheapest`, `context` and `least_used`
+- [x] Claude Code settings read-only (`internal/claudecfg`): conflicts reported by doctor, Status and the launch card; a conflicting base URL is overridden per session through inline `--settings`
+- [ ] Scenario routing from claude-code-router (thinking, long context, web search to a chosen model)
+- [ ] Per-target weights and a quota-aware strategy from OmniRoute and LiteLLM
+- [ ] Zhipu GLM-Flash and ModelScope as free providers (China-hosted, real-name verification; data policy not checked)

@@ -1,44 +1,48 @@
 # tsunagi (繋ぎ)
 
-Run Claude Code against Claude and many other providers' models from one terminal session, using your own keys and without touching your Claude subscription credentials.
+Claude Code on your own Claude login **and** other providers' models, free or paid, in one terminal session. `/model` switches between them. Your Claude credentials are never touched, and your Claude Desktop and plain `claude` sessions are left exactly as they are.
 
-> **Status: Phase 2 built, not yet checked against the live services.** Router, launcher, keychain login, provider list, live watch, the models.dev catalogue, opencode import, Responses and chat translators, and Sign in with ChatGPT are implemented and covered by tests with fake upstreams. Nothing has yet been run end to end against a real provider, and Grok sign-in is not built.
+```text
+                           _                                           _
+                          | |_   ___   _   _   _ __     __ _    __ _  (_)
+                          | __| / __| | | | | | '_ \   / _` |  / _` | | |
+                          | |_  \__ \ | |_| | | | | | | (_| | | (_| | | |
+                           \__| |___/  \__,_| |_| |_|  \__,_|  \__, | |_|
+                                                               |___/
+
+              ⢟⢟⢿⢿⢶⢶⢶⢶⢶⢶⢶⢶⢶⢶⢶⣦⢤⣤⢄⣀⢀⣀⢀⣤⢤⣴⢶⢶⢿⢟⢟⢟⢟⢟⢿⢿⢿⢿⢿⢿⢿⢟⢟⢟⢟⢟⢿⢿⢶⣶⢤⣤⢄⣀⢀⣀⢀⣠⢤⣤⢴⣶⢶⢶⢶⢶⢶⢶⢶⢶⢶⢶
+              ⠕⠕⠑⠕⠑⠕⠑⠕⠑⠅⠅⠅⠅⠅⠅⢕⠑⢝⠝⢝⠝⢝⠝⢝⠑⠕⠅⠅⠅⠕⠑⠕⠑⠕⠑⠕⠑⠕⠅⠅⠅⠅⠅⢅⢁⢥⢅⢥⢅⢵⢑⢝⠝⠝⠝⠝⠝⠝⠑⠕⠑⠕⠑⠕⠑⠕⠁⠅⠍⠅⢷⢅
+              ⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⠁⠅⢁⢥⣵⢽⢿⢿⢿⢽⢿⢿⢿⢿⢿⣽⣕⣵⢅⢥⢅⢥⢅⡥⣵⣵⠓⢷⣵⢥⠁⠅⠫⠵
+              ⠁⠅⠁⠅⠁⠅⠁⠅⠑⠔⠑⠔⠑⠄⠅⠄⠅⠄⠅⠅⠅⠅⠅⠕⠑⠔⠑⠔⠁⠅⠁⠅⠁⠅⠁⢥⣕⣴⢵⢽⢿⠽⠝⠝⠍⠍⠍⠍⠍⠝⠝⠽⢝⢽⢿⢽⢿⢿⢿⢿⢿⢰⢿⢽⢿⠶⠔⠜⠑⠔⠅⠄
+              ⠁⠄⠁⠄⢁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠉⢍⠉⠅⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠉⠍⠉⠝⠙⠝⠉⠍⠉⠄⠁⠄⠁⠄⠁⠄⠁⠄
+              ⠁⠄⠁⠄⠉⢵⠅⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⢤⠅⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⢁⠔⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⢅⢄⠁⠄⠁⠄⠁⠄⠁⠄⠁⠄⠁⢵⠅⠄⠁⠄⠁⠄⠁⠄
+              ⠁⠀⠁⠀⠁⢰⠕⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⢱⠅⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⢙⠅⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⢑⠕⠁⠀⠁⠀⠁⠀⠁⠀⠁⠀⠁⢀⠕⠀⠁⠀⠁⠀⠁⠀
+
+                      ▏ 1 Start Claude Code                        claude
+                        2 Providers                                    5 ready
+                        3 Skills                                           1/2
+                        4 Free models                                        -
+                        5 Settings
+                        6 Status
+                        7 Quit
+
+                      ↑↓ move   ↵ select   1-9 jump   q quit
+```
+
+macOS only (arm64 and amd64). Open source, built on your own keys.
 
 ## Why
 
-Claude Code reads one `ANTHROPIC_BASE_URL` per process, so `/model` cannot switch between providers. Subagent-only tools such as cameo let other models appear as subagents, but a delegated model cannot own a whole task end to end.
+Claude Code reads one `ANTHROPIC_BASE_URL` per process, so `/model` cannot move between providers, and a usage limit stops the session even when other models could carry on. tsunagi is a small router on `127.0.0.1`. Claude Code talks to it and it forwards each request by its `model` field:
 
-tsunagi is a small local router. Claude Code talks to it, and it forwards each request by its `model` field:
-
-| Model | Destination | Credential |
+| Model name | Goes to | Credential |
 | --- | --- | --- |
-| Claude (`claude-*`) | `https://api.anthropic.com`, request forwarded untouched | Your own Claude Code login, as sent by the unmodified client |
-| `<provider>/<model>` | That provider (OpenCode, OpenRouter, DeepSeek, Kimi, GLM, MiniMax, Qwen, Fireworks, local) | Your key for it, from the macOS keychain |
-| Any other name | The default provider | Its key |
-
-`/model` then switches providers like it switches Claude models.
-
-## Goals
-
-- One Claude Code session, one `/model` picker, two providers.
-- The Claude branch forwards the request body and headers unchanged. No header rewriting, no token handling, no logging of credentials.
-- Scoped to a terminal process. Your normal Claude desktop app and plain `claude` runs stay untouched.
-- macOS only for now.
-- Hand off a plan from a normal Claude session to a tsunagi session, and report back when done.
-
-## Non-goals
-
-- Pooling or sharing Claude subscription credentials.
-- Serving other people or other tools from the same proxy.
-- Impersonating Claude Code or rewriting its identity headers.
-
-## How it works
-
-See [docs/design.md](docs/design.md) for the router, the model mapping and the plan hand-off loop. Read [docs/policy.md](docs/policy.md) before using it: routing Claude Code through a gateway is unsupported by Anthropic and carries account risk.
+| `claude-*` | `api.anthropic.com`, request forwarded byte for byte | Your own Claude login, sent by the unmodified client |
+| `<provider>/<model>` | That provider | Your key for it, from the macOS keychain |
+| a combo or tier name | The combo's targets in order, with failover | Each target's own key |
+| anything else | The default provider | Its key |
 
 ## Install
-
-macOS only (arm64 and amd64).
 
 ```bash
 brew install silent9669/tap/tsunagi   # newer Homebrew asks you to trust a third-party tap first: brew trust silent9669/tap
@@ -48,69 +52,100 @@ curl -fsSL https://raw.githubusercontent.com/silent9669/tsunagi/main/install.sh 
 go build -o tsunagi . && mv tsunagi /usr/local/bin/
 ```
 
-Pushing a `v*` tag runs CI; when it passes, GoReleaser publishes the GitHub release and adds the cask to the Homebrew tap (`silent9669/homebrew-tap`) through a deploy key limited to that repo (secret `HOMEBREW_TAP_DEPLOY_KEY`).
+Update with `brew upgrade --cask tsunagi`. Remove with `tsunagi uninstall`, then `brew uninstall --cask tsunagi`.
 
-## Usage
+## First run
+
+Run `tsunagi`. The first time it opens a short setup:
+
+1. **Providers**: type to search about 300 providers, press enter on one and follow its steps (account, key, verify, done). Free offers show their limits and what the provider does with your prompts. Keys are typed hidden and saved in the macOS keychain.
+2. **Skills**: optional skills so Claude Code, Codex, Cursor and opencode can hand off plans and manage tsunagi.
+3. **Start Claude Code**.
+
+After that `tsunagi` opens the menu: Start Claude Code, Providers, Skills, Free models, Settings, Status. Everything works with the keyboard (arrows, enter, the number next to a row, type to search, esc) and with the mouse (click a row, scroll). `tsunagi claude [args]` skips the menu and starts Claude Code with your arguments, and so does running it without a terminal. The interface adapts to any terminal size, down to 20 columns.
+
+In the session:
+
+```text
+/model claude-sonnet-5-5         # Claude, on your subscription
+/model openrouter/inclusionai/ling-3.2-flash:free
+/model deepseek/deepseek-v4-pro
+/model openai@work/gpt-5.5       # pin one of several accounts
+/model free/auto                 # a combo: tries its targets in order
+```
+
+Claude Code prints a "does not recognize the model" notice for non-Claude names and assumes a 200k window. The notice is cosmetic.
+
+## Free models
+
+`tsunagi free` lists providers with a documented, recurring free API tier, with their limits, what they need, and a data label from their own terms: `private` (not used for training) or `trains`. Only labelled providers can enter the `free/auto` combo, and `trains` ones only after `tsunagi free allow <provider>`. The list is checked against the providers' own pages and corrects itself: Mistral, Cerebras, Hugging Face, Ollama Cloud and GitHub Models are documented as not free. Current entries: OpenCode Zen, OpenRouter, Groq, Google AI Studio, SambaNova, Cohere (trial key), NVIDIA NIM, Cloudflare Workers AI. Details and sources: [docs/free.md](docs/free.md).
 
 ```bash
-tsunagi login opencode        # key is typed hidden, saved in the keychain
-tsunagi login chatgpt         # or sign in with your ChatGPT plan (browser, no key)
-tsunagi                       # menu: Start Claude Code, Providers, Skills, Free models, Settings, Status (first run: setup wizard)
-tsunagi setup                 # run the setup wizard again
-tsunagi claude [args]         # skip the menu: start the router and launch claude with args
-tsunagi import opencode       # reuse the providers and API keys you set up in opencode
-tsunagi sync                  # fetch the models.dev catalogue (about 300 providers)
-tsunagi providers [--all]     # providers and key status
-tsunagi models deepseek       # model names to type after /model
-tsunagi login openai --as work   # a second account; requests fail over when one is rate limited
-tsunagi accounts              # every key and sign-in
-tsunagi add mygw http://127.0.0.1:4000/v1   # your own gateway (LiteLLM, vLLM, LM Studio, Ollama, a company proxy)
-tsunagi sessions              # running sessions; `tsunagi handoff` shows how to pass a plan to one
-tsunagi usage                 # tokens per account, plus balances where the provider shows them
-tsunagi ping --tool <model>   # one real test request through the router (add --tool to test tool calls)
-tsunagi route <model>         # how a name would route: combo targets, skips, circuit state (--tools --tokens N --json)
-tsunagi free [--all]          # providers with a verified free offer, limits and data policy (--json)
-tsunagi free <provider>       # its free models, then signup/key/source facts
-tsunagi free probe|combo      # probe candidates, then write the free/auto combo (--no-probe --dry-run)
-tsunagi free refresh          # re-read the public free-model lists
-tsunagi free allow|deny <p>   # opt a "trains" provider into free/auto or out
-tsunagi skills                # install status of tsunagi's agent skills per target (--json)
-tsunagi skills install        # write them for Claude Code and/or Codex, Cursor, opencode (--target claude|agents|all)
-tsunagi uninstall             # list and remove what tsunagi installed (--keys --config --yes)
-
-tsunagi watch                 # live traffic from every session: accounts, tokens, failovers, a sparkline; run it in a second tab
+tsunagi free                 # the offers, their limits and data labels
+tsunagi free openrouter      # its free models, signup and key links
+tsunagi free probe           # send one tiny real request per candidate model
+tsunagi free combo           # write free/auto from the probed models that pass every gate
 ```
 
-Inside the session, tsunagi adds slash commands (loaded with `--plugin-dir`, nothing is installed in your Claude Code setup). They take no arguments, only you can run them, and each is allowed exactly one command line; use the CLI for `models <provider>` and `ping`:
+## Routing
+
+A **combo** is a named list of `provider/model` targets. The router skips targets that cannot serve a request (no key, no tool calling, context too small, circuit open), orders the rest by the strategy, and falls through on 429 and 5xx before anything reaches Claude Code.
+
+```json
+{
+  "combos": { "free/auto": { "targets": ["groq/openai/gpt-oss-120b", "openrouter/qwen/qwen3-coder:free"], "strategy": "priority" } },
+  "tiers": { "haiku": "free/auto" },
+  "claude_fallback": "free/auto"
+}
+```
+
+- **Strategies**: `priority` (as written), `fastest` (measured latency), `round_robin`, `cheapest` (catalogue price, free first), `context` (largest window first), `least_used`.
+- **Tiers**: `opus`, `sonnet` or `haiku` can point at a model or combo, for example Claude Code's background haiku calls on a free model.
+- **Claude first, then a fallback**: with `claude_fallback` set, a chat request goes to Anthropic first. Only if Anthropic answers 429 (usage limit) or 529 (overloaded) does the same conversation go to the fallback, and Claude is skipped for the `Retry-After` time. Off by default, because it sends your conversation to another provider.
+- **Health**: a circuit opens after three failures, retries after a cooldown, and the soonest-ready target is probed when every one is cooling.
+- **Explainable**: `tsunagi route <model> [--tools] [--tokens N]` shows the plan without sending anything, and `tsunagi watch` and the event log show why each request went where it did.
+
+Settings (in the menu) edits tiers, previews a route, and changes the look and theme live. More in [docs/design.md](docs/design.md).
+
+## Living next to Claude Code
+
+tsunagi runs beside Claude Desktop and plain terminal sessions that use the same login, and does not change what they do:
+
+- The router address, the Stop hook and the slash commands reach only the `claude` process tsunagi starts. Nothing is written to `~/.claude` unless you install skills.
+- Claude Code saves every `/model` choice as your default in `~/.claude/settings.json`. While a session runs, tsunagi puts that one value back when a non-Claude model lands there (the running session keeps its model). It edits only that member, in place.
+- tsunagi reads your Claude Code settings (read only) for things that would get in the way: an `env` block that points Claude somewhere else, a model allow-list, a `PreModelSwitch` hook. `tsunagi doctor`, Status and the launch card report them, and a conflicting base URL is overridden for that session only.
+
+`TSUNAGI_NO_MODEL_GUARD=1` turns the default-model guard off. Checked with real Claude Code; see [docs/design.md](docs/design.md).
+
+## Commands
 
 ```text
-/tsunagi:usage        /tsunagi:accounts     /tsunagi:providers
-/tsunagi:models       /tsunagi:sessions     /tsunagi:handoff
+tsunagi                    menu (first run: setup)        tsunagi setup       the setup again
+tsunagi claude [args]      start Claude Code, no menu     tsunagi watch       live dashboard of every session
+tsunagi login <provider>   key (hidden) or ChatGPT        tsunagi accounts    keys and sign-ins
+tsunagi providers [--all]  providers and key status       tsunagi models <p>  model names for /model
+tsunagi add <name> <url>   your own gateway               tsunagi import opencode
+tsunagi usage              tokens and balances            tsunagi sessions    running sessions
+tsunagi free ...           free offers, probe, combo      tsunagi route <m>   how a name would route
+tsunagi ping --tool <m>    one real test request          tsunagi doctor      what is in place
+tsunagi skills ...         agent skills install/remove    tsunagi uninstall   remove what tsunagi added
+tsunagi look               preview the art and themes     tsunagi completion  zsh, bash or fish
 ```
 
-And the model switch:
+Flags before a command: `--plain`, `--no-color`, `--no-anim`, `--look <braille|dither|halftone|bricks|gradient>`, `--theme <mono|amber|matrix|newsprint|colour>`. Data commands take `--json`. `NO_COLOR=1`, `TSUNAGI_NO_ANIM=1` and `TSUNAGI_NO_MOUSE=1` are honoured. Plain output is used when there is no terminal.
 
-```text
-/model claude-sonnet-5-5       # Claude, billed to your subscription
-/model opencode/minimax-m3     # OpenCode model, billed to your OpenCode plan
-/model deepseek/deepseek-v4-pro
-/model openai@work/gpt-5.5          # pin one account; without @label the pool picks and fails over
-/model chatgpt/gpt-6.1-sol        # your ChatGPT plan; names from `tsunagi models chatgpt`
-/model free/auto                  # a combo: tries its targets in order until one answers
-```
+In the session, tsunagi adds slash commands (`/tsunagi:usage`, `accounts`, `providers`, `models`, `sessions`, `handoff`) through `--plugin-dir`. They take no arguments and only you can run them.
 
-Claude Code prints a "does not recognize the model" notice for non-Claude names and assumes a 200k context window. The notice is cosmetic.
+## Policy
 
-Claude Code saves every `/model` choice as your default in `~/.claude/settings.json`, which Claude Desktop and your other sessions share. While a tsunagi session runs, tsunagi puts that one value back whenever a non-Claude model is written there (the running session keeps its model), so your default never ends up pointing at another provider. It edits only the `model` member in place. `TSUNAGI_NO_MODEL_GUARD=1` turns it off.
-
-Display modes: `--plain`, `--no-color` and `--no-anim` before a command; `--json` on `providers`, `accounts`, `usage`, `sessions` and `models`; `tsunagi watch` is a dashboard, `watch --log` prints one line per request (pipeable), `watch --json` streams events. `TSUNAGI_STATUSLINE=1` also puts a one-line tsunagi status in Claude Code's status line (it replaces your own). `tsunagi doctor` checks the setup, `tsunagi look [--style <look>] [--theme <theme>]` previews the art style and color theme (`--static` prints one frame), `tsunagi completion zsh|bash|fish` prints a completion script, `make e2e` runs a real Claude Code against a fake gateway. `TSUNAGI_NO_HOOK=1` and `TSUNAGI_NO_PLUGIN=1` turn off the Stop hook and the slash commands.
-
-Any key skips the intro animation. Set `TSUNAGI_NO_ANIM=1` to turn animation off, or `NO_COLOR=1` for plain text. Extra providers go in `~/.config/tsunagi/config.json` (`name`, `base_url`, `dialect`). The same file takes `"models": {"claude-haiku-5-5": "opencode/glm-5.3", "fast": "deepseek/deepseek-v4-flash"}` to rewrite a model name before routing, for example to send Claude Code's background haiku calls to a cheaper provider. `"combos"` names a set of `provider/model` targets one model name fans out to — `"free/auto": {"targets": ["opencode/big-pickle", "openrouter/qwen/qwen3-coder:free"], "strategy": "priority"}` with `priority`, `fastest` or `round_robin` — and `"tiers"` maps `opus`, `sonnet` or `haiku` to a model or combo. Combo targets that cannot serve a request (no key, no tool calling, context too small, circuit open) are skipped with a reason; `tsunagi route` shows the plan without sending anything. `tsunagi free` lists providers with a verified free offer — see [docs/free.md](docs/free.md) — and `tsunagi free combo` builds `free/auto` from probed candidates; providers whose free tier may train on prompts need `tsunagi free allow <provider>` first. Any provider in the catalogue works as `/model <provider>/<model>` once it has a key; OAuth logins in opencode cannot be imported.
+tsunagi never pools or shares Claude credentials, never rewrites Claude Code's identity headers, and only supports sign-in where a provider's own terms allow it (ChatGPT; not Google's Gemini CLI or Antigravity). Routing Claude Code through a gateway is unsupported by Anthropic. Read [docs/policy.md](docs/policy.md) before relying on it.
 
 ## Documents
 
-- [docs/design.md](docs/design.md): architecture, routing rules, hand-off loop, open questions
+- [docs/design.md](docs/design.md): architecture, routing, hand-off loop, living next to Claude Code
+- [docs/free.md](docs/free.md): the free registry and its sources
 - [docs/providers.md](docs/providers.md): which providers speak what
-- [GLOSSARY.md](GLOSSARY.md): project vocabulary
 - [docs/policy.md](docs/policy.md): compliance stance and known risks
-- [docs/roadmap.md](docs/roadmap.md): build order and test checklist
+- [docs/roadmap.md](docs/roadmap.md): what is done and what is open
+- [docs/ui/captures](docs/ui/captures): every screen, captured from a real terminal by `make e2e-ui`
+- [GLOSSARY.md](GLOSSARY.md): project vocabulary
