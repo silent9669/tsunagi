@@ -39,7 +39,8 @@ func cmdCompletion(t *ui.Term, args []string) int {
     login|logout|models|remove) COMPREPLY=($(compgen -W "$(tsunagi providers --names 2>/dev/null)" -- "$cur"));;
     --style|--look) COMPREPLY=($(compgen -W "`+lookNames()+`" -- "$cur"));;
     --theme) COMPREPLY=($(compgen -W "`+themeNames()+`" -- "$cur"));;
-    *) COMPREPLY=($(compgen -W "--json --all --live --as --tool --tokens --session --timeout --days --log --dry-run --no-probe --look --theme --style --static" -- "$cur"));;
+    --target) COMPREPLY=($(compgen -W "claude agents all" -- "$cur"));;
+    *) COMPREPLY=($(compgen -W "--json --all --live --as --tool --tokens --session --timeout --days --log --dry-run --no-probe --look --theme --style --static --keys --config --yes --target" -- "$cur"));;
   esac
 }
 complete -F _tsunagi tsunagi
@@ -54,7 +55,8 @@ _tsunagi() {
     login|logout|models|remove) compadd -- ${(f)"$(tsunagi providers --names 2>/dev/null)"};;
     --style|--look) compadd -- `+lookNames()+`;;
     --theme) compadd -- `+themeNames()+`;;
-    *) compadd -- --json --all --live --as --tool --tokens --session --timeout --days --log --dry-run --no-probe --look --theme --style --static;;
+    --target) compadd -- claude agents all;;
+    *) compadd -- --json --all --live --as --tool --tokens --session --timeout --days --log --dry-run --no-probe --look --theme --style --static --keys --config --yes --target;;
   esac
 }
 _tsunagi "$@"

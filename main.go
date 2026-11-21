@@ -45,6 +45,8 @@ func commandList() []command {
 		{"done", "Sessions", "record that this session finished", "tsunagi done <summary>", cmdDone},
 		{"statusline", "Info", "one-line status for Claude Code's status line", "tsunagi statusline   (reads Claude Code's JSON on stdin)", cmdStatusline},
 		{"look", "Info", "preview the interface art style and theme", "tsunagi look [--style <look>] [--theme <theme>] [--static]", cmdLook},
+		{"skills", "Info", "install tsunagi's agent skills for other tools", "tsunagi skills [--json]\n  tsunagi skills install|remove [--target claude|agents|all]", cmdSkills},
+		{"uninstall", "Info", "remove what tsunagi installed", "tsunagi uninstall [--keys] [--config] [--yes]", cmdUninstall},
 		{"completion", "Info", "shell completion script", "tsunagi completion zsh|bash|fish", cmdCompletion},
 		{"version", "Info", "print the version", "tsunagi version", func(t *ui.Term, _ []string) int { t.Printf("tsunagi %s\n", version); return 0 }},
 		{"help", "Info", "show help, for one command with: help <command>", "tsunagi help [command]", cmdHelp},

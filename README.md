@@ -59,6 +59,9 @@ tsunagi free <provider>       # its free models, then signup/key/source facts
 tsunagi free probe|combo      # probe candidates, then write the free/auto combo (--no-probe --dry-run)
 tsunagi free refresh          # re-read the public free-model lists
 tsunagi free allow|deny <p>   # opt a "trains" provider into free/auto or out
+tsunagi skills                # install status of tsunagi's agent skills per target (--json)
+tsunagi skills install        # write them for Claude Code and/or Codex, Cursor, opencode (--target claude|agents|all)
+tsunagi uninstall             # list and remove what tsunagi installed (--keys --config --yes)
 
 tsunagi watch                 # live traffic from every session: accounts, tokens, failovers, a sparkline; run it in a second tab
 ```

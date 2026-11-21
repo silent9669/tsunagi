@@ -92,3 +92,10 @@
 - A non-Claude request carries that Provider's Key and never the Claude credential.
 - Mid-session model switch does not break the conversation (thinking blocks, tool calls).
 - Router refuses connections from anything but localhost.
+
+## Phase 7: agent skills and uninstall
+
+- [x] Four embedded agent skills (`internal/skills/content/*/SKILL.md`) covering hand-off, models, setup and free-model safety
+- [x] `tsunagi skills` status/install/remove for the `claude` (`~/.claude/skills`) and `agents` (`~/.agents/skills`) targets, manifest-tracked at `~/.config/tsunagi/skills.json`
+- [x] `tsunagi uninstall [--keys] [--config] [--yes]` removes skills, the tsunagi cache subdir, optionally keychain entries/ChatGPT sign-ins and the config dir; dry-run exits 2 on non-TTY
+- [ ] Menu/wizard/settings screens calling the skills engine (next UI step)

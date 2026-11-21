@@ -59,3 +59,7 @@ _Avoid_: free tier (when ambiguous), trial
 **Data policy**:
 What a provider's own documents say it does with free-plan prompts: `private` (not used for training), `trains` (may train; needs `tsunagi free allow`), or `unknown` (never routed into free/auto).
 _Avoid_: privacy label, retention policy
+
+**Skill set**:
+The four embedded agent skills (`tsunagi-handoff`, `tsunagi-models`, `tsunagi-setup`, `tsunagi-free`) that `tsunagi skills install` writes into `~/.claude/skills` and `~/.agents/skills`, tracked by `~/.config/tsunagi/skills.json` so `remove` and `uninstall` only delete what tsunagi wrote.
+_Avoid_: plugin (that is the `--plugin-dir` slash commands), extension
