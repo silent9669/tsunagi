@@ -1,12 +1,12 @@
+  tsunagi
+
+  ▏ 1 Start Claude Code    claude-stub
+    2 Providers                5 ready
+    3 Skills                       1/2
+    4 Free models                    -
+    5 Settings
+    6 Status
+    7 Quit
 
 
-  ▏ Start Claude Code     claude-stub
-    Providers                 5 ready
-    Skills                        1/2
-    Free models                     -
-    Settings
-    Status
-    Quit
-
-
-
+  ↑↓ move   ↵ select   1-9 jump

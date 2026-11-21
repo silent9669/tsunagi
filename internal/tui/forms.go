@@ -93,10 +93,47 @@ func (m Menu) quit() tea.Cmd {
 func (m Menu) Init() tea.Cmd { return nil }
 
 func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	nm, cmd := m.update(msg)
+	mm := nm.(Menu)
+	mm.reveal()
+	return mm, cmd
+}
+
+// reveal scrolls the window so the cursor row stays visible.
+func (m *Menu) reveal() {
+	if m.h < 1 {
+		return
+	}
+	if m.sel < m.top {
+		m.top = m.sel
+	}
+	if m.sel >= m.top+m.h {
+		m.top = m.sel - m.h + 1
+	}
+	if mx := len(m.Items) - m.h; m.top > max(mx, 0) {
+		m.top = max(mx, 0)
+	}
+}
+
+func (m Menu) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = v.Width, v.Height
 		return m, nil
+	case tea.MouseClickMsg:
+		if mo := tea.Mouse(v); mo.Button == tea.MouseLeft {
+			if i := m.top + mo.Y; mo.Y >= 0 && i < len(m.Items) && m.enabled(i) {
+				m.sel = i
+				return m, m.emit(m.Items[i].Value)
+			}
+		}
+	case tea.MouseWheelMsg:
+		switch tea.Mouse(v).Button {
+		case tea.MouseWheelUp:
+			m.move(-1)
+		case tea.MouseWheelDown:
+			m.move(1)
+		}
 	case tea.KeyPressMsg:
 		code, text := v.Code, v.Text
 		switch {
@@ -136,37 +173,38 @@ func (m Menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the items; the cursor row is marked and styled Selected.
+// View renders the items; the cursor row is marked and styled Selected. Each
+// row starts with its hotkey digit (1 to 9), shows an optional dim tag at the
+// right edge, and is padded to the full width so the block stays aligned.
 func (m Menu) View() tea.View {
 	marker := ">"
 	if m.utf8 {
 		marker = "▏"
 	}
-	// keep the cursor inside the visible window
-	if m.sel < m.top {
-		m.top = m.sel
-	}
-	if m.sel >= m.top+m.h {
-		m.top = m.sel - m.h + 1
-	}
-	var sb strings.Builder
-	for i := m.top; i < len(m.Items) && i < m.top+m.h; i++ {
+	m.reveal()
+	w := max(m.w, 8)
+	var rows []string
+	for i := m.top; i < len(m.Items) && i < m.top+max(m.h, 1); i++ {
 		it := m.Items[i]
-		prefix := "  "
+		lead := "  "
 		if i == m.sel {
-			prefix = marker + " "
+			lead = marker + " "
 		}
-		line := prefix + it.Label
-		tag := ""
+		num := " "
+		if i < 9 {
+			num = string(rune('1' + i))
+		}
+		tagW := 0
 		if it.Tag != "" {
-			pad := m.w - lipgloss.Width(line) - lipgloss.Width(it.Tag) - 1
-			if pad < 1 {
-				pad = 1
-			}
-			tag = strings.Repeat(" ", pad) + m.theme.Dim.Render(it.Tag)
+			tagW = lipgloss.Width(it.Tag) + 1
 		}
-		if lipgloss.Width(line) > m.w {
-			line = truncateCells(line, m.w)
+		label := truncateCells(it.Label, max(w-lipgloss.Width(lead)-2-tagW, 1))
+		line := lead + num + " " + label
+		pad := max(w-lipgloss.Width(line)-lipgloss.Width(it.Tag), 0)
+		if it.Tag == "" {
+			line += strings.Repeat(" ", pad)
+		} else {
+			line += strings.Repeat(" ", max(pad, 1))
 		}
 		var styled string
 		switch {
@@ -177,10 +215,16 @@ func (m Menu) View() tea.View {
 		default:
 			styled = m.theme.Text.Render(line)
 		}
-		sb.WriteString(styled + tag)
-		sb.WriteByte('\n')
+		if it.Tag != "" {
+			if i == m.sel && !it.Disabled {
+				styled += m.theme.Selected.Render(it.Tag)
+			} else {
+				styled += m.theme.Dim.Render(it.Tag)
+			}
+		}
+		rows = append(rows, styled)
 	}
-	return tea.NewView(strings.TrimRight(sb.String(), "\n"))
+	return tea.NewView(strings.Join(rows, "\n"))
 }
 
 // truncateCells cuts s to at most w terminal cells.
@@ -319,6 +363,32 @@ func (c Checklist) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		c.w, c.h = v.Width, v.Height
 		return c, nil
+	case tea.MouseClickMsg:
+		if mo := tea.Mouse(v); mo.Button == tea.MouseLeft && mo.Y >= 0 {
+			// map the clicked row back to an item, skipping section headings
+			row, item := 0, 0
+			for _, sc := range c.Sections {
+				if sc.Title != "" {
+					row++
+				}
+				for range sc.Items {
+					if row == c.top+mo.Y {
+						c.sel = item
+						c.toggle()
+						return c, nil
+					}
+					row++
+					item++
+				}
+			}
+		}
+	case tea.MouseWheelMsg:
+		switch tea.Mouse(v).Button {
+		case tea.MouseWheelUp:
+			c.move(-1)
+		case tea.MouseWheelDown:
+			c.move(1)
+		}
 	case tea.KeyPressMsg:
 		code, text := v.Code, v.Text
 		switch {

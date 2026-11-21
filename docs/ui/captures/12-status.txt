@@ -1,3 +1,16 @@
+                      Status
+
+                      ok  claude     <claude> 2.1.311 (Claude…
+                      ok  keychain   macOS security tool found
+                      ok  config     <tmp>
+                      !!  catalogue  not synced: run tsunagi sync for the pro…
+                      !!  accounts   no keys yet: run tsunagi login <provider>
+                      ok  router     can listen on 127.0.0.1
+                      ok  state      cache directory writable
+                      ok  slash      /tsunagi:usage /tsunagi:accounts /tsunag…
+                      ok  settings   no conflicts, nothing is changed
+
+                      ▏ 1 Back
 
 
 
@@ -7,18 +20,6 @@
 
 
 
-                        Status
-
-                        ok  claude     <claude> 2.1.311 (Cl~
-                        ok  keychain   macOS security tool found
-                        ok  config     <tmp>
-                        !!  catalogue  not synced: run tsunagi sync for the~
-                        !!  accounts   no keys yet: run tsunagi login <prov~
-                        ok  router     can listen on 127.0.0.1
-                        ok  state      cache directory writable
-                        ok  slash      /tsunagi:usage /tsunagi:accounts /ts~
-
-                        ▏ Back
 
 
 
@@ -26,5 +27,4 @@
 
 
 
-
-
+                      ↵ back   esc back

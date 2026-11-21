@@ -1,3 +1,10 @@
+                      Free models
+
+                      [ ] opencode                                    trains
+                      [ ] openrouter                                  trains
+                      [ ] google                                      trains
+                      [ ] cohere                                      trains
+                      [ ] nvidia                                      trains
 
 
 
@@ -9,13 +16,6 @@
 
 
 
-                        Free models
-
-                        [ ] opencode                                trains
-                        [ ] openrouter                              trains
-                        [ ] google                                  trains
-                        [ ] mistral                                 trains
-                        [ ] nvidia                                  trains
 
 
 
@@ -27,4 +27,4 @@
 
 
 
-
+                      ↑↓ move   space allow   ↵ apply   esc back

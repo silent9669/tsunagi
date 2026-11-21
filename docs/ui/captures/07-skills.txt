@@ -1,3 +1,7 @@
+                      Skills
+
+                      [~] Claude Code                                    0/4
+                      [~] Codex, Cursor, opencode                        0/4
 
 
 
@@ -11,10 +15,6 @@
 
 
 
-                        Skills
-
-                        [~] Claude Code                                0/4
-                        [~] Codex, Cursor, opencode                    0/4
 
 
 
@@ -27,4 +27,4 @@
 
 
 
-
+                      ↑↓ move   space toggle   ↵ apply   esc back

@@ -1,20 +1,7 @@
+                      Providers
 
-
-
-
-
-
-
-
-
-
-
-
-                        Providers
-
-                        Base url
-
-                        > base url
+                      Base url
+                      > base url
 
 
 
@@ -28,3 +15,16 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+                      ↵ confirm   esc back

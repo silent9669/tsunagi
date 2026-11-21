@@ -1,3 +1,15 @@
+                      Providers
+
+                      ✓ Verify ─ ● Done
+
+                      e2e
+
+                      ok  e2e/tiny-model  1ms
+
+                      ▏ 1 Done
+                        2 Retry
+                        3 Re-enter key
+                        4 Remove key
 
 
 
@@ -8,15 +20,6 @@
 
 
 
-                        Providers
-
-                        ok  e2e/tiny-model  1ms
-
-
-                        ▏ Next
-                          Retry
-                          Re-enter key
-                          Remove key
 
 
 
@@ -24,7 +27,4 @@
 
 
 
-
-
-
-
+                      ↑↓ move   ↵ select   1-9 jump   esc back

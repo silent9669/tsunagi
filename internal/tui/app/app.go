@@ -6,14 +6,12 @@ package app
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"charm.land/bubbletea/v2"
 
 	"github.com/silent9669/tsunagi/internal/skills"
 	"github.com/silent9669/tsunagi/internal/tui"
-	"github.com/silent9669/tsunagi/internal/ui"
 )
 
 // VerifyResult is one provider verification attempt.
@@ -186,9 +184,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// blank lines and whatever eel room remains are chrome, not theirs.
 		a.opts.W, a.opts.H = v.Width, v.Height
 		if a.scr != nil {
-			w, h := contentSize(a.scr, v.Width, v.Height)
-			msg = tea.WindowSizeMsg{Width: w, Height: h}
+			f := a.frame(a.scr)
+			msg = tea.WindowSizeMsg{Width: f.bodyW, Height: f.bodyH}
 		}
+	case tea.MouseClickMsg, tea.MouseWheelMsg:
+		m, ok := a.bodyMouse(msg)
+		if !ok {
+			return a, nil
+		}
+		msg = m
 	case tickMsg:
 		a.phase += 0.35
 		if a.opts.Anim {
@@ -305,47 +309,6 @@ type screenModel interface {
 	setLocals(map[string]bool)
 }
 
-// blockWidth is the width of the one centered column every screen below the
-// art lives in.
-func blockWidth(w int) int {
-	switch {
-	case w-4 > 52:
-		return 52
-	case w-4 < 30:
-		return 30
-	}
-	return w - 4
-}
-
-// titled is implemented by screens that replace the wordmark and eel with a
-// one-row title, leaving the terminal to their list.
-type titled interface{ title() string }
-
-// contentHeight is the terminal height left for screen content once the
-// wordmark and its spacing are accounted for.
-func contentHeight(w, h int) int {
-	if tui.Compact(w, h) {
-		return h
-	}
-	h -= len(ui.LogoLines()) + 3
-	if h < 4 {
-		h = 4
-	}
-	return h
-}
-
-// contentSize is the area a screen gets: the block width and the rows left
-// after its chrome (a title row, or the wordmark).
-func contentSize(scr tea.Model, w, h int) (int, int) {
-	if _, ok := scr.(titled); ok {
-		if h-2 < 4 {
-			return blockWidth(w), 4
-		}
-		return blockWidth(w), h - 2
-	}
-	return blockWidth(w), contentHeight(w, h)
-}
-
 // fit resizes a freshly built component to the area the screen last saw;
 // constructors default to 80x24, which overflows small terminals.
 func fit(m tea.Model, w, h int) tea.Model {
@@ -370,68 +333,11 @@ func (a *App) setScreen(s tea.Model) tea.Cmd {
 	// WindowSizeMsg only arrives once, at startup; screens created later get
 	// the current content size injected here.
 	if a.opts.W > 0 && a.opts.H > 0 {
-		w, h := contentSize(s, a.opts.W, a.opts.H)
-		nm, _ := s.Update(tea.WindowSizeMsg{Width: w, Height: h})
+		f := a.frame(s)
+		nm, _ := s.Update(tea.WindowSizeMsg{Width: f.bodyW, Height: f.bodyH})
 		a.scr = nm
 	}
 	return a.scr.Init()
-}
-
-// View composes wordmark, eel and the current screen. The eel shrinks to
-// whatever the screen content leaves, so nothing is ever pushed off-frame.
-// Everything under the art sits in one centered block of blockWidth cells.
-func (a *App) View() tea.View {
-	W, H := a.opts.W, a.opts.H
-	var screen string
-	if a.scr != nil {
-		screen = strings.TrimRight(a.scr.View().Content, "\n")
-	}
-	bw := blockWidth(W)
-	indent := strings.Repeat(" ", max(0, (W-bw)/2))
-	block := func(s string) []string {
-		var out []string
-		for _, l := range strings.Split(s, "\n") {
-			out = append(out, indent+l)
-		}
-		return out
-	}
-	var lines []string
-	// every row is padded to the terminal width: Place would otherwise
-	// center shorter rows one by one and break the block's left edge
-	place := func(ls []string) tea.View {
-		for i, l := range ls {
-			if n := W - tui.WidthOf(l); n > 0 {
-				ls[i] = l + strings.Repeat(" ", n)
-			}
-		}
-		return tea.NewView(tui.Place(W, H, strings.Join(ls, "\n")))
-	}
-	if t, ok := a.scr.(titled); ok {
-		lines = append(lines, indent+a.theme.Title.Render(t.title()), "")
-		lines = append(lines, block(screen)...)
-		return place(lines)
-	}
-	if !tui.Compact(W, H) {
-		logo := tui.Wordmark(W, a.theme)
-		screenH := 0
-		if screen != "" {
-			screenH = strings.Count(screen, "\n") + 1
-		}
-		artH := min(10, H-len(logo)-1-screenH-2-1)
-		lines = append(lines, logo...)
-		lines = append(lines, "")
-		if artH > 0 {
-			ao := a.opts
-			ao.W, ao.H = min(56, W-2), artH
-			ai := strings.Repeat(" ", max(0, (W-ao.W)/2))
-			for _, l := range strings.Split(tui.EelArt(ao, a.theme, a.phase), "\n") {
-				lines = append(lines, ai+l)
-			}
-			lines = append(lines, "")
-		}
-	}
-	lines = append(lines, block(screen)...)
-	return place(lines)
 }
 
 // menuScreen builds the main menu.

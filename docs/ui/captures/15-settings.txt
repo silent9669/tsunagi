@@ -1,3 +1,9 @@
+                      Settings
+
+                      ▏ 1 Routing
+                        2 Appearance
+                        3 Advanced
+                        4 Back
 
 
 
@@ -10,12 +16,6 @@
 
 
 
-                        Settings
-
-                        ▏ Routing
-                          Appearance
-                          Advanced
-                          Back
 
 
 
@@ -27,4 +27,4 @@
 
 
 
-
+                      ↑↓ move   ↵ change   1-9 jump   esc back

@@ -1,3 +1,9 @@
+                      Free models
+
+                      ▏ 1 Probe
+                        2 Build free/auto                                    -
+                        3 Data policy                                        -
+                        4 Back
 
 
 
@@ -10,12 +16,6 @@
 
 
 
-                        Free models
-
-                        ▏ Probe
-                          Build free/auto                                 -
-                          Data policy                                     -
-                          Back
 
 
 
@@ -27,4 +27,4 @@
 
 
 
-
+                      ↑↓ move   ↵ select   1-9 jump   esc back

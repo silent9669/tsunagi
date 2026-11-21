@@ -59,5 +59,8 @@ func (a altScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a altScreen) View() tea.View {
 	v := a.inner.View()
 	v.AltScreen = true
+	if os.Getenv("TSUNAGI_NO_MOUSE") == "" {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 	return v
 }

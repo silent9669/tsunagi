@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -12,8 +13,8 @@ import (
 	"github.com/silent9669/tsunagi/internal/tui"
 )
 
-// providersScreen is the grouped provider checklist plus the per-provider
-// setup flow: facts panel, optional account id, masked key, verify, result.
+// providersScreen is the searchable provider list plus the per-provider
+// setup flow: account, key, verify, done, drawn under a stepper.
 type providersScreen struct {
 	opts   tui.Options
 	th     tui.Theme
@@ -22,33 +23,31 @@ type providersScreen struct {
 	w, h   int
 
 	stage int
-	cl    tui.Checklist
+	pk    tui.Picker
 	menu  tui.Menu
 	in    tui.Input
 
 	// flow state
-	prov        ProviderRow
-	entry       *free.Entry
-	account     string
-	result      VerifyResult
-	queue       []string
-	qi          int
-	trains      []string // keyed trains providers awaiting allow/skip
-	trainsAllow []string // providers the user allowed this run
-	ti          int
-	targets     []string
-	import_     string
-	localUp     map[string]bool
-	chatURL     string
-	urlCh       chan string
-	chatCancel  context.CancelFunc
-	gwName      string
-	gwURL       string
+	prov       ProviderRow
+	entry      *free.Entry
+	account    string
+	result     VerifyResult
+	keyedFree  bool // a free provider was verified in this visit
+	trains     []string
+	ti         int
+	targets    []string
+	import_    string
+	localUp    map[string]bool
+	chatURL    string
+	urlCh      chan string
+	chatCancel context.CancelFunc
+	gwName     string
+	menuTop    int // body rows above the menu, for mouse clicks
 }
 
 const (
 	psList = iota
-	psAccountMenu
+	psDetail
 	psPanel
 	psAcctID
 	psGWName
@@ -69,16 +68,19 @@ func groupTitle(g string) string {
 		return "Free"
 	case "plan":
 		return "Your plans"
+	case "paid":
+		return "Paid keys"
 	case "local":
 		return "Local and own"
 	}
-	return "Paid keys"
+	return "Catalogue"
 }
 
-var groupOrder = []string{"free", "plan", "paid", "local"}
+var groupOrder = []string{"free", "plan", "paid", "local", ""}
 
 func newProvidersScreen(a *App, wizard bool) *providersScreen {
-	s := &providersScreen{opts: a.opts, th: a.theme, app: a, wizard: wizard, w: blockWidth(a.opts.W), h: max(4, a.opts.H-2)}
+	f := a.frame(&providersScreen{})
+	s := &providersScreen{opts: a.opts, th: a.theme, app: a, wizard: wizard, w: f.bodyW, h: f.bodyH}
 	s.build()
 	return s
 }
@@ -102,58 +104,64 @@ func registryEntry(name string) *free.Entry {
 	return nil
 }
 
-// buildSections turns the snapshot into grouped checklist sections.
-func (s *providersScreen) buildSections() []tui.Section {
-	secs := map[string]*tui.Section{}
-	for _, g := range groupOrder {
-		secs[g] = &tui.Section{Title: groupTitle(g)}
+// pickItems turns the snapshot into the picker's rows: the curated providers
+// by group, the gateway and import actions, and the whole catalogue behind
+// the search.
+func (s *providersScreen) pickItems() []tui.PickItem {
+	var items []tui.PickItem
+	if s.wizard {
+		items = append(items, tui.PickItem{Label: "Continue", Value: "@continue", Group: "", Action: true, Featured: true, Glyph: "→", AsciiGlyph: ">"})
 	}
 	for _, p := range s.app.snap.Providers {
-		sec := secs[p.Group]
-		if sec == nil {
-			sec = secs["paid"]
-		}
 		state := tui.None
-		tag := p.Tag
 		if p.Ready {
 			state = tui.Done
 		}
-		if p.Group == "local" {
-			if s.localUp != nil {
-				if s.localUp[p.Name] {
-					state = tui.Done
-				} else {
-					state = tui.None
-				}
-			} else if p.Ready {
+		if p.Group == "local" && s.localUp != nil {
+			state = tui.None
+			if s.localUp[p.Name] {
 				state = tui.Done
 			}
 		}
+		tag := p.Tag
 		if p.Setup != "" && tag == "" {
 			tag = "setup"
 		}
-		sec.Items = append(sec.Items, tui.CItem{Label: p.Name, Value: p.Name, Tag: tag, State: state})
+		items = append(items, tui.PickItem{
+			Label: p.Name, Value: p.Name, Tag: tag, Group: groupTitle(p.Group),
+			State: state, Featured: p.Group != "" || p.Ready,
+		})
 	}
-	secs["local"].Items = append(secs["local"].Items, tui.CItem{Label: "Add a gateway", Value: "@add-gateway"})
-	var out []tui.Section
-	for _, g := range groupOrder {
-		if len(secs[g].Items) > 0 {
-			out = append(out, *secs[g])
+	items = append(items,
+		tui.PickItem{Label: "Add a gateway", Value: "@add-gateway", Group: groupTitle("local"), Action: true, Featured: true},
+		tui.PickItem{Label: "Import from opencode", Value: "@import", Group: groupTitle("local"), Action: true, Featured: true},
+	)
+	rank := map[string]int{}
+	for i, g := range groupOrder {
+		rank[groupTitle(g)] = i
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		gi, gj := items[i].Group, items[j].Group
+		if items[i].Value == "@continue" || items[j].Value == "@continue" {
+			return items[i].Value == "@continue" && items[j].Value != "@continue"
 		}
-	}
-	return out
+		return rank[gi] < rank[gj]
+	})
+	return items
 }
 
 func (s *providersScreen) build() {
-	s.cl = fit(tui.NewChecklist(s.buildSections(), s.th, s.opts.UTF8), s.w, s.h).(tui.Checklist)
+	keep := ""
+	if it, ok := s.pk.Selected(); ok {
+		keep = it.Value
+	}
+	s.pk = fit(tui.NewPicker(s.pickItems(), s.th, s.opts.UTF8), s.w, s.h).(tui.Picker)
+	if keep != "" {
+		s.pk.Select(keep)
+	}
 }
 
-func (s *providersScreen) Init() tea.Cmd {
-	if s.stage == psList {
-		return s.cl.Init()
-	}
-	return nil
-}
+func (s *providersScreen) Init() tea.Cmd { return nil }
 
 func (s *providersScreen) rowProvider(name string) (ProviderRow, bool) {
 	for _, p := range s.app.snap.Providers {
@@ -164,15 +172,46 @@ func (s *providersScreen) rowProvider(name string) (ProviderRow, bool) {
 	return ProviderRow{}, false
 }
 
-func (s *providersScreen) itemState(value string) tui.State {
-	for _, sec := range s.cl.Sections {
-		for _, it := range sec.Items {
-			if it.Value == value {
-				return it.State
+// steps are the stages the flow for the current provider goes through.
+func (s *providersScreen) steps() []string {
+	switch {
+	case s.prov.Group == "plan":
+		return []string{"Sign in", "Verify", "Done"}
+	case s.prov.Group == "local":
+		return []string{"Verify", "Done"}
+	case s.entry != nil && (s.entry.Signup != "" || s.entry.Setup != ""):
+		return []string{"Account", "Key", "Verify", "Done"}
+	}
+	return []string{"Key", "Verify", "Done"}
+}
+
+// stepIndex is where the current stage sits in steps().
+func (s *providersScreen) stepIndex() int {
+	st := s.steps()
+	find := func(name string) int {
+		for i, x := range st {
+			if x == name {
+				return i
 			}
 		}
+		return 0
 	}
-	return tui.None
+	switch s.stage {
+	case psPanel, psAcctID:
+		return find("Account")
+	case psKey:
+		return find("Key")
+	case psChat:
+		return find("Sign in")
+	case psVerify:
+		return find("Verify")
+	case psResult:
+		if s.result.OK {
+			return len(st) - 1
+		}
+		return find("Verify")
+	}
+	return 0
 }
 
 func (s *providersScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -181,21 +220,24 @@ func (s *providersScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.w, s.h = v.Width, v.Height
 	case verifyDoneMsg:
 		s.result = v.result
+		if v.result.OK && s.prov.Group == "free" {
+			s.keyedFree = true
+		}
+		s.app.refresh()
 		s.menu = s.resultMenu()
 		s.stage = psResult
 		return s, nil
 	case comboDoneMsg:
 		s.targets = v.targets
 		if len(s.targets) == 0 {
-			s.stage = psList
-			s.build()
-			return s, nil
+			return s, s.done()
 		}
 		s.menu = s.simpleMenu("Done")
 		s.stage = psComboDone
 		return s, nil
 	case importDoneMsg:
 		s.import_ = v.summary
+		s.app.refresh()
 		s.menu = s.simpleMenu("Done")
 		s.stage = psImport
 		return s, nil
@@ -204,25 +246,29 @@ func (s *providersScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.result = VerifyResult{Err: v.err.Error()}
 			s.menu = s.resultMenu()
 			s.stage = psResult
-		} else {
-			s.account = "chatgpt"
-			return s, s.verifyCmd()
+			return s, nil
 		}
-		return s, nil
-	case chatTickMsg:
-		// poll handled in updateChat
+		s.account = "chatgpt"
+		return s, s.verifyCmd()
+	case tea.MouseClickMsg:
+		if s.stage != psList {
+			mo := tea.Mouse(v)
+			mo.Y -= s.menuTop
+			if mo.Y < 0 {
+				return s, nil
+			}
+			msg = tea.MouseClickMsg(mo)
+		}
 	}
 	switch s.stage {
 	case psList:
 		return s.updateList(msg)
 	case psVerify:
 		if k, ok := msg.(tea.KeyPressMsg); ok {
-			code := k.Code
-			if code == tea.KeyEscape || code == 'c' && k.Mod&tea.ModCtrl != 0 {
+			if k.Code == tea.KeyEscape || k.Code == 'c' && k.Mod&tea.ModCtrl != 0 {
 				s.result = VerifyResult{Err: "cancelled"}
 				s.menu = s.resultMenu()
 				s.stage = psResult
-				return s, nil
 			}
 		}
 		return s, nil
@@ -230,8 +276,7 @@ func (s *providersScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s.updateChat(msg)
 	case psComboRun:
 		if _, ok := msg.(tea.KeyPressMsg); ok {
-			s.stage = psList
-			s.build()
+			return s, s.done()
 		}
 		return s, nil
 	default:
@@ -240,56 +285,71 @@ func (s *providersScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s *providersScreen) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
-	nm, cmd := s.cl.Update(msg)
-	s.cl = nm.(tui.Checklist)
+	nm, cmd := s.pk.Update(msg)
+	s.pk = nm.(tui.Picker)
 	switch v := msg.(type) {
-	case tui.Confirmed:
-		// Confirmed lists every non-empty item, including Done ones. Queue the
-		// newly selected providers; only when nothing new was picked does a
-		// lone Done item open its account menu.
-		var pend []string
-		for _, val := range v.Values {
-			if val == "@add-gateway" {
-				s.startGateway()
-				return s, nil
-			}
-			if s.itemState(val) != tui.Done {
-				pend = append(pend, val)
-			}
-		}
-		if len(pend) == 0 {
-			for _, val := range v.Values {
-				if p, ok := s.rowProvider(val); ok && s.itemState(val) == tui.Done {
-					s.openAccountMenu(p)
-					return s, nil
-				}
-			}
-			return s, cmd
-		}
-		s.queue = append(s.queue, pend...)
-		if len(s.queue) > 0 {
-			s.qi = 0
-			return s, s.startNext()
-		}
+	case tui.Chosen:
+		return s.open(v.Value)
 	case tui.Quit:
-		return s, func() tea.Msg {
-			if s.wizard {
-				return wizSkipMsg{}
-			}
-			return providersDoneMsg{}
+		if s.wizard {
+			return s, func() tea.Msg { return wizSkipMsg{} }
 		}
+		return s, s.leave()
 	}
 	return s, cmd
 }
 
-// startNext begins the setup flow for queue[qi] and returns any cmd it needs.
-func (s *providersScreen) startNext() tea.Cmd {
-	name := s.queue[s.qi]
-	p, _ := s.rowProvider(name)
-	s.prov = p
-	s.entry = registryEntry(name)
-	s.account = p.Name
-	s.result = VerifyResult{}
+// leave ends the visit: when a free provider was just set up it first offers
+// the free/auto combo; the wizard also skips ahead.
+func (s *providersScreen) leave() tea.Cmd {
+	if s.keyedFree {
+		return s.finishQueue()
+	}
+	return s.done()
+}
+
+// open starts what choosing a row means: an action, the detail of a provider
+// that is already set up, or its setup flow.
+func (s *providersScreen) open(value string) (tea.Model, tea.Cmd) {
+	switch value {
+	case "@continue":
+		return s, s.leave()
+	case "@add-gateway":
+		s.stage = psGWName
+		s.in = s.newInput("gateway name", false)
+		return s, nil
+	case "@import":
+		return s, func() tea.Msg {
+			sum, err := s.app.be.ImportOpencode()
+			if err != nil {
+				sum = err.Error()
+			}
+			return importDoneMsg{summary: sum}
+		}
+	}
+	p, ok := s.rowProvider(value)
+	if !ok {
+		return s, nil
+	}
+	s.prov, s.entry, s.account, s.result = p, registryEntry(value), p.Name, VerifyResult{}
+	ready := p.Ready
+	if p.Group == "local" {
+		ready = s.localUp[p.Name]
+	}
+	if ready && p.Group != "local" {
+		s.stage = psDetail
+		s.menu = s.simpleMenu("Test again", "Replace key", "Remove", "Back")
+		if p.Group == "plan" {
+			s.menu = s.simpleMenu("Test again", "Sign in again", "Remove", "Back")
+		}
+		return s, nil
+	}
+	return s, s.startSetup()
+}
+
+// startSetup begins the flow for s.prov and returns any cmd it needs.
+func (s *providersScreen) startSetup() tea.Cmd {
+	p := s.prov
 	switch {
 	case p.Group == "plan":
 		return s.startChat()
@@ -299,22 +359,27 @@ func (s *providersScreen) startNext() tea.Cmd {
 		s.stage = psAcctID
 		s.in = s.newInput("account id", false)
 	case s.entry != nil && s.entry.Signup != "":
-		s.stage = psPanel
-		s.menu = s.flowMenu("Open signup page", "I have a key", "Skip")
+		s.toPanel()
 	default:
-		s.stage = psKey
-		s.in = s.newInput("key for "+p.Name, true)
+		s.toKey()
 	}
 	return nil
 }
 
-// advance moves to the next queued provider or the combo offer.
-func (s *providersScreen) advance() tea.Cmd {
-	s.qi++
-	if s.qi < len(s.queue) {
-		return s.startNext()
-	}
-	return s.finishQueue()
+func (s *providersScreen) toPanel() {
+	s.stage = psPanel
+	s.menu = s.simpleMenu("Open signup page", "I have a key", "Skip")
+}
+
+func (s *providersScreen) toKey() {
+	s.stage = psKey
+	s.in = s.newInput("key for "+s.prov.Name, true)
+}
+
+func (s *providersScreen) toList() {
+	s.stage = psList
+	s.app.refresh()
+	s.build()
 }
 
 // finishQueue offers the free/auto combo when a free provider is keyed.
@@ -324,7 +389,7 @@ func (s *providersScreen) finishQueue() tea.Cmd {
 	for _, p := range s.app.snap.Providers {
 		if p.Group == "free" && p.Ready {
 			hasFree = true
-			if p.Tag == "trains" {
+			if p.Tag == "trains" && !s.app.snap.AllowTrains[p.Name] {
 				s.trains = append(s.trains, p.Name)
 			}
 		}
@@ -342,17 +407,18 @@ func (s *providersScreen) nextTrainAsk() tea.Cmd {
 		return s.runCombo()
 	}
 	name := s.trains[s.ti]
-	s.menu = s.flowMenu("Allow "+name+" (trains)", "Skip")
+	s.menu = s.simpleMenu("Allow "+name+" (trains)", "Skip")
 	s.stage = psComboAsk
 	return nil
 }
 
 func (s *providersScreen) done() tea.Cmd {
+	s.keyedFree = false
 	return func() tea.Msg { return providersDoneMsg{} }
 }
 
 func (s *providersScreen) newInput(placeholder string, masked bool) tui.Input {
-	return fit(tui.NewInput(placeholder, masked, s.th, s.opts.UTF8), s.w, s.h).(tui.Input)
+	return fit(tui.NewInput(placeholder, masked, s.th, s.opts.UTF8), s.w, 1).(tui.Input)
 }
 
 func (s *providersScreen) simpleMenu(labels ...string) tui.Menu {
@@ -360,20 +426,7 @@ func (s *providersScreen) simpleMenu(labels ...string) tui.Menu {
 	for i, l := range labels {
 		items[i] = tui.Item{Label: l, Value: l}
 	}
-	return fit(tui.NewMenu(items, 0, s.th, s.opts.UTF8), s.w, s.h).(tui.Menu)
-}
-
-func (s *providersScreen) flowMenu(labels ...string) tui.Menu { return s.simpleMenu(labels...) }
-
-func (s *providersScreen) openAccountMenu(p ProviderRow) {
-	s.prov = p
-	s.menu = s.flowMenu("Replace key", "Remove", "Back")
-	s.stage = psAccountMenu
-}
-
-func (s *providersScreen) startGateway() {
-	s.stage = psGWName
-	s.in = s.newInput("gateway name", false)
+	return fit(tui.NewMenu(items, 0, s.th, s.opts.UTF8), s.w, max(s.h-4, 2)).(tui.Menu)
 }
 
 // --- sub-state updates ---------------------------------------------------
@@ -390,8 +443,6 @@ func (s *providersScreen) updateMenuish(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.menu = nm.(tui.Menu)
 	}
 	switch v := msg.(type) {
-	case tea.WindowSizeMsg:
-		s.w, s.h = v.Width, v.Height
 	case tui.Chosen:
 		return s.menuChosen(v.Value)
 	case tui.Submitted:
@@ -399,27 +450,26 @@ func (s *providersScreen) updateMenuish(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tui.Cancelled:
 		return s.inputCancelled()
 	case tui.Quit:
-		s.stage = psList
-		s.build()
+		s.toList()
 	}
 	return s, cmd
 }
 
 func (s *providersScreen) menuChosen(v string) (tea.Model, tea.Cmd) {
 	switch s.stage {
-	case psAccountMenu:
+	case psDetail:
 		switch v {
-		case "Replace key":
+		case "Test again":
+			return s, s.verifyCmd()
+		case "Replace key", "Sign in again":
 			if s.prov.Group == "plan" {
 				return s, s.startChat()
 			}
-			s.stage = psKey
-			s.in = s.newInput("key for "+s.prov.Name, true)
+			s.toKey()
 		case "Remove":
 			return s, s.doRemove()
 		default:
-			s.stage = psList
-			s.build()
+			s.toList()
 		}
 	case psPanel:
 		switch v {
@@ -427,23 +477,20 @@ func (s *providersScreen) menuChosen(v string) (tea.Model, tea.Cmd) {
 			if s.entry != nil && s.entry.Signup != "" {
 				_ = s.app.be.OpenURL(s.entry.Signup)
 			}
-			s.stage = psKey
-			s.in = s.newInput("key for "+s.prov.Name, true)
+			s.toKey()
 		case "I have a key":
-			s.stage = psKey
-			s.in = s.newInput("key for "+s.prov.Name, true)
+			s.toKey()
 		default:
-			return s, s.advance()
+			s.toList()
 		}
 	case psResult:
 		switch v {
-		case "Next":
-			return s, s.advance()
+		case "Done":
+			s.toList()
 		case "Retry":
 			return s, s.verifyCmd()
 		case "Re-enter key":
-			s.stage = psKey
-			s.in = s.newInput("key for "+s.prov.Name, true)
+			s.toKey()
 		case "Remove key":
 			return s, s.doRemove()
 		}
@@ -451,24 +498,32 @@ func (s *providersScreen) menuChosen(v string) (tea.Model, tea.Cmd) {
 		name := s.trains[s.ti]
 		if strings.HasPrefix(v, "Allow ") {
 			_ = s.app.be.SetAllowTrains(name, true)
-			s.trainsAllow = append(s.trainsAllow, name)
+			s.app.snap.AllowTrains = withAllowed(s.app.snap.AllowTrains, name)
 		}
 		s.ti++
 		return s, s.nextTrainAsk()
 	case psComboDone, psImport:
-		s.stage = psList
-		s.build()
+		if s.stage == psComboDone {
+			return s, s.done()
+		}
+		s.toList()
 	}
 	return s, nil
+}
+
+func withAllowed(m map[string]bool, name string) map[string]bool {
+	out := map[string]bool{name: true}
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }
 
 func (s *providersScreen) doRemove() tea.Cmd {
 	if len(s.prov.Accounts) > 0 {
 		_ = s.app.be.RemoveKey(s.prov.Name, s.prov.Accounts[0])
 	}
-	s.stage = psList
-	s.app.refresh()
-	s.build()
+	s.toList()
 	return nil
 }
 
@@ -487,8 +542,7 @@ func (s *providersScreen) inputSubmitted(v string) (tea.Model, tea.Cmd) {
 			return s, nil
 		}
 		s.account = name
-		s.stage = psKey
-		s.in = s.newInput("key for "+name, true)
+		s.toPanel()
 	case psGWName:
 		s.gwName = strings.TrimSpace(v)
 		if s.gwName == "" {
@@ -505,12 +559,9 @@ func (s *providersScreen) inputSubmitted(v string) (tea.Model, tea.Cmd) {
 			s.stage = psImport
 			return s, nil
 		}
-		s.app.refresh()
-		s.stage = psList
-		s.build()
+		s.toList()
 	case psKey:
-		key := v
-		if err := s.app.be.SaveKey(s.prov.Name, s.account, key); err != nil {
+		if err := s.app.be.SaveKey(s.prov.Name, s.account, v); err != nil {
 			s.result = VerifyResult{Err: err.Error()}
 			s.menu = s.resultMenu()
 			s.stage = psResult
@@ -525,30 +576,20 @@ func (s *providersScreen) inputSubmitted(v string) (tea.Model, tea.Cmd) {
 func (s *providersScreen) inputCancelled() (tea.Model, tea.Cmd) {
 	switch s.stage {
 	case psAcctID:
-		if s.entry != nil && s.entry.Signup != "" {
-			s.stage = psPanel
-			s.menu = s.flowMenu("Open signup page", "I have a key", "Skip")
-		} else {
-			s.stage = psKey
-			s.in = s.newInput("key for "+s.prov.Name, true)
-		}
+		s.toList()
 	case psGWName:
-		s.stage = psList
-		s.build()
+		s.toList()
 	case psGWURL:
 		s.stage = psGWName
 		s.in = s.newInput("gateway name", false)
 	case psKey:
 		if s.entry != nil && s.entry.Signup != "" {
-			s.stage = psPanel
-			s.menu = s.flowMenu("Open signup page", "I have a key", "Skip")
+			s.toPanel()
 		} else {
-			s.stage = psList
-			s.build()
+			s.toList()
 		}
 	default:
-		s.stage = psList
-		s.build()
+		s.toList()
 	}
 	return s, nil
 }
@@ -573,10 +614,6 @@ func (s *providersScreen) verifyCmd() tea.Cmd {
 		defer cancel()
 		return verifyDoneMsg{result: s.app.be.Verify(ctx, name)}
 	}
-}
-
-func (s *providersScreen) updateVerify(msg tea.Msg) (tea.Model, tea.Cmd) {
-	return s, nil
 }
 
 // startChat begins ChatGPT sign-in; the URL arrives via urlCh so View can
@@ -604,29 +641,23 @@ func (s *providersScreen) startChat() tea.Cmd {
 }
 
 func (s *providersScreen) updateChat(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// drain pending signup URLs without blocking
 	for {
 		select {
 		case u := <-s.urlCh:
 			s.chatURL = u
+			continue
 		default:
-			goto drained
 		}
+		break
 	}
-drained:
-	switch v := msg.(type) {
-	case tea.KeyPressMsg:
+	if v, ok := msg.(tea.KeyPressMsg); ok {
 		if v.Code == tea.KeyEscape || v.Code == 'c' && v.Mod&tea.ModCtrl != 0 {
 			if s.chatCancel != nil {
 				s.chatCancel()
 			}
-			s.stage = psList
-			s.build()
+			s.toList()
 			return s, nil
 		}
-	case chatDoneMsg:
-		// handled in Update
-		_ = v
 	}
 	// poll the url channel on every message by re-dispatching a tick
 	return s, tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg { return chatTickMsg{} })
@@ -634,8 +665,10 @@ drained:
 
 func (s *providersScreen) runCombo() tea.Cmd {
 	allow := map[string]bool{}
-	for _, n := range s.trainsAllow {
-		allow[n] = true
+	for n, ok := range s.app.snap.AllowTrains {
+		if ok {
+			allow[n] = true
+		}
 	}
 	return func() tea.Msg {
 		targets, err := s.app.be.BuildFreeCombo(allow)
@@ -650,106 +683,152 @@ func (s *providersScreen) runCombo() tea.Cmd {
 
 func (s *providersScreen) title() string { return "Providers" }
 
-func (s *providersScreen) View() tea.View {
-	var b strings.Builder
+func (s *providersScreen) legend() []string {
 	switch s.stage {
 	case psList:
-		b.WriteString(s.cl.View().Content)
-	case psAccountMenu:
-		b.WriteString(s.accountLines())
-		b.WriteString("\n\n" + s.menu.View().Content)
-	case psPanel:
-		b.WriteString(s.panelLines())
-		b.WriteString("\n\n" + s.menu.View().Content)
+		return []string{"type|to search", "↑↓|move", "↵|open", "esc|back"}
+	case psAcctID, psGWName, psGWURL, psKey:
+		return []string{"↵|confirm", "esc|back"}
+	case psVerify, psChat, psComboRun:
+		return []string{"esc|cancel"}
+	}
+	return []string{"↑↓|move", "↵|select", "1-9|jump", "esc|back"}
+}
+
+func (s *providersScreen) View() tea.View {
+	if s.stage == psList {
+		return tea.NewView(s.pk.View().Content)
+	}
+	var lines []string
+	if s.hasStepper() {
+		lines = append(lines, tui.Stepper(s.steps(), s.stepIndex(), s.w, s.th, s.opts.UTF8), "")
+	}
+	lines = append(lines, s.card()...)
+	var content []string
+	switch s.stage {
 	case psAcctID:
-		b.WriteString(s.th.Text.Render("Cloudflare account id") + "\n\n" + s.in.View().Content)
+		content = []string{s.th.Text.Render("Cloudflare account id"), s.in.View().Content}
 	case psGWName:
-		b.WriteString(s.th.Text.Render("Gateway name") + "\n\n" + s.in.View().Content)
+		content = []string{s.th.Text.Render("Gateway name"), s.in.View().Content}
 	case psGWURL:
-		b.WriteString(s.th.Text.Render("Base url") + "\n\n" + s.in.View().Content)
+		content = []string{s.th.Text.Render("Base url"), s.in.View().Content}
 	case psKey:
-		b.WriteString(s.th.Text.Render(s.prov.Name) + "\n\n" + s.in.View().Content)
+		content = []string{s.th.Text.Render(s.prov.Name + " key"), s.in.View().Content}
 	case psVerify:
-		b.WriteString(spinnerLine(s.th, s.opts.UTF8, "checking "+s.prov.Name))
-	case psResult:
-		b.WriteString(s.resultLines())
-		b.WriteString("\n\n" + s.resultMenu().View().Content)
+		content = []string{spinnerLine(s.th, s.opts.UTF8, "checking "+s.prov.Name)}
 	case psChat:
-		b.WriteString(s.chatLines())
-	case psComboAsk:
-		if s.ti < len(s.trains) {
-			b.WriteString(s.th.Warn.Render(s.trains[s.ti]+" may train on your prompts") + "\n\n" + s.menu.View().Content)
+		content = []string{spinnerLine(s.th, s.opts.UTF8, "signing in with ChatGPT")}
+		if s.chatURL != "" {
+			content = append(content, s.th.Text.Render(s.chatURL))
 		}
 	case psComboRun:
-		b.WriteString(spinnerLine(s.th, s.opts.UTF8, "building free/auto"))
-	case psComboDone:
-		b.WriteString(s.th.Text.Render("free/auto targets") + "\n")
-		for _, t := range s.targets {
-			b.WriteString("  " + t + "\n")
+		content = []string{spinnerLine(s.th, s.opts.UTF8, "building free/auto")}
+	case psResult:
+		content = []string{s.resultLine()}
+	case psComboAsk:
+		if s.ti < len(s.trains) {
+			content = []string{s.th.Warn.Render(s.trains[s.ti] + " may train on your prompts")}
 		}
-		b.WriteString("\n" + s.menu.View().Content)
+	case psComboDone:
+		content = []string{s.th.Text.Render("free/auto targets")}
+		for i, t := range s.targets {
+			if i >= max(s.h-8, 1) {
+				content = append(content, s.th.Dim.Render("+"+itoa(len(s.targets)-i)+" more"))
+				break
+			}
+			content = append(content, "  "+truncate(t, s.w-3))
+		}
 	case psImport:
-		b.WriteString(s.th.Text.Render(s.import_) + "\n\n" + s.menu.View().Content)
+		content = []string{s.th.Text.Render(truncate(s.import_, s.w-1))}
 	}
-	return tea.NewView(b.String())
+	if len(content) > 0 && len(lines) > 0 {
+		lines = append(lines, "")
+	}
+	lines = append(lines, content...)
+	if s.hasMenu() {
+		lines = append(lines, "")
+		s.menuTop = len(lines)
+		lines = append(lines, s.menu.View().Content)
+	} else {
+		s.menuTop = len(lines)
+	}
+	return tea.NewView(strings.Join(lines, "\n"))
 }
 
-func (s *providersScreen) accountLines() string {
-	var b strings.Builder
-	b.WriteString(s.th.Title.Render(s.prov.Name) + "\n")
-	b.WriteString(s.th.Dim.Render("has "+itoa(len(s.prov.Accounts))+" account(s)") + "\n")
-	return b.String()
+func (s *providersScreen) hasMenu() bool {
+	switch s.stage {
+	case psDetail, psPanel, psResult, psComboAsk, psComboDone, psImport:
+		return true
+	}
+	return false
 }
 
-func (s *providersScreen) panelLines() string {
-	var b strings.Builder
+// hasStepper reports whether the stepper is shown: for a provider's own
+// flow, not for its detail, the gateway form or the combo questions.
+func (s *providersScreen) hasStepper() bool {
+	switch s.stage {
+	case psPanel, psAcctID, psKey, psVerify, psResult, psChat:
+		return true
+	}
+	return false
+}
+
+// card is the provider's facts above the flow: name and the lines that fit.
+func (s *providersScreen) card() []string {
+	switch s.stage {
+	case psGWName, psGWURL, psComboAsk, psComboRun, psComboDone, psImport:
+		return nil
+	}
 	name := s.prov.Name
 	if s.entry != nil {
 		name = s.entry.Name
 	}
-	b.WriteString(s.th.Title.Render(name) + "\n")
-	if s.entry != nil {
-		if s.entry.Needs != "" {
-			b.WriteString(s.th.Dim.Render("needs  ") + s.entry.Needs + "\n")
+	lines := []string{s.th.Title.Render(name)}
+	budget := s.h - 9 // stepper, spacing, content and menu
+	add := func(label, value string, style func(string) string) {
+		if budget <= 0 || value == "" {
+			return
 		}
-		if s.entry.Limits != "" {
-			b.WriteString(s.th.Dim.Render("limits ") + s.entry.Limits + "\n")
-		}
-		dataStyle := s.th.Dim
-		switch s.entry.Data {
+		budget--
+		room := max(s.w-len(label)-2, 4)
+		lines = append(lines, s.th.Dim.Render(label)+" "+style(truncate(value, room)))
+	}
+	plain := func(x string) string { return s.th.Text.Render(x) }
+	if e := s.entry; e != nil {
+		add("limits", e.Limits, plain)
+		dataStyle := plain
+		switch e.Data {
 		case free.Private:
-			dataStyle = s.th.OK
+			dataStyle = func(x string) string { return s.th.OK.Render(x) }
 		case free.Trains:
-			dataStyle = s.th.Warn
+			dataStyle = func(x string) string { return s.th.Warn.Render(x) }
 		}
-		b.WriteString(s.th.Dim.Render("data   ") + dataStyle.Render(s.entry.Data) + "\n")
-		if s.entry.Signup != "" {
-			b.WriteString(s.th.Dim.Render("signup ") + s.entry.Signup + "\n")
-		}
-		if s.entry.KeyURL != "" && s.entry.KeyURL != s.entry.Signup {
-			b.WriteString(s.th.Dim.Render("key    ") + s.entry.KeyURL + "\n")
+		add("data  ", e.Data+" - "+e.DataNote, dataStyle)
+		add("needs ", e.Needs, plain)
+		switch s.stage {
+		case psPanel, psAcctID:
+			add("signup", e.Signup, plain)
+		case psKey:
+			add("key   ", e.KeyURL, plain)
 		}
 	}
-	return b.String()
+	return lines
 }
 
-func (s *providersScreen) resultLines() string {
-	var b strings.Builder
+func (s *providersScreen) resultLine() string {
 	if s.result.OK {
-		b.WriteString(s.th.OK.Render("ok") + "  " + s.result.Model + "  " + itoa(int(s.result.Millis)) + "ms\n")
-	} else {
-		err := s.result.Err
-		if err == "" {
-			err = "failed"
-		}
-		b.WriteString(s.th.Err.Render("fail") + "  " + err + "\n")
+		return s.th.OK.Render("ok") + "  " + truncate(s.result.Model, s.w-14) + "  " + itoa(int(s.result.Millis)) + "ms"
 	}
-	return b.String()
+	err := s.result.Err
+	if err == "" {
+		err = "failed"
+	}
+	return s.th.Err.Render("fail") + "  " + truncate(err, s.w-7)
 }
 
 // resultMenu picks the default item: Re-enter key on failure.
 func (s *providersScreen) resultMenu() tui.Menu {
-	labels := []string{"Next", "Retry", "Re-enter key", "Remove key"}
+	labels := []string{"Done", "Retry", "Re-enter key", "Remove key"}
 	initial := 0
 	if !s.result.OK {
 		initial = 2
@@ -758,16 +837,7 @@ func (s *providersScreen) resultMenu() tui.Menu {
 	for i, l := range labels {
 		items[i] = tui.Item{Label: l, Value: l}
 	}
-	return fit(tui.NewMenu(items, initial, s.th, s.opts.UTF8), s.w, s.h).(tui.Menu)
-}
-
-func (s *providersScreen) chatLines() string {
-	var b strings.Builder
-	b.WriteString(spinnerLine(s.th, s.opts.UTF8, "signing in with ChatGPT") + "\n")
-	if s.chatURL != "" {
-		b.WriteString(s.th.Text.Render(s.chatURL) + "\n")
-	}
-	return b.String()
+	return fit(tui.NewMenu(items, initial, s.th, s.opts.UTF8), s.w, max(s.h-4, 2)).(tui.Menu)
 }
 
 func spinnerLine(th tui.Theme, utf8 bool, label string) string {

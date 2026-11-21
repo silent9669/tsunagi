@@ -202,6 +202,14 @@ func press(m *App, text string) {
 
 func enter(m *App) { key(m, tea.KeyEnter, "") }
 
+// choose types a search and opens the first match.
+func choose(m *App, name string) {
+	for _, r := range name {
+		press(m, string(r))
+	}
+	enter(m)
+}
+
 func space(m *App) { key(m, ' ', " ") }
 
 func esc(m *App) { key(m, tea.KeyEscape, "") }
@@ -301,17 +309,18 @@ func TestWizardHappyPath(t *testing.T) {
 		install: []skills.Result{{Target: "claude", Skill: "tsunagi-free", State: "installed"}},
 	}
 	m := newTestApp(t, be, true)
-	enter(m) // welcome: Continue -> providers
-	space(m) // select openrouter
-	enter(m) // confirm -> flow
+	enter(m)                // welcome: Continue -> providers
+	choose(m, "openrouter") // search, open the setup flow
 	driveToKeyInput(t, m)
 	for _, r := range "testkey12345" {
 		press(m, string(r))
 	}
-	enter(m) // submit -> verify OK -> result menu (Next default)
-	enter(m) // Next -> queue done -> skills screen
-	enter(m) // confirm skills -> install rows -> Done
-	enter(m) // Done -> ready screen
+	enter(m)                // submit -> verify OK -> result menu (Done default)
+	enter(m)                // Done -> back to the list
+	key(m, tea.KeyHome, "") // first row is Continue
+	enter(m)                // Continue -> skills screen
+	enter(m)                // confirm skills -> install rows -> Done
+	enter(m)                // Done -> ready screen
 	v := viewText(m)
 	if !strings.Contains(v, "Start Claude Code") || !strings.Contains(v, "Back to menu") {
 		t.Fatalf("expected ready screen:\n%s", v)
@@ -386,8 +395,7 @@ func TestVerifyFailureOffersReenter(t *testing.T) {
 	}
 	m := newTestApp(t, be, false)
 	press(m, "2")
-	space(m)
-	enter(m)
+	choose(m, "openrouter")
 	driveToKeyInput(t, m)
 	for _, r := range "testkey12345" {
 		press(m, string(r))
@@ -415,27 +423,19 @@ func TestTrainsProviderAskedOnce(t *testing.T) {
 			snap.Providers[i].Group = "paid"
 		}
 	}
-	// add a third free provider to queue so the flow runs to the combo offer
-	snap.Providers = append([]ProviderRow{{Name: "mistral", Group: "free", Tag: "private"}}, snap.Providers...)
+	// a third free provider, not yet keyed, to set up before the combo offer
+	snap.Providers = append([]ProviderRow{{Name: "sambanova", Group: "free", Tag: "private"}}, snap.Providers...)
 	be := &fakeBackend{snap: snap, combo: []string{"openrouter/auto"}}
 	m := newTestApp(t, be, false)
 	press(m, "2")
-	// flat order: mistral(0), openrouter(1), groq(2), chatgpt, anthropic, ollama, add-gateway
-	// openrouter+groq are Done -> cycling to None so only mistral is selected
-	press(m, "j") // -> openrouter
-	space(m)      // Done -> None
-	press(m, "j") // -> groq
-	space(m)      // Done -> None
-	press(m, "k") // -> openrouter
-	press(m, "k") // -> mistral
-	space(m)      // None -> Pending
-	enter(m)      // Confirmed = [mistral] only
+	choose(m, "sambanova")
 	driveToKeyInput(t, m)
 	for _, r := range "testkey12345" {
 		press(m, string(r))
 	}
 	enter(m) // submit -> verify OK -> result
-	enter(m) // Next -> finishQueue -> trains ask for groq
+	enter(m) // Done -> list
+	esc(m)   // leave -> finishQueue -> trains ask for groq
 	v := viewText(m)
 	if !strings.Contains(v, "may train") {
 		t.Fatalf("expected trains ask:\n%s", v)
@@ -551,8 +551,7 @@ func TestChatGPTCancel(t *testing.T) {
 	}
 	m := newTestApp(t, be, false)
 	press(m, "2")
-	space(m) // select chatgpt
-	enter(m) // confirm -> startChat
+	choose(m, "chatgpt") // opens the sign-in
 	<-started
 	if !strings.Contains(viewText(m), "signing in") {
 		t.Fatalf("expected chat spinner:\n%s", viewText(m))

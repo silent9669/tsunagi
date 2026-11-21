@@ -13,12 +13,33 @@ func Eel(w, h int, phase float64) Bitmap {
 		return *b
 	}
 	fw, fh := float64(w), float64(h)
-	n := w*2 + 1
 	x0, x1 := fw*0.06, fw*0.94
 	cy := fh * 0.54
 	amp := fh * 0.16
 	R := math.Min(fh*0.13, 10)
+	head := drawEel(b, x0, x1, cy, amp, R, phase)
 
+	// three small bubbles rising from the snout
+	for i := 0; i < 3; i++ {
+		t := frac(phase/(2*math.Pi)*0.6 + float64(i)/3)
+		bx := head[0] + fw*0.015*float64(i+1) + math.Sin(t*6+float64(i))*1.5
+		by := head[1] - R*0.8 - t*fh*0.4
+		b.Ring(bx, by, 1.2+0.4*float64(i), 0.9, 0.45)
+	}
+
+	// a faint water line along the top
+	for x := 1; x < w-1; x++ {
+		y0 := 1.8 + 1.2*math.Sin(float64(x)*0.12+phase)
+		y1 := 1.8 + 1.2*math.Sin(float64(x+1)*0.12+phase)
+		b.Line(float64(x), y0, float64(x+1), y1, 0.6, 0.18)
+	}
+	return *b
+}
+
+// drawEel draws one eel between x0 (tail) and x1 (head) around the height cy
+// with wave amplitude amp and body radius R, and returns the snout position.
+func drawEel(b *Bitmap, x0, x1, cy, amp, R, phase float64) [2]float64 {
+	n := int(x1-x0)*2 + 9
 	pts := make([][2]float64, n)
 	rad := make([]float64, n)
 	for i := range pts {
@@ -73,27 +94,11 @@ func Eel(w, h int, phase float64) Bitmap {
 	b.Ring(ex, ey, er+1.3, 1.4, 1)
 	b.Cut(ex, ey, er)
 	im := at(0.985)
-	b.CutLine(pts[im][0]-fw*0.07, pts[im][1]+rad[ie]*0.28, pts[im][0], pts[im][1]+rad[ie]*0.18, 0.55)
+	b.CutLine(pts[im][0]-(x1-x0)*0.07, pts[im][1]+rad[ie]*0.28, pts[im][0], pts[im][1]+rad[ie]*0.18, 0.55)
 	ig := at(0.8)
 	gx, gy := pts[ig][0], pts[ig][1]
 	b.CutLine(gx+rad[ig]*0.1, gy-rad[ig]*0.55, gx-rad[ig]*0.2, gy+rad[ig]*0.55, 0.6)
-
-	// three small bubbles rising from the snout
-	hx, hy := pts[n-1][0], pts[n-1][1]
-	for i := 0; i < 3; i++ {
-		t := frac(phase/(2*math.Pi)*0.6 + float64(i)/3)
-		bx := hx + fw*0.015*float64(i+1) + math.Sin(t*6+float64(i))*1.5
-		by := hy - rad[ie]*0.8 - t*fh*0.4
-		b.Ring(bx, by, 1.2+0.4*float64(i), 0.9, 0.45)
-	}
-
-	// a faint water line along the top
-	for x := 1; x < w-1; x++ {
-		y0 := 1.8 + 1.2*math.Sin(float64(x)*0.12+phase)
-		y1 := 1.8 + 1.2*math.Sin(float64(x+1)*0.12+phase)
-		b.Line(float64(x), y0, float64(x+1), y1, 0.6, 0.18)
-	}
-	return *b
+	return pts[n-1]
 }
 
 // eelProfile is the body radius at arclength s (0 tail, 1 snout) relative

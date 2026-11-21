@@ -79,13 +79,19 @@ func (m ArtModel) View() tea.View {
 
 // renderArt draws the eel scene for the options' look/size/UTF-8 settings.
 func renderArt(o Options, th Theme, phase float64) string {
+	return renderScene(o, th, phase, art.Eel)
+}
+
+// renderScene draws any art scene for the options' look, size and UTF-8
+// settings, coloring cells along the theme's gradient.
+func renderScene(o Options, th Theme, phase float64, scene func(w, h int, phase float64) art.Bitmap) string {
 	look := o.Look
 	if !o.UTF8 && (look == art.Braille || look == art.Bricks) {
 		look = art.Dither
 	}
 	dx, dy := density(look)
 	w, h := o.W, o.H
-	bm := art.Eel(w*dx, h*dy, phase)
+	bm := scene(w*dx, h*dy, phase)
 	cells := art.Render(bm, look, o.UTF8)
 
 	// gradient styles quantized to 33 buckets along T

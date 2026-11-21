@@ -1,14 +1,11 @@
 package app
 
 import (
-	"strings"
 	"time"
 
 	"charm.land/bubbletea/v2"
 
-	"github.com/silent9669/tsunagi/internal/art"
 	"github.com/silent9669/tsunagi/internal/tui"
-	"github.com/silent9669/tsunagi/internal/ui"
 )
 
 // Screen events the App routes on. Each screen emits only its own types.
@@ -96,103 +93,27 @@ func (s *introScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, nil
 }
 
+// View shows the menu rows appearing one by one while the sea above plays.
 func (s *introScreen) View() tea.View {
 	el := time.Since(s.start)
-	if s.skipped {
-		el = 2 * time.Second
-	}
-	t := float64(el) / float64(700*time.Millisecond)
-	if t > 1 {
-		t = 1
-	}
-	var b strings.Builder
-	// wordmark dissolves in
-	logo := ui.LogoLines()
-	maxW := 0
-	for _, l := range logo {
-		if n := tui.WidthOf(l); n > maxW {
-			maxW = n
-		}
-	}
-	if maxW < 1 {
-		maxW = 1
-	}
-	// build cell grids: blank -> logo
-	rows := len(logo)
-	cols := maxW
-	blank := make([][]art.Cell, rows)
-	full := make([][]art.Cell, rows)
-	for i, l := range logo {
-		blank[i] = make([]art.Cell, cols)
-		full[i] = make([]art.Cell, cols)
-		x := 0
-		for _, r := range l {
-			if r != ' ' {
-				full[i][x] = art.Cell{R: r, On: true}
-			}
-			x++
-		}
-	}
-	mixed := art.Dissolve(blank, full, t)
-	for _, row := range mixed {
-		var line strings.Builder
-		pad := (s.w - cols) / 2
-		if pad > 0 {
-			line.WriteString(strings.Repeat(" ", pad))
-		}
-		for _, c := range row {
-			if c.On {
-				line.WriteRune(c.R)
-			} else {
-				line.WriteByte(' ')
-			}
-		}
-		b.WriteString(strings.TrimRight(line.String(), " "))
-		b.WriteByte('\n')
-	}
-	b.WriteByte('\n')
-	// eel
-	artH := s.h - 8 - 6 - 2
-	if artH < 4 {
-		artH = 4
-	}
-	if artH > 10 {
-		artH = 10
-	}
-	ao := s.opts
-	ao.H = artH
-	phase := float64(el) / float64(time.Second) * 2
-	b.WriteString(tui.EelArt(ao, s.th, phase))
-	b.WriteByte('\n')
-	b.WriteByte('\n')
-	// menu rows appear staggered
 	items := s.app.menuItems()
-	for i, it := range items {
-		showAt := 900*time.Millisecond + time.Duration(i)*60*time.Millisecond
-		if el < showAt && !s.skipped {
-			continue
-		}
-		prefix := "  "
-		if i == 0 {
-			prefix = "> "
-		}
-		line := prefix + it.Label
-		if it.Tag != "" {
-			pad := s.w - tui.WidthOf(line) - tui.WidthOf(it.Tag) - 1
-			if pad < 1 {
-				pad = 1
+	n := len(items)
+	if !s.skipped {
+		n = 0
+		for i := range items {
+			if el >= 600*time.Millisecond+time.Duration(i)*70*time.Millisecond {
+				n = i + 1
 			}
-			line += strings.Repeat(" ", pad) + s.th.Dim.Render(it.Tag)
 		}
-		if i == 0 {
-			b.WriteString(s.th.Selected.Render(line))
-		} else {
-			b.WriteString(s.th.Text.Render(line))
-		}
-		b.WriteByte('\n')
 	}
-	return tea.NewView(tui.Place(s.w, s.h, b.String()))
+	if n == 0 {
+		return tea.NewView("")
+	}
+	m := fit(tui.NewMenu(items[:n], 0, s.th, s.opts.UTF8), s.w, s.h).(tui.Menu)
+	return m.View()
 }
+
+func (s *introScreen) legend() []string { return nil }
 
 // wizardWelcome is step 1: eel + one line + Continue/Skip.
 type wizardWelcome struct {
@@ -213,7 +134,26 @@ func newWizardWelcome(a *App) *wizardWelcome {
 
 func (w *wizardWelcome) Init() tea.Cmd { return nil }
 
+func (w *wizardWelcome) legend() []string {
+	return []string{"↑↓|move", "↵|select", "1-2|jump", "esc|skip"}
+}
+
+func (r *wizardReady) legend() []string {
+	return []string{"↑↓|move", "↵|select", "1-2|jump", "esc|skip"}
+}
+
+func (m *menuScreen) legend() []string {
+	return []string{"↑↓|move", "↵|select", "1-9|jump", "q|quit"}
+}
+
 func (w *wizardWelcome) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if v, ok := msg.(tea.MouseClickMsg); ok {
+		mo := tea.Mouse(v)
+		if mo.Y -= 2; mo.Y < 0 {
+			return w, nil
+		}
+		msg = tea.MouseClickMsg(mo)
+	}
 	nm, cmd := w.menu.Update(msg)
 	w.menu = nm.(tui.Menu)
 	switch msg.(type) {

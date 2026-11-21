@@ -1,3 +1,10 @@
+                      Settings
+
+                      ▏ 1 Opus                                          claude
+                        2 Sonnet                                        claude
+                        3 Haiku                                         claude
+                        4 Try a route
+                        5 Back
 
 
 
@@ -9,13 +16,6 @@
 
 
 
-                        Settings
-
-                        ▏ Opus                                       claude
-                          Sonnet                                     claude
-                          Haiku                                      claude
-                          Try a route
-                          Back
 
 
 
@@ -27,4 +27,4 @@
 
 
 
-
+                      ↑↓ move   ↵ change   1-9 jump   esc back

@@ -5,6 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/silent9669/tsunagi/internal/art"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
@@ -25,6 +26,12 @@ func Wordmark(w int, th Theme) []string {
 // caller picks the Options (W/H bound the art area).
 func EelArt(o Options, th Theme, phase float64) string {
 	return renderArt(o, th, phase)
+}
+
+// OceanArt renders the sea scene with the swimming eel. phase moves it; a
+// still frame (animation off) passes art.OceanStaticPhase.
+func OceanArt(o Options, th Theme, phase float64) string {
+	return renderScene(o, th, phase, art.Ocean)
 }
 
 // JoinLines trims trailing blank lines off a block of text.

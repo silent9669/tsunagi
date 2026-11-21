@@ -22,6 +22,7 @@ type skillsScreen struct {
 	menu  tui.Menu
 	was   map[string]bool // targets that were fully installed at build time
 	rows  []skills.Result
+	mtop  int
 }
 
 const (
@@ -103,6 +104,14 @@ func (s *skillsScreen) Init() tea.Cmd {
 }
 
 func (s *skillsScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if v, ok := msg.(tea.MouseClickMsg); ok && s.stage == skDone {
+		mo := tea.Mouse(v)
+		mo.Y -= s.mtop
+		if mo.Y < 0 {
+			return s, nil
+		}
+		msg = tea.MouseClickMsg(mo)
+	}
 	switch s.stage {
 	case skList:
 		nm, cmd := s.cl.Update(msg)
@@ -188,6 +197,13 @@ func (s *skillsScreen) simpleMenu(labels ...string) tui.Menu {
 
 func (s *skillsScreen) title() string { return "Skills" }
 
+func (s *skillsScreen) legend() []string {
+	if s.stage == skList {
+		return []string{"↑↓|move", "space|toggle", "↵|apply", "esc|back"}
+	}
+	return []string{"↵|done", "esc|back"}
+}
+
 func (s *skillsScreen) View() tea.View {
 	var b strings.Builder
 	if s.stage == skDone {
@@ -198,6 +214,7 @@ func (s *skillsScreen) View() tea.View {
 			}
 			b.WriteString(line + "\n")
 		}
+		s.mtop = strings.Count(b.String(), "\n") + 1
 		b.WriteString("\n" + s.menu.View().Content)
 		return tea.NewView(b.String())
 	}

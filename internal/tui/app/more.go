@@ -23,6 +23,21 @@ type rerunSetupMsg struct{}
 type base struct {
 	a    *App
 	w, h int
+	mtop int // body rows above the menu, set by View, for mouse clicks
+}
+
+// mouse shifts a click from body rows to the menu's rows; clicks above the
+// menu are dropped.
+func (b *base) mouse(msg tea.Msg) (tea.Msg, bool) {
+	if v, ok := msg.(tea.MouseClickMsg); ok {
+		mo := tea.Mouse(v)
+		mo.Y -= b.mtop
+		if mo.Y < 0 {
+			return nil, false
+		}
+		return tea.MouseClickMsg(mo), true
+	}
+	return msg, true
 }
 
 func (b *base) menu(items []tui.Item, initial int) tui.Menu {
@@ -62,7 +77,7 @@ func truncate(s string, w int) string {
 		out.WriteRune(r)
 		n += rw
 	}
-	return out.String() + "~"
+	return out.String() + "…"
 }
 
 func back() tea.Cmd { return func() tea.Msg { return screenBackMsg{} } }
@@ -148,6 +163,10 @@ func (s *freeScreen) Init() tea.Cmd { return nil }
 
 func (s *freeScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	s.sizeMsg(msg)
+	msg, ok := s.mouse(msg)
+	if !ok {
+		return s, nil
+	}
 	switch v := msg.(type) {
 	case probeDoneMsg:
 		s.rows, s.err = v.rows, ""
@@ -280,6 +299,7 @@ func (s *freeScreen) View() tea.View {
 	var b strings.Builder
 	switch s.stage {
 	case fsMenu:
+		s.mtop = 0
 		b.WriteString(s.menu.View().Content)
 	case fsBusy:
 		b.WriteString(spinnerLine(th, s.a.opts.UTF8, s.busy))
@@ -312,6 +332,7 @@ func (s *freeScreen) View() tea.View {
 		if len(s.rows) == 0 && s.err == "" {
 			b.WriteString(th.Dim.Render("no keyed free provider to probe") + "\n")
 		}
+		s.mtop = strings.Count(b.String(), "\n") + 1
 		b.WriteString("\n" + s.menu.View().Content)
 	case fsCombo:
 		if s.err != "" {
@@ -324,6 +345,7 @@ func (s *freeScreen) View() tea.View {
 			}
 			b.WriteString(s.clip(t) + "\n")
 		}
+		s.mtop = strings.Count(b.String(), "\n") + 1
 		b.WriteString("\n" + s.menu.View().Content)
 	}
 	return tea.NewView(b.String())
@@ -409,6 +431,10 @@ func (s *settingsScreen) Init() tea.Cmd { return nil }
 
 func (s *settingsScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	s.sizeMsg(msg)
+	msg, ok := s.mouse(msg)
+	if !ok {
+		return s, nil
+	}
 	switch s.stage {
 	case ssTry:
 		nm, cmd := s.in.Update(msg)
@@ -542,11 +568,13 @@ func (s *settingsScreen) View() tea.View {
 			}
 			b.WriteString(s.clip(l) + "\n")
 		}
+		s.mtop = strings.Count(b.String(), "\n") + 1
 		b.WriteString("\n" + s.menu.View().Content)
 	default:
 		if s.err != "" {
 			b.WriteString(th.Err.Render(s.clip(s.err)) + "\n\n")
 		}
+		s.mtop = strings.Count(b.String(), "\n")
 		b.WriteString(s.menu.View().Content)
 	}
 	return tea.NewView(b.String())
@@ -591,6 +619,10 @@ func (s *statusScreen) Init() tea.Cmd { return nil }
 
 func (s *statusScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	s.sizeMsg(msg)
+	msg, ok := s.mouse(msg)
+	if !ok {
+		return s, nil
+	}
 	nm, cmd := s.menu.Update(msg)
 	s.menu = nm.(tui.Menu)
 	switch msg.(type) {
@@ -620,6 +652,27 @@ func (s *statusScreen) View() tea.View {
 		name := r.Name + strings.Repeat(" ", width-len(r.Name))
 		b.WriteString(mark + "  " + name + "  " + th.Dim.Render(truncate(r.Detail, max(4, s.w-width-6))) + "\n")
 	}
+	s.mtop = strings.Count(b.String(), "\n") + 1
 	b.WriteString("\n" + s.menu.View().Content)
 	return tea.NewView(b.String())
 }
+
+func (s *freeScreen) legend() []string {
+	if s.stage == fsPolicy {
+		return []string{"↑↓|move", "space|allow", "↵|apply", "esc|back"}
+	}
+	if s.stage == fsBusy {
+		return []string{"esc|cancel"}
+	}
+	return []string{"↑↓|move", "↵|select", "1-9|jump", "esc|back"}
+}
+
+func (s *settingsScreen) legend() []string {
+	switch s.stage {
+	case ssTry:
+		return []string{"↵|show route", "esc|back"}
+	}
+	return []string{"↑↓|move", "↵|change", "1-9|jump", "esc|back"}
+}
+
+func (s *statusScreen) legend() []string { return []string{"↵|back", "esc|back"} }

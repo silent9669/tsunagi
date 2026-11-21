@@ -120,7 +120,10 @@ func PreviewFrame(o Options, th Theme, phase float64) string {
 	if artOpts.H < 4 {
 		artOpts.H = 4
 	}
-	sb.WriteString(renderArt(artOpts, th, phase))
+	if phase <= 1 {
+		phase = art.OceanStaticPhase
+	}
+	sb.WriteString(renderScene(artOpts, th, phase, art.Ocean))
 	sb.WriteByte('\n')
 	sb.WriteString(th.Dim.Render(string(o.Look) + " " + o.Theme))
 	return sb.String()

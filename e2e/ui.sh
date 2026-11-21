@@ -40,10 +40,9 @@ cap 01-welcome
 key C-m 0.6
 cap 02-providers
 
-# the checklist has 23 items on a fresh HOME; "Add a gateway" is last
-downs 22
-sleep 0.5
-key Space 0.3; key C-m 0.6
+# search for the gateway action and open it
+text gateway 0.4
+key C-m 0.6
 cap 03-gwname
 text e2e 0.2
 key C-m 0.5
@@ -52,15 +51,14 @@ text "http://127.0.0.1:59997/v1" 0.2
 key C-m 1.0
 cap 05-after-gw
 
-# with "e2e" added the list has 24 items; "e2e" is second to last. Local
-# providers verify directly, no key needed.
-downs 22
-sleep 0.5
-cap 05-after-gw
-key Space 0.3; key C-m 0.5
+# search for the new gateway; local providers verify directly, no key needed
+text e2e 0.4
+key C-m 0.5
 sleep 3
 cap 06-verify-result
-key C-m 1.0   # Next -> providers done -> skills screen
+key C-m 1.0   # Done -> back to the list
+key Home 0.3  # the first row is Continue
+key C-m 1.0   # Continue -> skills screen
 cap 07-skills
 # install only the claude target: agents Pending -> Done -> None
 key j 0.3; key Space 0.3; key Space 0.3; key k 0.3
