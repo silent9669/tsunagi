@@ -67,7 +67,7 @@
 - [x] `tsunagi ping [--tool] <model>` sends one real request through the router; verified against OpenRouter (passthrough, tool call) with a real key
 - [ ] Clear error when a Provider rejects a request
 - [x] Packaging config: GoReleaser (`.goreleaser.yaml`, validated and snapshot-built locally), CI + tag release (`.github/workflows/ci.yml`), Homebrew cask, `install.sh`
-- [ ] First real release: create `silent9669/homebrew-tap`, add the `HOMEBREW_TAP_GITHUB_TOKEN` secret, push a `v*` tag, check `brew install` and `install.sh` end to end
+- [x] First release v0.3.0 (2026-11-21): CI, GitHub release with arm64 and amd64 archives plus checksums, cask committed to `silent9669/homebrew-tap`. Checked: `install.sh` installs a working `tsunagi 0.3.0` into a temp dir with checksum verification; the cask sha256 equals the arm64 archive. Not run: `brew install` itself (Homebrew refuses an untrusted tap until `brew trust silent9669/tap`)
 
 ## Phase 5: smart routing
 

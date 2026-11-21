@@ -41,7 +41,7 @@ See [docs/design.md](docs/design.md) for the router, the model mapping and the p
 macOS only (arm64 and amd64).
 
 ```bash
-brew install silent9669/tap/tsunagi
+brew install silent9669/tap/tsunagi   # newer Homebrew asks you to trust a third-party tap first: brew trust silent9669/tap
 # or
 curl -fsSL https://raw.githubusercontent.com/silent9669/tsunagi/main/install.sh | sh
 # or from source (Go 1.27+)
