@@ -10,8 +10,9 @@
 - [x] Keys in the macOS keychain, written by `tsunagi login <provider>`; macOS only
 - [x] No credential logging, verified by a test that greps logs for headers
 - [x] Launcher that starts the router and runs Claude Code with the base URL scoped to that process
-- [ ] Verify with a real claude.ai login that the OAuth `Authorization` header reaches Anthropic through the router
-- [ ] `/model` switch in a live session (Claude to non-Claude and back)
+- [x] Verified with a real claude.ai login on 2026-11-21: `tsunagi claude -p` answered through the router and every request was logged as provider `claude`, status 200
+- [ ] `/model` switch in a live session: Claude to `openrouter/inclusionai/ling-3.2-flash:free` was accepted and a request reached OpenRouter (200); switching back to Claude and a tool call on the non-Claude model were not checked live
+- [ ] Claude Code saves a `/model` choice as the default in `~/.claude/settings.json`, so a switch to a non-Claude model in a tsunagi session is inherited by later sessions, including Claude Desktop's. Find a way to scope it (or restore the key on exit) without managing the user's Claude settings; until then switch back with `/model` before quitting
 
 ## Phase 2a: catalogue and opencode import
 
@@ -85,7 +86,8 @@
 - [x] Tier-mode candidates from the live `/models` list intersected with catalogue capabilities; unmapped providers (e.g. google) contribute caps without becoming routable
 - [x] Probe results cache (7-day freshness) and the `free/auto` builder: data-policy gate, probe gate, max 3 per provider
 - [x] `tsunagi free probe|combo|allow|deny`, combo `"auto"` flag, `free.allow_trains` config
-- [ ] Live check of each provider's free path
+- [x] Live check, 2026-11-21: `ping --tool openrouter/inclusionai/ling-3.2-flash:free` returned a tool call with the stored OpenRouter key
+- [ ] Live check of the other providers' free paths (only OpenRouter, Google and Ollama Cloud keys exist on the test machine)
 
 ## Test checklist
 
