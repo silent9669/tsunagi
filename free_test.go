@@ -115,7 +115,7 @@ func TestFreeTableJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("bad json %q: %v", out, err)
 	}
-	if len(doc.Providers) != 7 {
+	if len(doc.Providers) != 8 {
 		t.Fatalf("providers = %+v", doc.Providers)
 	}
 	var or, cf *struct {

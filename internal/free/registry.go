@@ -73,12 +73,19 @@ func Registry() []Entry {
 			Source: "https://ai.google.dev/gemini-api/docs/pricing", Checked: "2026-11-21",
 		},
 		{
-			ID: "mistral", Name: "Mistral Studio (Experiment)", Mode: TierMode,
-			Signup: "https://console.mistral.ai/", KeyURL: "https://console.mistral.ai/api-keys",
-			Limits: "about 1 request/second, restrictive token caps",
-			Needs:  "verified phone number",
-			Data:   Trains, DataNote: "free plan may train on data, opt-out in the Admin Console; Labs models always may",
-			Source: "https://help.mistral.ai/en/articles/347617-do-you-use-my-user-data-to-train-your-artificial-intelligence-models", Checked: "2026-11-21",
+			ID: "sambanova", Name: "SambaNova Cloud", Mode: TierMode,
+			Signup: "https://cloud.sambanova.ai/", KeyURL: "https://cloud.sambanova.ai/apis",
+			Limits: "20 requests/min, 20/day and 200,000 tokens/day per model; preview models, evaluation only",
+			Needs:  "no payment method linked (a linked card ends the free tier)",
+			Data:   Private, DataNote: "the data processing addendum forbids training on customer data; prompts are not stored by default",
+			Source: "https://docs.sambanova.ai/docs/en/models/rate-limits", Checked: "2026-11-21",
+		},
+		{
+			ID: "cohere", Name: "Cohere (trial key)", Mode: TierMode,
+			Signup: "https://dashboard.cohere.com/welcome/register", KeyURL: "https://dashboard.cohere.com/api-keys",
+			Limits: "20 requests/min, 1,000 calls/month; trial keys are not for production",
+			Data:   Trains, DataNote: "trial users' inputs and outputs may be used for research and to improve Cohere products",
+			Source: "https://docs.cohere.com/docs/rate-limits", Checked: "2026-11-21",
 		},
 		{
 			ID: "nvidia", Name: "NVIDIA NIM", Mode: TierMode,
@@ -105,4 +112,7 @@ var Excluded = map[string]string{
 	"github-models": "retired on 2026-07-30",
 	"cerebras":      "the $5 trial credit needs a payment method and expires in 30 days",
 	"gemini-cli":    "Google forbids third-party use of Gemini CLI and Antigravity sign-in",
+	"mistral":       "Free mode has no API access; API keys need billing activation (docs.mistral.ai, 2026-11)",
+	"ollama-cloud":  "pay as you go, no recurring free credits",
+	"huggingface":   "free accounts no longer get Inference Providers credits",
 }

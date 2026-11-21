@@ -15,7 +15,8 @@ pages. The machine-readable copy lives in `internal/free/registry.go`.
 | OpenRouter | models | 20 requests/min, 50/day; 1000/day after $10 of credits | trains — free variants can be served by providers that retain and train, see each model page | | https://openrouter.ai/sign-up | https://openrouter.ai/keys | https://openrouter.ai/docs/api_reference/limits | 2026-11-21 |
 | Groq | tier | per-model request and token caps, see the limits page | private — inference requests are not retained or used for training by default | | https://console.groq.com/ | https://console.groq.com/keys | https://console.groq.com/docs/your-data | 2026-11-21 |
 | Google AI Studio | tier | free tier on selected models, flagship models excluded | trains — free tier content is used to improve Google products | | https://aistudio.google.com/ | https://aistudio.google.com/apikey | https://ai.google.dev/gemini-api/docs/pricing | 2026-11-21 |
-| Mistral Studio (Experiment) | tier | about 1 request/second, restrictive token caps | trains — free plan may train on data, opt-out in the Admin Console; Labs models always may | verified phone number | https://console.mistral.ai/ | https://console.mistral.ai/api-keys | https://help.mistral.ai/en/articles/347617-do-you-use-my-user-data-to-train-your-artificial-intelligence-models | 2026-11-21 |
+| SambaNova Cloud | tier | 20 requests/min, 20/day and 200,000 tokens/day per model; preview models, evaluation only | private — the data processing addendum forbids training on customer data; prompts are not stored by default | no payment method linked (a linked card ends the free tier) | https://cloud.sambanova.ai/ | https://cloud.sambanova.ai/apis | https://docs.sambanova.ai/docs/en/models/rate-limits | 2026-11-21 |
+| Cohere (trial key) | tier | 20 requests/min, 1,000 calls/month; trial keys are not for production | trains — trial users' inputs and outputs may be used for research and to improve Cohere products | | https://dashboard.cohere.com/welcome/register | https://dashboard.cohere.com/api-keys | https://docs.cohere.com/docs/rate-limits | 2026-11-21 |
 | NVIDIA NIM | tier | up to 40 requests/min, prototyping only | trains — trial terms: prompts and outputs may be collected to improve NVIDIA products | verified phone number | https://build.nvidia.com/ | https://build.nvidia.com/settings/api-keys | https://build.nvidia.com/search | 2026-11-21 |
 | Cloudflare Workers AI | tier | 10,000 neurons/day; some models need a paid plan | private — inputs and outputs are not retained or used for training | account-id | https://dash.cloudflare.com/sign-up | https://dash.cloudflare.com/profile/api-tokens | https://developers.cloudflare.com/workers-ai/platform/data-usage/ | 2026-11-21 |
 
@@ -32,6 +33,9 @@ routed:
 | github-models | retired on 2026-07-30 |
 | cerebras | the $5 trial credit needs a payment method and expires in 30 days |
 | gemini-cli | Google forbids third-party use of Gemini CLI and Antigravity sign-in |
+| mistral | Free mode has no API access; API keys need billing activation (docs.mistral.ai, 2026-11) |
+| ollama-cloud | pay as you go, no recurring free credits |
+| huggingface | free accounts no longer get Inference Providers credits |
 
 ## Data policy
 

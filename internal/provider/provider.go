@@ -92,6 +92,7 @@ func Builtin() []Provider {
 		{Name: "together", BaseURL: "https://api.together.xyz/v1", Dialect: OpenAIChat},
 		{Name: "google", BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai", Dialect: OpenAIChat},
 		{Name: "mistral", BaseURL: "https://api.mistral.ai/v1", Dialect: OpenAIChat},
+		{Name: "cohere", BaseURL: "https://api.cohere.ai/compatibility/v1", Dialect: OpenAIChat},
 	}
 }
 
