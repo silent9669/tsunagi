@@ -135,3 +135,31 @@ The intro is the eel swimming through bubbles and revealing the name, then the b
 The launcher writes a small plugin (`/tsunagi:usage`, `accounts`, `providers`, `models`, `sessions`, `handoff`) to the cache directory and passes it with `--plugin-dir`, so the user's own `~/.claude` is untouched. Each command runs one fixed command line of the tsunagi binary, granted as exactly that line (`allowed-tools: Bash(<path> usage)`, no wildcard), is marked `disable-model-invocation`, and takes no arguments: text typed after a slash command would be spliced into a shell line, so none is accepted. The binary path must need no quoting, otherwise the plugin is skipped. Checked with real Claude Code: `/tsunagi:accounts` ran the binary and its table reached the model.
 
 Every command has the same data in several shapes: a table for people, `--json` for scripts, `watch --log` and `--json` for pipes, a one-line `statusline` for Claude Code's status bar (opt-in, since a status line replaces the user's own), and `--plain`/`--no-color`/`--no-anim` for terminals that cannot take the animation.
+
+## Combos and smart routing
+
+A Combo is a named set of `provider/model` targets one model name can fan out to, configured under `"combos"` in config.json:
+
+```json
+"combos": {"free/auto": {"targets": ["opencode/big-pickle", "openrouter/qwen/qwen3-coder:free"], "strategy": "priority"}}
+```
+
+A Tier maps a Claude tier to a model or combo, so Claude Code's own tier names can land on another provider:
+
+```json
+"tiers": {"haiku": "free/auto", "opus": "claude-opus-4-5"}
+```
+
+Resolution order: an exact `models` alias wins; then, for a `claude-*` name containing `-opus`, `-sonnet` or `-haiku`, the matching tier; then, when the resolved name equals a combo name, combo routing; otherwise the usual Route. A tier value may itself name a Claude model, which rewrites the request's model field on the Claude branch like an alias does.
+
+A combo target is `provider[@label]/model`. Before a request is sent, each target is checked the same way `tsunagi route` checks it: the provider must exist and be ready, some account must have a usable key or sign-in, and the request must fit the model's capabilities from the catalogue — a request carrying `tools` skips models without tool calling, and an estimated size over the context window skips the target. Unknown capability data is permissive. A target that fails any check is skipped with a reason; when every target is skipped the client gets a 400 listing them all.
+
+Targets are tried in order under the combo's strategy: `priority` keeps the written order, `fastest` sorts by an EWMA of time to response headers (unmeasured targets count as zero so they get measured), `round_robin` rotates the starting target per combo. Circuit-open targets always sort last.
+
+Every target but the last deliverable one is tried soft: if its final account attempt ends in a retryable failure — 429, 402, 401 or 403, a timeout, a 5xx or a transport error — nothing has reached the client yet, the reply is drained and the next target is tried. The last deliverable target answers as-is, exactly like a direct route, including its errors. Within a target the per-account failover and `provider@label` pinning work unchanged. A non-retryable 4xx is a request fault and is delivered rather than retried.
+
+Each target's health is tracked by consecutive failures, EWMA latency and a circuit. A failure is a transport error, 408, 429 or 5xx; success is under 400; other 4xx are neutral. Three consecutive failures open the circuit for 30 seconds, doubling on each re-open up to 10 minutes. After the cooldown exactly one probe is let through; a success closes the circuit and resets the backoff, a failure re-opens it doubled. All timing goes through the router's clock so tests can advance it.
+
+Every routed request's event gains `via` (the combo name) and `why` (a compact trace such as `opencode/big-pickle 429 -> openrouter/qwen/qwen3-coder:free ok; skipped groq/x: no tool calling`, or `tier haiku -> free/auto` for a rewrite). `tsunagi route <model> [--tools] [--tokens N] [--json]` prints the plan the router would use without sending anything, and `tsunagi watch --log` shows `via=`/`why=` when present.
+
+Claude models are not allowed as combo targets in v1: a combo exists to pick among non-Claude providers, and letting one name a Claude model would blur the credential boundary the router keeps.

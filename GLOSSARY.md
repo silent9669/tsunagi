@@ -32,6 +32,14 @@ _Avoid_: OAuth login, subscription auth
 The rule that maps a model name to one Provider.
 _Avoid_: mapping, rule
 
+**Combo**:
+A named set of `provider/model` targets that one model name fans out to, tried in order until one answers.
+_Avoid_: pool, fallback list, group
+
+**Tier**:
+A mapping from a Claude tier name (`opus`, `sonnet`, `haiku`) to a model or Combo, so Claude Code's own tier requests can land on another provider.
+_Avoid_: preset, profile
+
 **Dialect**:
 The request format a Provider speaks: `anthropic`, `openai-chat` or `openai-responses`.
 _Avoid_: protocol, format, API type

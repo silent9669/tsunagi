@@ -151,8 +151,15 @@ func setAuth(h http.Header, p provider.Provider, key string) {
 // withAccounts sends a request with each candidate account in turn until one
 // is not rate limited, out of balance or rejected. Nothing reaches the client
 // before that: a retry is invisible to Claude Code.
+//
+// In soft mode a retryable failure on the last account writes nothing and
+// reports delivered=false, so a combo can try its next target. hk names the
+// combo target for health tracking; "" disables it. The returned status is
+// the upstream status of the final attempt, -1 for a transport error and -2
+// when no key was usable.
 func (rt *Router) withAccounts(rec *recorder, p provider.Provider, label string,
-	send func(key string) (*http.Response, error), deliver func(*http.Response)) {
+	send func(key string) (*http.Response, error), deliver func(*http.Response),
+	soft bool, hk string) (bool, int) {
 
 	cands := rt.candidates(p, label)
 	for i, acct := range cands {
@@ -162,69 +169,95 @@ func (rt *Router) withAccounts(rec *recorder, p provider.Provider, label string,
 			k, err := rt.Key(p, acct)
 			if err != nil || k == "" {
 				if last {
+					rt.healthNote(hk, -2, 0)
+					if soft {
+						return false, -2
+					}
 					writeErr(rec, http.StatusUnauthorized, "authentication_error", keyMessage(acct, err))
-					return
+					return true, http.StatusUnauthorized
 				}
 				rec.skipped++
 				continue
 			}
 			key = k
 		}
+		t0 := rt.clock()
 		resp, err := send(key)
+		lat := rt.clock().Sub(t0).Milliseconds()
 		if err != nil {
 			if last {
+				rt.healthNote(hk, -1, 0)
+				if soft {
+					return false, -1
+				}
 				writeErr(rec, http.StatusBadGateway, "api_error", "tsunagi: upstream "+p.Name+" unreachable: "+err.Error())
-				return
+				return true, http.StatusBadGateway
 			}
 			rec.skipped++
 			continue
 		}
-		if retry, d := classify(resp.StatusCode, resp.Header); retry && !last {
+		retry, d := classify(resp.StatusCode, resp.Header)
+		if retry && !last {
 			io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 			resp.Body.Close()
 			rt.pool.block(acct, d)
 			rec.skipped++
 			continue
 		}
+		if soft && last && retryable(resp.StatusCode, retry) {
+			io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+			resp.Body.Close()
+			rt.healthNote(hk, resp.StatusCode, float64(lat))
+			return false, resp.StatusCode
+		}
 		rec.account = acct
 		deliver(resp)
 		resp.Body.Close()
-		return
+		rt.healthNote(hk, resp.StatusCode, float64(lat))
+		return true, resp.StatusCode
 	}
+	return true, 0 // cands is never empty
 }
 
-func (rt *Router) forwardProvider(rec *recorder, r *http.Request, body []byte, model string, d decision) {
+// retryable reports whether a failed reply means the target itself is at
+// fault, so a combo may fall through to its next target: rate limits and
+// rejected keys (classify), timeouts and server errors. Other 4xx are request
+// faults and are delivered as they are.
+func retryable(status int, classified bool) bool {
+	return classified || status == http.StatusRequestTimeout || status >= 500
+}
+
+func (rt *Router) forwardProvider(rec *recorder, r *http.Request, body []byte, model string, d decision, soft bool, hk string) (bool, int) {
 	p, ok := rt.Providers[d.provider]
 	if !ok {
 		writeErr(rec, http.StatusBadRequest, "invalid_request_error",
 			fmt.Sprintf("tsunagi: unknown provider %q. Run: tsunagi providers", d.provider))
-		return
+		return true, http.StatusBadRequest
 	}
 	if !p.Ready() {
 		writeErr(rec, http.StatusBadRequest, "invalid_request_error",
 			fmt.Sprintf("tsunagi: provider %s has unknown dialect %q (use anthropic, openai-chat or openai-responses)", p.Name, p.Dialect))
-		return
+		return true, http.StatusBadRequest
 	}
 	if p.Dialect == provider.Anthropic {
-		rt.forwardAnthropic(rec, r, body, model, d, p)
-		return
+		return rt.forwardAnthropic(rec, r, body, model, d, p, soft, hk)
 	}
-	rt.forwardTranslated(rec, r, body, p, d)
+	return rt.forwardTranslated(rec, r, body, p, d, soft, hk)
 }
 
 // forwardAnthropic passes the request to a provider that speaks the Anthropic
 // format. Only the model name and the credential change.
-func (rt *Router) forwardAnthropic(rec *recorder, r *http.Request, body []byte, model string, d decision, p provider.Provider) {
+func (rt *Router) forwardAnthropic(rec *recorder, r *http.Request, body []byte, model string, d decision, p provider.Provider, soft bool, hk string) (bool, int) {
 	target, err := url.Parse(p.BaseURL)
 	if err != nil {
 		writeErr(rec, http.StatusInternalServerError, "api_error", "tsunagi: bad base_url for "+p.Name)
-		return
+		return true, http.StatusInternalServerError
 	}
 	if d.model != model {
 		nb, err := setModel(body, d.model)
 		if err != nil {
 			writeErr(rec, http.StatusBadRequest, "invalid_request_error", "tsunagi: cannot rewrite model")
-			return
+			return true, http.StatusBadRequest
 		}
 		body = nb
 	}
@@ -232,7 +265,7 @@ func (rt *Router) forwardAnthropic(rec *recorder, r *http.Request, body []byte, 
 	u.Path = strings.TrimRight(target.Path, "/") + r.URL.Path
 	u.RawQuery = r.URL.RawQuery
 
-	rt.withAccounts(rec, p, d.label, func(key string) (*http.Response, error) {
+	return rt.withAccounts(rec, p, d.label, func(key string) (*http.Response, error) {
 		req, err := http.NewRequestWithContext(r.Context(), r.Method, u.String(), bytes.NewReader(body))
 		if err != nil {
 			return nil, err
@@ -245,7 +278,7 @@ func (rt *Router) forwardAnthropic(rec *recorder, r *http.Request, body []byte, 
 		setAuth(req.Header, p, key)
 		req.ContentLength = int64(len(body))
 		return rt.transportFor(p).RoundTrip(req)
-	}, func(resp *http.Response) { passThrough(rec, resp) })
+	}, func(resp *http.Response) { passThrough(rec, resp) }, soft, hk)
 }
 
 // passThrough copies a reply to the client, flushing each chunk as it arrives
@@ -276,20 +309,20 @@ func passThrough(w http.ResponseWriter, resp *http.Response) {
 // forwardTranslated serves a request from a provider that does not speak the
 // Anthropic format: translate the request, call the provider, translate the
 // reply back.
-func (rt *Router) forwardTranslated(rec *recorder, r *http.Request, body []byte, p provider.Provider, d decision) {
+func (rt *Router) forwardTranslated(rec *recorder, r *http.Request, body []byte, p provider.Provider, d decision, soft bool, hk string) (bool, int) {
 	switch r.URL.Path {
 	case "/v1/messages/count_tokens":
 		// The translated APIs have no counting endpoint; a rough size is enough.
 		fmt.Fprintf(rec, `{"input_tokens":%d}`, len(body)/4+1)
-		return
+		return true, http.StatusOK
 	case "/v1/messages":
 	default:
 		writeErr(rec, http.StatusNotFound, "not_found_error", "tsunagi: "+p.Name+" does not support "+r.URL.Path)
-		return
+		return true, http.StatusNotFound
 	}
 	if r.Method != http.MethodPost {
 		writeErr(rec, http.StatusMethodNotAllowed, "invalid_request_error", "tsunagi: POST only")
-		return
+		return true, http.StatusMethodNotAllowed
 	}
 	endpoint, toReq, toStream, toReply := "/responses", translate.ToResponses, translate.StreamToAnthropic, translate.ReplyToAnthropic
 	if p.Dialect == provider.OpenAIChat {
@@ -300,7 +333,7 @@ func (rt *Router) forwardTranslated(rec *recorder, r *http.Request, body []byte,
 	out, stream, err := toReq(body, d.model)
 	if err != nil {
 		writeErr(rec, http.StatusBadRequest, "invalid_request_error", "tsunagi: "+err.Error())
-		return
+		return true, http.StatusBadRequest
 	}
 	// Sign-in (plan usage) accepts streaming requests only. A client that asked
 	// for a plain reply gets one assembled from the stream.
@@ -308,12 +341,12 @@ func (rt *Router) forwardTranslated(rec *recorder, r *http.Request, body []byte,
 	if forced {
 		if out, err = translate.ForceStream(out); err != nil {
 			writeErr(rec, http.StatusInternalServerError, "api_error", "tsunagi: "+err.Error())
-			return
+			return true, http.StatusInternalServerError
 		}
 	}
 	target := strings.TrimRight(p.BaseURL, "/") + endpoint
 
-	rt.withAccounts(rec, p, d.label, func(key string) (*http.Response, error) {
+	return rt.withAccounts(rec, p, d.label, func(key string) (*http.Response, error) {
 		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target, bytes.NewReader(out))
 		if err != nil {
 			return nil, err
@@ -356,7 +389,7 @@ func (rt *Router) forwardTranslated(rec *recorder, r *http.Request, body []byte,
 		}
 		rec.Header().Set("Content-Type", "application/json")
 		rec.Write(b)
-	})
+	}, soft, hk)
 }
 
 // GuardedTransport is the transport used for catalogue providers: it refuses

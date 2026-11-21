@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/silent9669/tsunagi/internal/catalog"
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/events"
 	"github.com/silent9669/tsunagi/internal/router"
@@ -52,10 +53,7 @@ func launch(t *ui.Term, args []string) int {
 		sp.Stop(false, err.Error())
 		return 1
 	}
-	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg))
-	rt.Accounts = accountsOf
-	rt.Headroom = newHeadroom(cfg).get
-	rt.Aliases = cfg.Aliases
+	rt := newRouter(cfg, host, token)
 	if dir, err := events.Dir(); err == nil {
 		if w, err := events.NewWriter(dir); err == nil {
 			defer w.Close()
@@ -146,6 +144,35 @@ func launch(t *ui.Term, args []string) int {
 		return ee.ExitCode()
 	}
 	return 1
+}
+
+// newRouter builds the request router the same way for launch, ping and route.
+func newRouter(cfg config.Config, host, token string) *router.Router {
+	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg))
+	rt.Accounts = accountsOf
+	rt.Headroom = newHeadroom(cfg).get
+	rt.Aliases = cfg.Aliases
+	rt.Tiers = cfg.Tiers
+	rt.Combos = routerCombos(cfg.Combos)
+	rt.Caps = catalogCaps
+	return rt
+}
+
+func routerCombos(in map[string]config.Combo) map[string]router.Combo {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]router.Combo, len(in))
+	for name, c := range in {
+		out[name] = router.Combo{Targets: c.Targets, Strategy: c.Strategy}
+	}
+	return out
+}
+
+// catalogCaps adapts the catalogue's per-model info to the router's Caps.
+func catalogCaps(p, m string) (router.Caps, bool) {
+	mi, ok := catalog.Caps(p, m)
+	return router.Caps{Tools: mi.Tools, Context: mi.Context}, ok
 }
 
 func randomToken() (string, error) {

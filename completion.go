@@ -24,7 +24,7 @@ func cmdCompletion(t *ui.Term, args []string) int {
   if [ "$COMP_CWORD" -eq 1 ]; then COMPREPLY=($(compgen -W "%s --plain --no-color --no-anim" -- "$cur")); return; fi
   case "$prev" in
     login|logout|models|remove) COMPREPLY=($(compgen -W "$(tsunagi providers --names 2>/dev/null)" -- "$cur"));;
-    *) COMPREPLY=($(compgen -W "--json --all --live --as --tool --session --timeout --days --log" -- "$cur"));;
+    *) COMPREPLY=($(compgen -W "--json --all --live --as --tool --tokens --session --timeout --days --log" -- "$cur"));;
   esac
 }
 complete -F _tsunagi tsunagi
@@ -37,7 +37,7 @@ _tsunagi() {
   if (( CURRENT == 2 )); then _describe 'command' cmds; return; fi
   case $words[2] in
     login|logout|models|remove) compadd -- ${(f)"$(tsunagi providers --names 2>/dev/null)"};;
-    *) compadd -- --json --all --live --as --tool --session --timeout --days --log;;
+    *) compadd -- --json --all --live --as --tool --tokens --session --timeout --days --log;;
   esac
 }
 _tsunagi "$@"

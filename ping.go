@@ -13,7 +13,6 @@ import (
 
 	"github.com/silent9669/tsunagi/internal/config"
 	"github.com/silent9669/tsunagi/internal/events"
-	"github.com/silent9669/tsunagi/internal/router"
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
@@ -48,16 +47,13 @@ func cmdPing(t *ui.Term, args []string) int {
 		return fail(t, "%v", err)
 	}
 	host := ln.Addr().String()
-	rt := router.New(host, token, cfg.All(), cfg.Default, keyFor(cfg))
-	rt.Accounts = accountsOf
-	rt.Headroom = newHeadroom(cfg).get
+	rt := newRouter(cfg, host, token)
 	if dir, err := events.Dir(); err == nil {
 		if w, err := events.NewWriter(dir); err == nil {
 			defer w.Close()
 			rt.OnEvent = w.Write
 		}
 	}
-	rt.Aliases = cfg.Aliases
 	srv := &http.Server{Handler: rt, ReadHeaderTimeout: 10 * time.Second}
 	go srv.Serve(ln)
 	defer srv.Close()

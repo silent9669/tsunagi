@@ -7,16 +7,27 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/silent9669/tsunagi/internal/catalog"
 	"github.com/silent9669/tsunagi/internal/provider"
 )
+
+// Combo is an ordered list of provider/model targets tried in turn.
+type Combo struct {
+	Targets  []string `json:"targets"`
+	Strategy string   `json:"strategy,omitempty"` // priority (default), fastest, round_robin
+}
 
 type Config struct {
 	Default string
 	// Aliases rewrite a model name before routing, e.g. "fast" or the
 	// "claude-haiku-5-5" Claude Code uses for background work.
 	Aliases map[string]string
+	// Combos maps a model name to an ordered set of targets.
+	Combos map[string]Combo
+	// Tiers maps a Claude tier (opus, sonnet, haiku) to a model or combo.
+	Tiers map[string]string
 	// Providers are the built-in ones plus the user's own.
 	Providers []provider.Provider
 	// Catalog holds providers from the synced models.dev list that are not in
@@ -33,6 +44,8 @@ type file struct {
 	Default   string              `json:"default"`
 	Providers []provider.Provider `json:"providers"`
 	Models    map[string]string   `json:"models"`
+	Combos    map[string]Combo    `json:"combos"`
+	Tiers     map[string]string   `json:"tiers"`
 }
 
 // Path is ~/.config/tsunagi/config.json.
@@ -97,6 +110,39 @@ func Save(path string, def string, user []provider.Provider) error {
 	return os.Chmod(path, 0o600) // WriteFile keeps the mode of an existing file
 }
 
+// SetKey rewrites one top-level key of the config file, keeping every other
+// key as it was. A nil value removes the key.
+func SetKey(path, key string, v any) error {
+	doc := map[string]json.RawMessage{}
+	if b, err := os.ReadFile(path); err == nil {
+		if err := json.Unmarshal(b, &doc); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if v == nil {
+		delete(doc, key)
+	} else {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		doc[key] = b
+	}
+	b, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, append(b, '\n'), 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
+}
+
 // User returns only what the config file at path defines.
 func User(path string) (string, []provider.Provider, error) {
 	b, err := os.ReadFile(path)
@@ -153,5 +199,61 @@ func LoadFrom(path string) (Config, error) {
 			cfg.Providers = append(cfg.Providers, up)
 		}
 	}
+	comboNames := map[string]bool{}
+	for name := range f.Combos {
+		comboNames[name] = true
+	}
+	for name, c := range f.Combos {
+		if name == "" {
+			return cfg, fmt.Errorf("%s: combo name must not be empty", path)
+		}
+		if strings.HasPrefix(name, "claude-") {
+			return cfg, fmt.Errorf("%s: combo %q must not start with claude-", path, name)
+		}
+		if strings.Contains(name, "@") {
+			return cfg, fmt.Errorf("%s: combo %q must not contain @", path, name)
+		}
+		if len(c.Targets) == 0 {
+			return cfg, fmt.Errorf("%s: combo %q needs at least one target", path, name)
+		}
+		switch c.Strategy {
+		case "", "priority", "fastest", "round_robin":
+		default:
+			return cfg, fmt.Errorf("%s: combo %q: strategy must be priority, fastest or round_robin", path, name)
+		}
+		for _, ts := range c.Targets {
+			if err := checkComboTarget(ts, comboNames); err != nil {
+				return cfg, fmt.Errorf("%s: combo %q: %v", path, name, err)
+			}
+		}
+	}
+	for tier := range f.Tiers {
+		if tier != "opus" && tier != "sonnet" && tier != "haiku" {
+			return cfg, fmt.Errorf("%s: tier %q must be opus, sonnet or haiku", path, tier)
+		}
+	}
+	cfg.Combos = f.Combos
+	cfg.Tiers = f.Tiers
 	return cfg, nil
+}
+
+// checkComboTarget validates one "provider[@label]/model" combo target. Claude
+// models are not allowed as targets in v1, and a target cannot be another
+// combo (no nesting).
+func checkComboTarget(t string, comboNames map[string]bool) error {
+	i := strings.Index(t, "/")
+	if i <= 0 || i == len(t)-1 {
+		return fmt.Errorf("target %q must be provider/model", t)
+	}
+	name, _, _ := strings.Cut(t[:i], "@")
+	if name == "" {
+		return fmt.Errorf("target %q has an empty provider", t)
+	}
+	if strings.HasPrefix(t, "claude-") {
+		return fmt.Errorf("target %q must not start with claude-", t)
+	}
+	if comboNames[t] {
+		return fmt.Errorf("target %q is itself a combo", t)
+	}
+	return nil
 }

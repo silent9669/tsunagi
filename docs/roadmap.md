@@ -67,6 +67,16 @@
 - [ ] Clear error when a Provider rejects a request
 - [ ] Packaging (Homebrew tap)
 
+## Phase 5: smart routing
+
+- [x] Combos: named `provider/model` target sets with `priority`, `fastest` (EWMA time-to-headers) and `round_robin` strategies
+- [x] Capability filter from the catalogue (tool calling, context size); unknown data is permissive
+- [x] Soft fall-through between targets on retryable failures; the last target delivers as-is
+- [x] Per-target health: 3 consecutive failures open a circuit (30s, doubling to 10min, one half-open probe)
+- [x] Tiers map `opus`/`sonnet`/`haiku` to a model or combo; aliases still win
+- [x] `tsunagi route <model> [--tools] [--tokens N] [--json]` previews the plan with no network
+- [x] Events carry `via`/`why`; `watch --log` shows them
+
 ## Test checklist
 
 - Claude request through the router is byte-identical to a direct request.

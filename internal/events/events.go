@@ -28,6 +28,11 @@ type Event struct {
 	Out int `json:"out,omitempty"`
 	// Skipped counts accounts passed over (rate limited, out of quota) first.
 	Skipped int `json:"skipped,omitempty"`
+	// Via names the combo the request went through, when it did.
+	Via string `json:"via,omitempty"`
+	// Why explains how the request was routed, e.g. a tier rewrite or which
+	// combo targets were tried and skipped.
+	Why string `json:"why,omitempty"`
 }
 
 // Dir is the private state directory, created on demand.

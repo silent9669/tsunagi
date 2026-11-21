@@ -305,5 +305,11 @@ func eventLine(e events.Event) string {
 	if e.Skipped > 0 {
 		line += fmt.Sprintf(" failover=%d", e.Skipped)
 	}
+	if e.Via != "" {
+		line += " via=" + clean(e.Via)
+	}
+	if e.Why != "" {
+		line += " why=" + clean(e.Why)
+	}
 	return line
 }

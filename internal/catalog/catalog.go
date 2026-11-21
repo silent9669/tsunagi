@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/silent9669/tsunagi/internal/provider"
@@ -21,14 +22,25 @@ import (
 
 const URL = "https://models.dev/api.json"
 
+// ModelInfo is what the catalogue knows about one model's capabilities.
+// In and Out are the cost per million tokens, when models.dev lists them.
+type ModelInfo struct {
+	Tools   bool     `json:"tools,omitempty"`
+	Context int      `json:"context,omitempty"`
+	Output  int      `json:"output,omitempty"`
+	In      *float64 `json:"in,omitempty"`
+	Out     *float64 `json:"out,omitempty"`
+}
+
 // Entry is one provider, reduced to what the router needs.
 type Entry struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	API     string   `json:"api"`
-	Dialect string   `json:"dialect"`
-	Env     []string `json:"env,omitempty"`
-	Models  []string `json:"models,omitempty"`
+	ID      string               `json:"id"`
+	Name    string               `json:"name"`
+	API     string               `json:"api"`
+	Dialect string               `json:"dialect"`
+	Env     []string             `json:"env,omitempty"`
+	Models  []string             `json:"models,omitempty"`
+	Caps    map[string]ModelInfo `json:"caps,omitempty"`
 }
 
 // defaultAPI covers providers that models.dev lists without an endpoint.
@@ -45,14 +57,27 @@ func Path() string {
 	return filepath.Join(dir, "tsunagi", "models.json")
 }
 
+// modelRaw is the part of a models.dev model object tsunagi keeps.
+type modelRaw struct {
+	ToolCall bool `json:"tool_call"`
+	Limit    struct {
+		Context int `json:"context"`
+		Output  int `json:"output"`
+	} `json:"limit"`
+	Cost struct {
+		Input  *float64 `json:"input"`
+		Output *float64 `json:"output"`
+	} `json:"cost"`
+}
+
 // Parse reduces a models.dev api.json body to the providers tsunagi can use.
 func Parse(body []byte) ([]Entry, error) {
 	var raw map[string]struct {
-		Name   string                     `json:"name"`
-		API    string                     `json:"api"`
-		NPM    string                     `json:"npm"`
-		Env    []string                   `json:"env"`
-		Models map[string]json.RawMessage `json:"models"`
+		Name   string              `json:"name"`
+		API    string              `json:"api"`
+		NPM    string              `json:"npm"`
+		Env    []string            `json:"env"`
+		Models map[string]modelRaw `json:"models"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
@@ -73,8 +98,15 @@ func Parse(body []byte) ([]Entry, error) {
 			continue
 		}
 		e := Entry{ID: id, Name: p.Name, API: api, Dialect: string(d), Env: p.Env}
-		for m := range p.Models {
+		for m, mm := range p.Models {
 			e.Models = append(e.Models, m)
+			mi := ModelInfo{Tools: mm.ToolCall, Context: mm.Limit.Context, Output: mm.Limit.Output, In: mm.Cost.Input, Out: mm.Cost.Output}
+			if mi.Tools || mi.Context > 0 || mi.Output > 0 || mi.In != nil || mi.Out != nil {
+				if e.Caps == nil {
+					e.Caps = map[string]ModelInfo{}
+				}
+				e.Caps[m] = mi
+			}
 		}
 		sort.Strings(e.Models)
 		out = append(out, e)
@@ -131,6 +163,30 @@ func LoadFrom(path string) []Entry {
 		return nil
 	}
 	return f.Providers
+}
+
+// capsIndex is the cached catalogue as a provider -> model lookup, loaded
+// once per process.
+var capsIndex = sync.OnceValue(func() map[string]map[string]ModelInfo {
+	m := map[string]map[string]ModelInfo{}
+	for _, e := range Load() {
+		if len(e.Caps) == 0 {
+			continue
+		}
+		models := map[string]ModelInfo{}
+		for k, v := range e.Caps {
+			models[k] = v
+		}
+		m[e.ID] = models
+	}
+	return m
+})
+
+// Caps returns what the catalogue knows about a provider's model. ok is false
+// for providers or models it does not know.
+func Caps(provider, model string) (ModelInfo, bool) {
+	mi, ok := capsIndex()[provider][model]
+	return mi, ok
 }
 
 func (e Entry) Provider() provider.Provider {

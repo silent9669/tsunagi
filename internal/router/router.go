@@ -54,14 +54,24 @@ type Router struct {
 	Headroom func(p provider.Provider, account string) (float64, bool)
 	// Aliases rewrite a requested model name before routing.
 	Aliases map[string]string
+	// Combos maps a model name to an ordered set of targets tried in turn.
+	Combos map[string]Combo
+	// Tiers maps a Claude tier (opus, sonnet, haiku) to a model or combo.
+	Tiers map[string]string
+	// Caps reports what the catalogue knows about a provider's model.
+	Caps    func(provider, model string) (Caps, bool)
 	Key     func(p provider.Provider, account string) (string, error)
 	Claude  *url.URL
 	OnEvent func(events.Event)
 
+	// now is the clock; nil means time.Now. Tests may replace it.
+	now func() time.Time
+
 	transport http.RoundTripper
 	guarded   http.RoundTripper // for catalogue providers
 
-	pool pool
+	pool   pool
+	cstate comboState
 }
 
 // transportFor picks the transport for a provider.
@@ -117,32 +127,35 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body = b
 	}
 	model := peekModel(body)
-	resolved := model
-	if a, ok := rt.Aliases[model]; ok {
-		resolved = a
-	}
-	d := rt.route(resolved)
+	resolved, why := rt.resolve(model)
 
 	rec := &recorder{ResponseWriter: w, status: http.StatusOK}
-	name := d.provider
-	switch {
-	case name != "":
-		rt.forwardProvider(rec, r, body, model, d)
-	default:
-		name = "claude"
-		if resolved != model {
-			// An alias pointed a custom name at a Claude model.
-			nb, err := setModel(body, resolved)
-			if err != nil {
-				writeErr(rec, http.StatusBadRequest, "invalid_request_error", "tsunagi: cannot rewrite model")
-				break
+	name, via, evWhy := "", "", why
+	if combo, ok := rt.Combos[resolved]; ok {
+		via = resolved
+		name, evWhy = rt.serveCombo(rec, r, body, model, resolved, combo, why)
+	} else {
+		d := rt.route(resolved)
+		name = d.provider
+		switch {
+		case name != "":
+			rt.forwardProvider(rec, r, body, model, d, false, "")
+		default:
+			name = "claude"
+			if resolved != model {
+				// An alias or tier pointed a custom name at a Claude model.
+				nb, err := setModel(body, resolved)
+				if err != nil {
+					writeErr(rec, http.StatusBadRequest, "invalid_request_error", "tsunagi: cannot rewrite model")
+					break
+				}
+				body = nb
+				r.ContentLength = int64(len(nb))
+				r.Header.Set("Content-Length", strconv.Itoa(len(nb)))
 			}
-			body = nb
-			r.ContentLength = int64(len(nb))
-			r.Header.Set("Content-Length", strconv.Itoa(len(nb)))
-		}
-		if rec.status == http.StatusOK && !rec.wrote {
-			rt.forwardClaude(rec, r, body)
+			if rec.status == http.StatusOK && !rec.wrote {
+				rt.forwardClaude(rec, r, body)
+			}
 		}
 	}
 	rec.tap.Done()
@@ -151,6 +164,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Time: start, Provider: name, Model: model, Path: r.URL.Path,
 			Status: rec.status, Millis: time.Since(start).Milliseconds(),
 			Account: rec.account, In: rec.tap.In, Out: rec.tap.Out, Skipped: rec.skipped,
+			Via: via, Why: evWhy,
 		})
 	}
 }
