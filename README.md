@@ -48,7 +48,7 @@ curl -fsSL https://raw.githubusercontent.com/silent9669/tsunagi/main/install.sh 
 go build -o tsunagi . && mv tsunagi /usr/local/bin/
 ```
 
-Pushing a `v*` tag runs CI; when it passes, GoReleaser publishes the GitHub release and updates the Homebrew tap (`silent9669/homebrew-tap`, secret `HOMEBREW_TAP_GITHUB_TOKEN`).
+Pushing a `v*` tag runs CI; when it passes, GoReleaser publishes the GitHub release and adds the cask to the Homebrew tap (`silent9669/homebrew-tap`) through a deploy key limited to that repo (secret `HOMEBREW_TAP_DEPLOY_KEY`).
 
 ## Usage
 

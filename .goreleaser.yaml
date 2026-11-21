@@ -36,7 +36,10 @@ homebrew_casks:
     repository:
       owner: silent9669
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      branch: main
+      git:
+        url: ssh://git@github.com/silent9669/homebrew-tap.git
+        private_key: "{{ .Env.HOMEBREW_TAP_KEY_PATH }}"
     homepage: https://github.com/silent9669/tsunagi
     description: Run Claude Code against Claude and other providers from one session
     hooks:
