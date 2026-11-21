@@ -10,7 +10,7 @@
 
                         Providers
 
-                        ok  e2e/tiny-model  2ms
+                        ok  e2e/tiny-model  1ms
 
 
                         ▏ Next

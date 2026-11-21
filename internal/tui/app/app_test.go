@@ -27,6 +27,13 @@ type fakeBackend struct {
 	allowTr   map[string]bool
 	onboarded bool
 	removed   []string
+	status    []StatusRow
+	settings  SettingsView
+	tiers     []string
+	ui        []string
+	resetUI   bool
+	probe     []ProbeRow
+	plans     []string
 }
 
 func (f *fakeBackend) Snapshot() Snapshot { return f.snap }
@@ -86,6 +93,47 @@ func (f *fakeBackend) MarkOnboarded() error {
 	f.onboarded = true
 	return nil
 }
+
+func (f *fakeBackend) Status() []StatusRow { return f.status }
+
+func (f *fakeBackend) Settings() SettingsView {
+	v := f.settings
+	if v.Tiers == nil {
+		v.Tiers = map[string]string{}
+	}
+	return v
+}
+
+func (f *fakeBackend) SetTier(tier, value string) error {
+	f.tiers = append(f.tiers, tier+"="+value)
+	if f.settings.Tiers == nil {
+		f.settings.Tiers = map[string]string{}
+	}
+	if value == "" {
+		delete(f.settings.Tiers, tier)
+	} else {
+		f.settings.Tiers[tier] = value
+	}
+	return nil
+}
+
+func (f *fakeBackend) SetUI(look, theme string, anim bool) error {
+	f.ui = append(f.ui, look+"/"+theme)
+	f.settings.Look, f.settings.Theme, f.settings.Anim = look, theme, anim
+	return nil
+}
+
+func (f *fakeBackend) ResetUI() error {
+	f.resetUI = true
+	return nil
+}
+
+func (f *fakeBackend) Plan(model string) []string {
+	f.plans = append(f.plans, model)
+	return []string{model, "free/auto  ok  opencode/big-pickle"}
+}
+
+func (f *fakeBackend) ProbeFree(ctx context.Context) ([]ProbeRow, error) { return f.probe, nil }
 
 func (f *fakeBackend) ProbeLocals(ctx context.Context) <-chan map[string]bool {
 	return nil // no probe in tests

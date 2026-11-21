@@ -99,4 +99,5 @@
 - [x] Four embedded agent skills (`internal/skills/content/*/SKILL.md`) covering hand-off, models, setup and free-model safety
 - [x] `tsunagi skills` status/install/remove for the `claude` (`~/.claude/skills`) and `agents` (`~/.agents/skills`) targets, manifest-tracked at `~/.config/tsunagi/skills.json`
 - [x] `tsunagi uninstall [--keys] [--config] [--yes]` removes skills, the tsunagi cache subdir, optionally keychain entries/ChatGPT sign-ins and the config dir; dry-run exits 2 on non-TTY
-- [ ] Menu/wizard/settings screens calling the skills engine (next UI step)
+- [x] Interface remake: Charm v2 app (`internal/tui/app`), intro, main menu (Start Claude Code, Providers, Skills, Free models, Settings, Status), first-run wizard (`tsunagi setup` reopens it), Settings (tier routing incl. Haiku to free/auto, route preview, look/theme/animation applied live, reset, rerun setup); real tmux pass in `make e2e-ui`, captures in `docs/ui/captures`
+- [ ] Watch dashboard, launch card and the plain commands still use the old `internal/ui` look; restyle and drop the old splash

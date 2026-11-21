@@ -563,17 +563,27 @@ func cmdFreeCombo(t *ui.Term, args []string) int {
 
 // probeAll runs the same probing `free probe` does, without printing a table.
 func probeAll(t *ui.Term, cfg config.Config, models map[string][]free.ModelCand) int {
+	if _, err := probeKeyed(cfg, models); err != nil {
+		return fail(t, "%v", err)
+	}
+	return 0
+}
+
+// probeKeyed probes every candidate model of the keyed free providers, saves
+// the results and returns them in probing order.
+func probeKeyed(cfg config.Config, models map[string][]free.ModelCand) ([]free.Result, error) {
 	cands := probeCandidates(cfg, models, "")
 	if len(cands) == 0 {
-		return 0
+		return nil, nil
 	}
 	host, token, stop, err := probeRouter(cfg)
 	if err != nil {
-		return fail(t, "%v", err)
+		return nil, err
 	}
 	defer stop()
 	client := &http.Client{Timeout: 2 * time.Minute}
 	probes := free.LoadProbes()
+	var out []free.Result
 	for _, pc := range cands {
 		for _, m := range pc.Models {
 			target := pc.Entry.ID + "/" + m.ID
@@ -588,12 +598,10 @@ func probeAll(t *ui.Term, cfg config.Config, models map[string][]free.ModelCand)
 				r.Err = fmt.Sprintf("HTTP %d", status)
 			}
 			probes[target] = r
+			out = append(out, r)
 		}
 	}
-	if err := free.SaveProbes(probes); err != nil {
-		return fail(t, "%v", err)
-	}
-	return 0
+	return out, free.SaveProbes(probes)
 }
 
 // writeAutoCombo merges free/auto into the combos map and writes it through

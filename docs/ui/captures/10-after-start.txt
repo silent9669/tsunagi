@@ -1,4 +1,4 @@
-  [ok] router     127.0.0.1:57466
+  [ok] router     127.0.0.1:58073
   [ok] claude     <claude-stub>
   [ok] providers  no keys yet. Run: tsunagi login opencode
 

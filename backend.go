@@ -82,6 +82,10 @@ func (backend) Snapshot() app.Snapshot {
 	if c, ok := cfg.Combos["free/auto"]; ok && c.Auto {
 		snap.FreeTargets = c.Targets
 	}
+	snap.AllowTrains = map[string]bool{}
+	for _, n := range cfg.Free.AllowTrains {
+		snap.AllowTrains[n] = true
+	}
 	snap.Skills = skills.Status()
 	return snap
 }
@@ -442,4 +446,119 @@ func runImport(cfg config.Config) ([]provider.Provider, map[string]string, []imp
 		}
 	}
 	return adds, keys, rows, result, nil
+}
+
+// Status runs the doctor checks.
+func (backend) Status() []app.StatusRow {
+	var out []app.StatusRow
+	for _, r := range doctorChecks() {
+		out = append(out, app.StatusRow{Name: r.name, OK: r.ok, Detail: r.detail})
+	}
+	return out
+}
+
+// Settings returns the routing and appearance values the Settings screen edits.
+func (backend) Settings() app.SettingsView {
+	v := app.SettingsView{Tiers: map[string]string{}, Look: "braille", Theme: "mono", Anim: true}
+	cfg, err := config.Load()
+	if err != nil {
+		return v
+	}
+	for k, t := range cfg.Tiers {
+		v.Tiers[k] = t
+	}
+	for name := range cfg.Combos {
+		v.Combos = append(v.Combos, name)
+	}
+	sort.Strings(v.Combos)
+	if cfg.UI.Look != "" {
+		v.Look = cfg.UI.Look
+	}
+	if cfg.UI.Theme != "" {
+		v.Theme = cfg.UI.Theme
+	}
+	if cfg.UI.Anim != nil {
+		v.Anim = *cfg.UI.Anim
+	}
+	return v
+}
+
+// SetTier points a Claude tier at a model or combo; an empty value clears it.
+func (backend) SetTier(tier, value string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	tiers := map[string]string{}
+	for k, v := range cfg.Tiers {
+		tiers[k] = v
+	}
+	if value == "" {
+		delete(tiers, tier)
+	} else {
+		tiers[tier] = value
+	}
+	if len(tiers) == 0 {
+		return config.SetKey(config.Path(), "tiers", nil)
+	}
+	return config.SetKey(config.Path(), "tiers", tiers)
+}
+
+// SetUI saves the look, theme and animation switch.
+func (backend) SetUI(look, theme string, anim bool) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	ui := cfg.UI
+	ui.Look, ui.Theme, ui.Anim = look, theme, &anim
+	return config.SetKey(config.Path(), "ui", ui)
+}
+
+// ResetUI clears the saved appearance and keeps the onboarding flag.
+func (backend) ResetUI() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	return config.SetKey(config.Path(), "ui", config.UIConfig{Onboarded: cfg.UI.Onboarded})
+}
+
+// Plan returns what the router would do with a tool-using request for model.
+func (backend) Plan(model string) []string {
+	cfg, err := config.Load()
+	if err != nil {
+		return []string{err.Error()}
+	}
+	plan := newRouter(cfg, "", "").Plan(model, router.Need{Tools: true})
+	lines := []string{model}
+	if plan.Resolved != model {
+		lines = append(lines, "as "+plan.Resolved)
+	}
+	if plan.Why != "" {
+		lines = append(lines, plan.Why)
+	}
+	for _, s := range plan.Steps {
+		line := s.Target + "  " + s.Status
+		if s.Reason != "" {
+			line += "  " + s.Reason
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+// ProbeFree probes the keyed free providers' models.
+func (backend) ProbeFree(ctx context.Context) ([]app.ProbeRow, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+	snap, _ := free.Ensure(ctx, &http.Client{Timeout: 20 * time.Second})
+	rs, err := probeKeyed(cfg, freeModels(ctx, cfg, snap))
+	var out []app.ProbeRow
+	for _, r := range rs {
+		out = append(out, app.ProbeRow{Target: r.Target, OK: r.OK, Tools: r.Tools, Millis: r.Millis, Err: r.Err})
+	}
+	return out, err
 }

@@ -35,12 +35,38 @@ type ProviderRow struct {
 	FreeEntry bool   // Name matches a free.Registry entry
 }
 
+// StatusRow is one health check line in the Status screen.
+type StatusRow struct {
+	Name   string
+	OK     bool
+	Detail string
+}
+
+// ProbeRow is one free-model probe result.
+type ProbeRow struct {
+	Target string
+	OK     bool
+	Tools  bool
+	Millis int64
+	Err    string
+}
+
+// SettingsView is the editable part of the config the Settings screen shows.
+type SettingsView struct {
+	Tiers  map[string]string // opus|sonnet|haiku -> model or combo; absent = Claude
+	Combos []string          // combo names a tier can point at, sorted
+	Look   string
+	Theme  string
+	Anim   bool
+}
+
 // Snapshot is the world as the screens see it; Backend.Snapshot builds it.
 type Snapshot struct {
 	ClaudePath  string // "" when claude is not in PATH
 	ConfigPath  string
 	Providers   []ProviderRow
 	FreeTargets []string // free/auto combo targets, nil when unset
+	AllowTrains map[string]bool
 	Skills      []skills.StatusEntry
 	Onboarded   bool
 }
@@ -65,6 +91,13 @@ type Backend interface {
 	// ProbeLocals reports which local providers answer, once, in the
 	// background. A nil channel means "no probe".
 	ProbeLocals(ctx context.Context) <-chan map[string]bool
+	Status() []StatusRow
+	Settings() SettingsView
+	SetTier(tier, value string) error
+	SetUI(look, theme string, anim bool) error
+	ResetUI() error
+	Plan(model string) []string
+	ProbeFree(ctx context.Context) ([]ProbeRow, error)
 }
 
 // Action is what the app asks main to do when it exits.
@@ -188,8 +221,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, a.setScreen(newWizardReady(a))
 		}
 		return a, a.setScreen(a.menuScreen())
-	case skillsBackMsg:
+	case skillsBackMsg, screenBackMsg:
+		a.refresh()
 		return a, a.setScreen(a.menuScreen())
+	case rerunSetupMsg:
+		a.wizard = true
+		return a, a.setScreen(newWizardWelcome(a))
 	case wizPickMsg:
 		return a, a.onWizPick(v.value)
 	case wizSkipMsg:
@@ -228,6 +265,12 @@ func (a *App) onMenuPick(v string) tea.Cmd {
 		return a.setScreen(newProvidersScreen(a, a.wizard))
 	case "skills":
 		return a.setScreen(newSkillsScreen(a, a.wizard))
+	case "free":
+		return a.setScreen(newFreeScreen(a))
+	case "settings":
+		return a.setScreen(newSettingsScreen(a))
+	case "status":
+		return a.setScreen(newStatusScreen(a))
 	}
 	a.action = Quit
 	return tea.Quit
@@ -410,6 +453,10 @@ func (a *App) menuItems() []tui.Item {
 			ready++
 		}
 	}
+	freeTag := "-"
+	if n := len(a.snap.FreeTargets); n > 0 {
+		freeTag = itoa(n) + " ready"
+	}
 	skillTag := "-"
 	if n := len(a.snap.Skills); n > 0 {
 		full := map[string]int{}
@@ -433,6 +480,9 @@ func (a *App) menuItems() []tui.Item {
 		{Label: "Start Claude Code", Value: "start", Tag: claude, Disabled: a.snap.ClaudePath == ""},
 		{Label: "Providers", Value: "providers", Tag: itoa(ready) + " ready"},
 		{Label: "Skills", Value: "skills", Tag: skillTag},
+		{Label: "Free models", Value: "free", Tag: freeTag},
+		{Label: "Settings", Value: "settings"},
+		{Label: "Status", Value: "status"},
 		{Label: "Quit", Value: "quit"},
 	}
 }

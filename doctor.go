@@ -15,16 +15,38 @@ import (
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
+// doctorRow is one check's outcome; detail is the good news or the fix.
+type doctorRow struct {
+	name, detail string
+	ok           bool
+}
+
 // cmdDoctor checks the things a launch depends on and says what to fix.
 func cmdDoctor(t *ui.Term) int {
 	bad := 0
-	check := func(ok bool, name, good, fix string) {
-		if ok {
-			t.Printf("  %s %-10s %s\n", t.Paint(ui.Mint, "[ok]"), name, t.Dim(good))
-			return
+	for _, r := range doctorChecks() {
+		if r.ok {
+			t.Printf("  %s %-10s %s\n", t.Paint(ui.Mint, "[ok]"), r.name, t.Dim(r.detail))
+			continue
 		}
 		bad++
-		t.Printf("  %s %-10s %s\n", t.Paint(ui.Rose, "[!!]"), name, fix)
+		t.Printf("  %s %-10s %s\n", t.Paint(ui.Rose, "[!!]"), r.name, r.detail)
+	}
+	if bad > 0 {
+		return 1
+	}
+	return 0
+}
+
+// doctorChecks runs every check and returns the rows in display order.
+func doctorChecks() []doctorRow {
+	var rows []doctorRow
+	check := func(ok bool, name, good, fix string) {
+		if ok {
+			rows = append(rows, doctorRow{name, good, true})
+			return
+		}
+		rows = append(rows, doctorRow{name, fix, false})
 	}
 
 	path, err := exec.LookPath("claude")
@@ -86,10 +108,7 @@ func cmdDoctor(t *ui.Term) int {
 	}
 	check(err == nil, "slash", strings.Join(slash.Names()[:3], " ")+" ...", errText(err)+" (set TSUNAGI_NO_PLUGIN=1 to ignore)")
 
-	if bad > 0 {
-		return 1
-	}
-	return 0
+	return rows
 }
 
 func errText(err error) string {

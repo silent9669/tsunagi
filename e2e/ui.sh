@@ -83,6 +83,32 @@ chk 06-verify-result "e2e/"
 chk 08-skills-result "claude/tsunagi"
 chk 10-after-start "STUB-CLAUDE-OK"
 
+# status, free and settings screens in one session (same HOME: onboarded -> menu)
+M=tsunagi-e2e-more
+mcap() { tmux capture-pane -p -t "$M" > "$OUT/$1.txt"; }
+mkey() { tmux send-keys -t "$M" "$1"; sleep "${2:-0.4}"; }
+tmux new-session -d -s "$M" -x 100 -y 30 \
+  "env HOME='$HOME' TSUNAGI_E2E_DIR='$E2E' TSUNAGI_E2E_CLAUDE='$E2E/claude-stub' TSUNAGI_NO_ANIM=1 '$T'"
+sleep 1.2
+mkey 6;  mcap 12-status
+mkey Enter
+mkey 4;  mcap 13-free
+mkey 3;  mcap 14-free-policy
+mkey Escape; mkey Escape
+mkey 5;  mcap 15-settings
+mkey 1;  mcap 16-routing
+mkey Escape
+mkey 2;  mkey 1 0.6; mcap 17-appearance
+mkey Escape; mkey Escape; mkey q 0.6
+tmux kill-session -t "$M" 2>/dev/null || true
+chk 12-status "claude"
+chk 13-free "Build free/auto"
+chk 15-settings "Appearance"
+chk 16-routing "Haiku"
+chk 17-appearance "dither"
+grep -q '"look": "dither"' "$HOME/.config/tsunagi/config.json" \
+  || { echo "look not saved to config.json"; ok=0; }
+
 # menu-only captures at the other sizes (same HOME: onboarded -> menu)
 for sz in "100 30" "60 20" "40 12"; do
   set -- $sz; W=$1; H=$2
@@ -104,6 +130,8 @@ done
 
 # captures are committed: drop temp paths and the per-run router address/token
 sed -i '' -E 's#/[^ ]*/claude-stub#<claude-stub>#; s#127\.0\.0\.1:[0-9]+/[0-9a-f]{32}#127.0.0.1:PORT/TOKEN#' "$OUT/10-after-start.txt" "$OUT/11-exit.txt"
+
+sed -i '' -E 's#/var/folders/[^ ]*#<tmp>#; s#/[^ ]*/bin/claude#<claude>#' "$OUT/12-status.txt"
 
 # terminal state: stty before/after must match
 diff "$OUT/stty-before.txt" "$OUT/stty-after.txt" >/dev/null \

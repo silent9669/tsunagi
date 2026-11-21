@@ -55,7 +55,9 @@ Pushing a `v*` tag runs CI; when it passes, GoReleaser publishes the GitHub rele
 ```bash
 tsunagi login opencode        # key is typed hidden, saved in the keychain
 tsunagi login chatgpt         # or sign in with your ChatGPT plan (browser, no key)
-tsunagi                       # splash, starts the router, launches claude through it
+tsunagi                       # menu: Start Claude Code, Providers, Skills, Free models, Settings, Status (first run: setup wizard)
+tsunagi setup                 # run the setup wizard again
+tsunagi claude [args]         # skip the menu: start the router and launch claude with args
 tsunagi import opencode       # reuse the providers and API keys you set up in opencode
 tsunagi sync                  # fetch the models.dev catalogue (about 300 providers)
 tsunagi providers [--all]     # providers and key status
