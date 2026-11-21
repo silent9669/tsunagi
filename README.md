@@ -36,10 +36,23 @@ tsunagi is a small local router. Claude Code talks to it, and it forwards each r
 
 See [docs/design.md](docs/design.md) for the router, the model mapping and the plan hand-off loop. Read [docs/policy.md](docs/policy.md) before using it: routing Claude Code through a gateway is unsupported by Anthropic and carries account risk.
 
+## Install
+
+macOS only (arm64 and amd64).
+
+```bash
+brew install silent9669/tap/tsunagi
+# or
+curl -fsSL https://raw.githubusercontent.com/silent9669/tsunagi/main/install.sh | sh
+# or from source (Go 1.27+)
+go build -o tsunagi . && mv tsunagi /usr/local/bin/
+```
+
+Pushing a `v*` tag runs CI; when it passes, GoReleaser publishes the GitHub release and updates the Homebrew tap (`silent9669/homebrew-tap`, secret `HOMEBREW_TAP_GITHUB_TOKEN`).
+
 ## Usage
 
 ```bash
-go build -o tsunagi . && mv tsunagi /usr/local/bin/   # macOS, Go 1.27+
 tsunagi login opencode        # key is typed hidden, saved in the keychain
 tsunagi login chatgpt         # or sign in with your ChatGPT plan (browser, no key)
 tsunagi                       # splash, starts the router, launches claude through it

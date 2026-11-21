@@ -65,7 +65,8 @@
 - [x] Model aliases (`models` in config.json) rewrite any model name before routing, including Claude Code's background haiku requests
 - [x] `tsunagi ping [--tool] <model>` sends one real request through the router; verified against OpenRouter (passthrough, tool call) with a real key
 - [ ] Clear error when a Provider rejects a request
-- [ ] Packaging (Homebrew tap)
+- [x] Packaging config: GoReleaser (`.goreleaser.yaml`, validated and snapshot-built locally), CI + tag release (`.github/workflows/ci.yml`), Homebrew cask, `install.sh`
+- [ ] First real release: create `silent9669/homebrew-tap`, add the `HOMEBREW_TAP_GITHUB_TOKEN` secret, push a `v*` tag, check `brew install` and `install.sh` end to end
 
 ## Phase 5: smart routing
 

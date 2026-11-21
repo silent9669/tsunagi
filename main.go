@@ -10,7 +10,7 @@ import (
 	"github.com/silent9669/tsunagi/internal/ui"
 )
 
-const version = "0.2.0"
+var version = "dev"
 
 func main() { os.Exit(run(os.Args[1:])) }
 

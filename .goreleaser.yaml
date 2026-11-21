@@ -1,0 +1,45 @@
+version: 2
+
+project_name: tsunagi
+
+builds:
+  - id: tsunagi
+    main: .
+    binary: tsunagi
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin]
+    goarch: [arm64, amd64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: tsunagi
+    formats: [tar.gz]
+    name_template: "tsunagi_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [README.md]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true
+
+release:
+  github:
+    owner: silent9669
+    name: tsunagi
+
+homebrew_casks:
+  - name: tsunagi
+    repository:
+      owner: silent9669
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/silent9669/tsunagi
+    description: Run Claude Code against Claude and other providers from one session
+    hooks:
+      post:
+        install_steps: |
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/tsunagi"]
